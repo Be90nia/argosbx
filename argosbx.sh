@@ -48,7 +48,7 @@ echo "主脚本：bash <(curl -Ls https://raw.githubusercontent.com/yonggekkk/ar
 echo "显示节点信息命令：agsbx list 【或者】 主脚本 list"
 echo "重置变量组命令：自定义各种协议变量组 agsbx rep 【或者】 自定义各种协议变量组 主脚本 rep"
 echo "更新脚本命令：原已安装的自定义各种协议变量组 主脚本 rep"
-echo "更新Xray或Singbox内核命令：agsbx upx或ups 【或者】 主脚本 upx或ups"
+echo "更新Xray、Singbox或Cloudflared内核命令：agsbx upx、ups或upc 【或者】 主脚本 upx、ups或upc"
 echo "重启脚本命令：agsbx res 【或者】 主脚本 res"
 echo "卸载脚本命令：agsbx del 【或者】 主脚本 del"
 echo "双栈VPS显示IPv4/IPv6节点配置命令：ippz=4或6 agsbx list 【或者】 ippz=4或6 主脚本 list"
@@ -158,16 +158,49 @@ case "$warp" in *x6*) xryx='ForceIPv6' ;; *x*) xryx='ForceIPv4v6' ;; *) xryx='Fo
 fi
 }
 upxray(){
-url="https://github.com/yonggekkk/argosbx/releases/download/argosbx/xray-$cpu"; out="$HOME/agsbx/xray"; (command -v curl >/dev/null 2>&1 && curl -Lo "$out" -# --retry 2 "$url") || (command -v wget>/dev/null 2>&1 && timeout 3 wget -O "$out" --tries=2 "$url")
-chmod +x "$HOME/agsbx/xray"
+xrarch="64"
+[ "$cpu" = "arm64" ] && xrarch="arm64-v8a"
+xrcore=$({ command -v curl >/dev/null 2>&1 && curl -Ls https://data.jsdelivr.com/v1/package/gh/XTLS/Xray-core || wget -qO- https://data.jsdelivr.com/v1/package/gh/XTLS/Xray-core; } | grep -Eo '"[0-9.]+"' | sed -n 1p | tr -d '",')
+echo "下载Xray官方最新正式版内核：$xrcore"
+tmpdir=$(mktemp -d)
+url="https://github.com/XTLS/Xray-core/releases/download/v${xrcore}/Xray-linux-${xrarch}.zip"
+out="$tmpdir/xray.zip"
+(command -v curl >/dev/null 2>&1 && curl -Lo "$out" -# --retry 2 "$url") || (command -v wget >/dev/null 2>&1 && timeout 30 wget -O "$out" --tries=2 "$url")
+if [ -f "$out" ]; then
+  command -v unzip >/dev/null 2>&1 || { command -v apk >/dev/null 2>&1 && apk add --no-cache unzip >/dev/null 2>&1; } || { command -v apt >/dev/null 2>&1 && apt install -y unzip >/dev/null 2>&1; }
+  unzip -o "$out" -d "$tmpdir/xray_extract" >/dev/null 2>&1
+  mv "$tmpdir/xray_extract/xray" "$HOME/agsbx/xray" 2>/dev/null
+  chmod +x "$HOME/agsbx/xray"
+  rm -rf "$tmpdir"
+fi
 sbcore=$("$HOME/agsbx/xray" version 2>/dev/null | awk '/^Xray/{print $2}')
 echo "已安装Xray正式版内核：$sbcore"
 }
 upsingbox(){
-url="https://github.com/yonggekkk/argosbx/releases/download/argosbx/sing-box-$cpu"; out="$HOME/agsbx/sing-box"; (command -v curl>/dev/null 2>&1 && curl -Lo "$out" -# --retry 2 "$url") || (command -v wget>/dev/null 2>&1 && timeout 3 wget -O "$out" --tries=2 "$url")
-chmod +x "$HOME/agsbx/sing-box"
+sbarch="$cpu"
+sbcore=$({ command -v curl >/dev/null 2>&1 && curl -Ls https://data.jsdelivr.com/v1/package/gh/SagerNet/sing-box || wget -qO- https://data.jsdelivr.com/v1/package/gh/SagerNet/sing-box; } | grep -Eo '"[0-9.]+"' | sed -n 1p | tr -d '",')
+echo "下载Sing-box官方最新正式版内核：$sbcore"
+tmpdir=$(mktemp -d)
+url="https://github.com/SagerNet/sing-box/releases/download/v${sbcore}/sing-box-${sbcore}-linux-${sbarch}.tar.gz"
+out="$tmpdir/sing-box.tar.gz"
+(command -v curl >/dev/null 2>&1 && curl -Lo "$out" -# --retry 2 "$url") || (command -v wget >/dev/null 2>&1 && timeout 30 wget -O "$out" --tries=2 "$url")
+if [ -f "$out" ]; then
+  tar -xzf "$out" -C "$tmpdir" >/dev/null 2>&1
+  mv "$tmpdir/sing-box-${sbcore}-linux-${sbarch}/sing-box" "$HOME/agsbx/sing-box" 2>/dev/null
+  chmod +x "$HOME/agsbx/sing-box"
+  rm -rf "$tmpdir"
+fi
 sbcore=$("$HOME/agsbx/sing-box" version 2>/dev/null | awk '/version/{print $NF}')
 echo "已安装Sing-box正式版内核：$sbcore"
+}
+upcloudflared(){
+argocore=$({ command -v curl >/dev/null 2>&1 && curl -Ls https://data.jsdelivr.com/v1/package/gh/cloudflare/cloudflared || wget -qO- https://data.jsdelivr.com/v1/package/gh/cloudflare/cloudflared; } | grep -Eo '"[0-9.]+"' | sed -n 1p | tr -d '",')
+echo "下载Cloudflared官方最新正式版内核：$argocore"
+url="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-$cpu"
+out="$HOME/agsbx/cloudflared"
+(command -v curl >/dev/null 2>&1 && curl -Lo "$out" -# --retry 2 "$url") || (command -v wget >/dev/null 2>&1 && timeout 30 wget -O "$out" --tries=2 "$url")
+chmod +x "$HOME/agsbx/cloudflared"
+echo "已安装Cloudflared正式版内核：$argocore"
 }
 insuuid(){
 if [ -z "$uuid" ] && [ ! -e "$HOME/agsbx/uuid" ]; then
@@ -992,10 +1025,7 @@ if [ -n "$argo" ] && [ -n "$vmag" ]; then
 echo
 echo "=========启用Cloudflared-argo内核========="
 if [ ! -e "$HOME/agsbx/cloudflared" ]; then
-argocore=$({ command -v curl >/dev/null 2>&1 && curl -Ls https://data.jsdelivr.com/v1/package/gh/cloudflare/cloudflared || wget -qO- https://data.jsdelivr.com/v1/package/gh/cloudflare/cloudflared; } | grep -Eo '"[0-9.]+"' | sed -n 1p | tr -d '",')
-echo "下载Cloudflared-argo最新正式版内核：$argocore"
-url="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-$cpu"; out="$HOME/agsbx/cloudflared"; (command -v curl>/dev/null 2>&1 && curl -Lo "$out" -# --retry 2 "$url") || (command -v wget>/dev/null 2>&1 && timeout 3 wget -O "$out" --tries=2 "$url")
-chmod +x "$HOME/agsbx/cloudflared"
+upcloudflared
 fi
 if [ "$argo" = "vmpt" ]; then argoport=$(cat "$HOME/agsbx/port_vm_ws" 2>/dev/null); echo "Vmess" > "$HOME/agsbx/vlvm"; elif [ "$argo" = "vwpt" ]; then argoport=$(cat "$HOME/agsbx/port_vw" 2>/dev/null); echo "Vless" > "$HOME/agsbx/vlvm"; fi; echo "$argoport" > "$HOME/agsbx/argoport.log"
 if [ -n "${ARGO_DOMAIN}" ] && [ -n "${ARGO_AUTH}" ]; then
@@ -2178,6 +2208,19 @@ elif [ "$1" = "ups" ]; then
 for P in /proc/[0-9]*; do [ -L "$P/exe" ] || continue; TARGET=$(readlink -f "$P/exe" 2>/dev/null) || continue; case "$TARGET" in *"/agsbx/s"*) kill "$(basename "$P")" 2>/dev/null ;; esac; done
 kill -15 $(pgrep -f 'agsbx/s' 2>/dev/null) >/dev/null 2>&1
 upsingbox && sbrestart && echo "Sing-box内核更新完成" && sleep 2 && cip
+exit
+elif [ "$1" = "upc" ]; then
+for P in /proc/[0-9]*; do [ -L "$P/exe" ] || continue; TARGET=$(readlink -f "$P/exe" 2>/dev/null) || continue; case "$TARGET" in *"/agsbx/c"*) kill "$(basename "$P")" 2>/dev/null ;; esac; done
+kill -15 $(pgrep -f 'agsbx/c' 2>/dev/null) >/dev/null 2>&1
+upcloudflared && echo "Cloudflared内核更新完成" && sleep 2
+if [ -e "$HOME/agsbx/sbargotoken.log" ]; then
+if pidof systemd >/dev/null 2>&1; then
+systemctl restart argo >/dev/null 2>&1
+elif [ -f "/etc/init.d/argo" ]; then
+/etc/init.d/argo restart >/dev/null 2>&1
+fi
+fi
+cip
 exit
 elif [ "$1" = "res" ]; then
 for P in /proc/[0-9]*; do
