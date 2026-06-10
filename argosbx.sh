@@ -1,5 +1,7 @@
 #!/bin/sh
 export LANG=en_US.UTF-8
+
+# ===== S1: 全局变量与初始化 =====
 [ -z "${vlpt+x}" ] || vlp=yes
 [ -z "${vmpt+x}" ] || { vmp=yes; vmag=yes; }
 [ -z "${vwpt+x}" ] || { vwp=yes; vmag=yes; }
@@ -41,7 +43,7 @@ export warp=${warp:-''}
 export name=${name:-''}
 export oap=${oap:-''}
 v46url="https://icanhazip.com"
-agsbxurl="https://raw.githubusercontent.com/yonggekkk/argosbx/main/argosbx.sh"
+agsbxurl="https://raw.githubusercontent.com/Be90nia/argosbx/main/argosbx.sh"
 showmode(){
 echo "Argosbx脚本一键SSH命令生器在线网址：https://yonggekkk.github.io/argosbx/"
 echo "主脚本：bash <(curl -Ls https://raw.githubusercontent.com/yonggekkk/argosbx/main/argosbx.sh) 或 bash <(wget -qO- https://raw.githubusercontent.com/yonggekkk/argosbx/main/argosbx.sh)"
@@ -55,6 +57,47 @@ echo "双栈VPS显示IPv4/IPv6节点配置命令：ippz=4或6 agsbx list 【或�
 echo "---------------------------------------------------------"
 echo
 }
+
+# ===== S2: 工具函数库 =====
+
+# dl url file — curl/wget双轨下载到文件
+dl() {
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL -o "$2" --retry 2 "$1" && return 0
+  fi
+  if command -v wget >/dev/null 2>&1; then
+    wget -O "$2" --tries=2 "$1" && return 0
+  fi
+  return 1
+}
+
+# dl_s url — curl/wget双轨下载到stdout
+dl_s() {
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "$1" 2>/dev/null && return 0
+  fi
+  if command -v wget >/dev/null 2>&1; then
+    wget -qO- "$1" 2>/dev/null && return 0
+  fi
+  return 1
+}
+
+# alloc_port portvar — 端口分配(随机/指定/持久化)
+alloc_port() {
+  local _apvar="$1"
+  local _apval
+  eval _apval="\$$_apvar"
+  local _apfile="$HOME/agsbx/$_apvar"
+  if [ -z "$_apval" ] && [ ! -e "$_apfile" ]; then
+    eval "$_apvar=\$(shuf -i 10000-65535 -n 1)"
+    eval "echo \"\$$_apvar\" > \"$_apfile\""
+  elif [ -n "$_apval" ]; then
+    eval "echo \"\$$_apvar\" > \"$_apfile\""
+  fi
+  eval "$_apvar=\$(cat \"$_apfile\")"
+}
+
+# ===== S3: 系统初始化 =====
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 echo "甬哥Github项目 ：github.com/yonggekkk"
 echo "甬哥Blogger博客 ：ygkkk.blogspot.com"
@@ -157,15 +200,17 @@ case "$warp" in *s6*|x) sbyx='ipv6_only' ;; *) sbyx='prefer_ipv4' ;; esac
 case "$warp" in *x6*) xryx='ForceIPv6' ;; *x*) xryx='ForceIPv4v6' ;; *) xryx='ForceIPv6v4' ;; esac
 fi
 }
+
+# ===== S4: 内核下载 =====
 upxray(){
 xrarch="64"
 [ "$cpu" = "arm64" ] && xrarch="arm64-v8a"
-xrcore=$({ command -v curl >/dev/null 2>&1 && curl -Ls https://data.jsdelivr.com/v1/package/gh/XTLS/Xray-core || wget -qO- https://data.jsdelivr.com/v1/package/gh/XTLS/Xray-core; } | grep -Eo '"[0-9.]+"' | sed -n 1p | tr -d '",')
+xrcore=$(dl_s "https://data.jsdelivr.com/v1/package/gh/XTLS/Xray-core" | grep -Eo '"[0-9.]+"' | sed -n 1p | tr -d '",')
 echo "下载Xray官方最新正式版内核：$xrcore"
 tmpdir=$(mktemp -d)
 url="https://github.com/XTLS/Xray-core/releases/download/v${xrcore}/Xray-linux-${xrarch}.zip"
 out="$tmpdir/xray.zip"
-(command -v curl >/dev/null 2>&1 && curl -Lo "$out" -# --retry 2 "$url") || (command -v wget >/dev/null 2>&1 && timeout 30 wget -O "$out" --tries=2 "$url")
+dl "$url" "$out"
 if [ -f "$out" ]; then
   command -v unzip >/dev/null 2>&1 || { command -v apk >/dev/null 2>&1 && apk add --no-cache unzip >/dev/null 2>&1; } || { command -v apt >/dev/null 2>&1 && apt install -y unzip >/dev/null 2>&1; }
   unzip -o "$out" -d "$tmpdir/xray_extract" >/dev/null 2>&1
@@ -178,12 +223,12 @@ echo "已安装Xray正式版内核：$sbcore"
 }
 upsingbox(){
 sbarch="$cpu"
-sbcore=$({ command -v curl >/dev/null 2>&1 && curl -Ls https://data.jsdelivr.com/v1/package/gh/SagerNet/sing-box || wget -qO- https://data.jsdelivr.com/v1/package/gh/SagerNet/sing-box; } | grep -Eo '"[0-9.]+"' | sed -n 1p | tr -d '",')
+sbcore=$(dl_s "https://data.jsdelivr.com/v1/package/gh/SagerNet/sing-box" | grep -Eo '"[0-9.]+"' | sed -n 1p | tr -d '",')
 echo "下载Sing-box官方最新正式版内核：$sbcore"
 tmpdir=$(mktemp -d)
 url="https://github.com/SagerNet/sing-box/releases/download/v${sbcore}/sing-box-${sbcore}-linux-${sbarch}.tar.gz"
 out="$tmpdir/sing-box.tar.gz"
-(command -v curl >/dev/null 2>&1 && curl -Lo "$out" -# --retry 2 "$url") || (command -v wget >/dev/null 2>&1 && timeout 30 wget -O "$out" --tries=2 "$url")
+dl "$url" "$out"
 if [ -f "$out" ]; then
   tar -xzf "$out" -C "$tmpdir" >/dev/null 2>&1
   mv "$tmpdir/sing-box-${sbcore}-linux-${sbarch}/sing-box" "$HOME/agsbx/sing-box" 2>/dev/null
@@ -194,14 +239,16 @@ sbcore=$("$HOME/agsbx/sing-box" version 2>/dev/null | awk '/version/{print $NF}'
 echo "已安装Sing-box正式版内核：$sbcore"
 }
 upcloudflared(){
-argocore=$({ command -v curl >/dev/null 2>&1 && curl -Ls https://data.jsdelivr.com/v1/package/gh/cloudflare/cloudflared || wget -qO- https://data.jsdelivr.com/v1/package/gh/cloudflare/cloudflared; } | grep -Eo '"[0-9.]+"' | sed -n 1p | tr -d '",')
+argocore=$(dl_s "https://data.jsdelivr.com/v1/package/gh/cloudflare/cloudflared" | grep -Eo '"[0-9.]+"' | sed -n 1p | tr -d '",')
 echo "下载Cloudflared官方最新正式版内核：$argocore"
 url="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-$cpu"
 out="$HOME/agsbx/cloudflared"
-(command -v curl >/dev/null 2>&1 && curl -Lo "$out" -# --retry 2 "$url") || (command -v wget >/dev/null 2>&1 && timeout 30 wget -O "$out" --tries=2 "$url")
+dl "$url" "$out"
 chmod +x "$HOME/agsbx/cloudflared"
 echo "已安装Cloudflared正式版内核：$argocore"
 }
+
+# ===== S5: 密钥生成与配置生成 =====
 insuuid(){
 if [ -z "$uuid" ] && [ ! -e "$HOME/agsbx/uuid" ]; then
 if [ -e "$HOME/agsbx/sing-box" ]; then
@@ -264,14 +311,8 @@ fi
 
 if [ -n "$xhp" ]; then
 xhp=xhpt
-if [ -z "$port_xh" ] && [ ! -e "$HOME/agsbx/port_xh" ]; then
-port_xh=$(shuf -i 10000-65535 -n 1)
-echo "$port_xh" > "$HOME/agsbx/port_xh"
-elif [ -n "$port_xh" ]; then
-echo "$port_xh" > "$HOME/agsbx/port_xh"
-fi
-port_xh=$(cat "$HOME/agsbx/port_xh")
-echo "Vless-xhttp-reality-enc端口：$port_xh"
+alloc_port port_xh
+ echo "Vless-xhttp-reality-enc端口：$port_xh"
 cat >> "$HOME/agsbx/xr.json" <<EOF
     {
       "tag":"xhttp-reality",
@@ -317,14 +358,8 @@ xhp=xhptargo
 fi
 if [ -n "$vxp" ]; then
 vxp=vxpt
-if [ -z "$port_vx" ] && [ ! -e "$HOME/agsbx/port_vx" ]; then
-port_vx=$(shuf -i 10000-65535 -n 1)
-echo "$port_vx" > "$HOME/agsbx/port_vx"
-elif [ -n "$port_vx" ]; then
-echo "$port_vx" > "$HOME/agsbx/port_vx"
-fi
-port_vx=$(cat "$HOME/agsbx/port_vx")
-echo "Vless-xhttp-enc端口：$port_vx"
+alloc_port port_vx
+ echo "Vless-xhttp-enc端口：$port_vx"
 if [ -n "$cdnym" ]; then
 echo "$cdnym" > "$HOME/agsbx/cdnym"
 echo "80系CDN或者回源CDN的host域名 (确保IP已解析在CF域名)：$cdnym"
@@ -364,14 +399,8 @@ vxp=vxptargo
 fi
 if [ -n "$vwp" ]; then
 vwp=vwpt
-if [ -z "$port_vw" ] && [ ! -e "$HOME/agsbx/port_vw" ]; then
-port_vw=$(shuf -i 10000-65535 -n 1)
-echo "$port_vw" > "$HOME/agsbx/port_vw"
-elif [ -n "$port_vw" ]; then
-echo "$port_vw" > "$HOME/agsbx/port_vw"
-fi
-port_vw=$(cat "$HOME/agsbx/port_vw")
-echo "Vless-ws-enc端口：$port_vw"
+alloc_port port_vw
+ echo "Vless-ws-enc端口：$port_vw"
 if [ -n "$cdnym" ]; then
 echo "$cdnym" > "$HOME/agsbx/cdnym"
 echo "80系CDN或者回源CDN的host域名 (确保IP已解析在CF域名)：$cdnym"
@@ -409,14 +438,8 @@ vwp=vwptargo
 fi
 if [ -n "$vlp" ]; then
 vlp=vlpt
-if [ -z "$port_vl_re" ] && [ ! -e "$HOME/agsbx/port_vl_re" ]; then
-port_vl_re=$(shuf -i 10000-65535 -n 1)
-echo "$port_vl_re" > "$HOME/agsbx/port_vl_re"
-elif [ -n "$port_vl_re" ]; then
-echo "$port_vl_re" > "$HOME/agsbx/port_vl_re"
-fi
-port_vl_re=$(cat "$HOME/agsbx/port_vl_re")
-echo "Vless-tcp-reality-v端口：$port_vl_re"
+alloc_port port_vl_re
+ echo "Vless-tcp-reality-v端口：$port_vl_re"
 cat >> "$HOME/agsbx/xr.json" <<EOF
         {
             "tag":"reality-vision",
@@ -487,14 +510,8 @@ fi
 fi
 if [ -n "$hyp" ]; then
 hyp=hypt
-if [ -z "$port_hy2" ] && [ ! -e "$HOME/agsbx/port_hy2" ]; then
-port_hy2=$(shuf -i 10000-65535 -n 1)
-echo "$port_hy2" > "$HOME/agsbx/port_hy2"
-elif [ -n "$port_hy2" ]; then
-echo "$port_hy2" > "$HOME/agsbx/port_hy2"
-fi
-port_hy2=$(cat "$HOME/agsbx/port_hy2")
-echo "Hysteria2端口：$port_hy2"
+alloc_port port_hy2
+ echo "Hysteria2端口：$port_hy2"
 cat >> "$HOME/agsbx/sb.json" <<EOF
     {
         "type": "hysteria2",
@@ -522,14 +539,8 @@ hyp=hyptargo
 fi
 if [ -n "$tup" ]; then
 tup=tupt
-if [ -z "$port_tu" ] && [ ! -e "$HOME/agsbx/port_tu" ]; then
-port_tu=$(shuf -i 10000-65535 -n 1)
-echo "$port_tu" > "$HOME/agsbx/port_tu"
-elif [ -n "$port_tu" ]; then
-echo "$port_tu" > "$HOME/agsbx/port_tu"
-fi
-port_tu=$(cat "$HOME/agsbx/port_tu")
-echo "Tuic端口：$port_tu"
+alloc_port port_tu
+ echo "Tuic端口：$port_tu"
 cat >> "$HOME/agsbx/sb.json" <<EOF
         {
             "type":"tuic",
@@ -558,14 +569,8 @@ tup=tuptargo
 fi
 if [ -n "$anp" ]; then
 anp=anpt
-if [ -z "$port_an" ] && [ ! -e "$HOME/agsbx/port_an" ]; then
-port_an=$(shuf -i 10000-65535 -n 1)
-echo "$port_an" > "$HOME/agsbx/port_an"
-elif [ -n "$port_an" ]; then
-echo "$port_an" > "$HOME/agsbx/port_an"
-fi
-port_an=$(cat "$HOME/agsbx/port_an")
-echo "Anytls端口：$port_an"
+alloc_port port_an
+ echo "Anytls端口：$port_an"
 cat >> "$HOME/agsbx/sb.json" <<EOF
         {
             "type":"anytls",
@@ -608,14 +613,8 @@ fi
 private_key_s=$(cat "$HOME/agsbx/sbk/private_key")
 public_key_s=$(cat "$HOME/agsbx/sbk/public_key")
 short_id_s=$(cat "$HOME/agsbx/sbk/short_id")
-if [ -z "$port_ar" ] && [ ! -e "$HOME/agsbx/port_ar" ]; then
-port_ar=$(shuf -i 10000-65535 -n 1)
-echo "$port_ar" > "$HOME/agsbx/port_ar"
-elif [ -n "$port_ar" ]; then
-echo "$port_ar" > "$HOME/agsbx/port_ar"
-fi
-port_ar=$(cat "$HOME/agsbx/port_ar")
-echo "Any-Reality端口：$port_ar"
+alloc_port port_ar
+ echo "Any-Reality端口：$port_ar"
 cat >> "$HOME/agsbx/sb.json" <<EOF
         {
             "type":"anytls",
@@ -652,15 +651,9 @@ if [ ! -e "$HOME/agsbx/sskey" ]; then
 sskey=$("$HOME/agsbx/sing-box" generate rand 16 --base64)
 echo "$sskey" > "$HOME/agsbx/sskey"
 fi
-if [ -z "$port_ss" ] && [ ! -e "$HOME/agsbx/port_ss" ]; then
-port_ss=$(shuf -i 10000-65535 -n 1)
-echo "$port_ss" > "$HOME/agsbx/port_ss"
-elif [ -n "$port_ss" ]; then
-echo "$port_ss" > "$HOME/agsbx/port_ss"
-fi
-sskey=$(cat "$HOME/agsbx/sskey")
-port_ss=$(cat "$HOME/agsbx/port_ss")
-echo "Shadowsocks-2022端口：$port_ss"
+alloc_port port_ss
+ sskey=$(cat "$HOME/agsbx/sskey")
+ echo "Shadowsocks-2022端口：$port_ss"
 cat >> "$HOME/agsbx/sb.json" <<EOF
         {
             "type": "shadowsocks",
@@ -679,14 +672,8 @@ fi
 xrsbvm(){
 if [ -n "$vmp" ]; then
 vmp=vmpt
-if [ -z "$port_vm_ws" ] && [ ! -e "$HOME/agsbx/port_vm_ws" ]; then
-port_vm_ws=$(shuf -i 10000-65535 -n 1)
-echo "$port_vm_ws" > "$HOME/agsbx/port_vm_ws"
-elif [ -n "$port_vm_ws" ]; then
-echo "$port_vm_ws" > "$HOME/agsbx/port_vm_ws"
-fi
-port_vm_ws=$(cat "$HOME/agsbx/port_vm_ws")
-echo "Vmess-ws端口：$port_vm_ws"
+alloc_port port_vm_ws
+ echo "Vmess-ws端口：$port_vm_ws"
 if [ -n "$cdnym" ]; then
 echo "$cdnym" > "$HOME/agsbx/cdnym"
 echo "80系CDN或者回源CDN的host域名 (确保IP已解析在CF域名)：$cdnym"
@@ -728,8 +715,7 @@ cat >> "$HOME/agsbx/sb.json" <<EOF
         "listen_port": ${port_vm_ws},
         "users": [
             {
-                "uuid": "${uuid}",
-                "alterId": 0
+                "uuid": "${uuid}"
             }
         ],
         "transport": {
@@ -749,14 +735,8 @@ fi
 xrsbso(){
 if [ -n "$sop" ]; then
 sop=sopt
-if [ -z "$port_so" ] && [ ! -e "$HOME/agsbx/port_so" ]; then
-port_so=$(shuf -i 10000-65535 -n 1)
-echo "$port_so" > "$HOME/agsbx/port_so"
-elif [ -n "$port_so" ]; then
-echo "$port_so" > "$HOME/agsbx/port_so"
-fi
-port_so=$(cat "$HOME/agsbx/port_so")
-echo "Socks5端口：$port_so"
+alloc_port port_so
+ echo "Socks5端口：$port_so"
 if [ -e "$HOME/agsbx/xr.json" ]; then
 cat >> "$HOME/agsbx/xr.json" <<EOF
         {
@@ -1156,6 +1136,8 @@ cdnip2="yg6.ygkkk.dpdns.org"
 fi
 fi
 }
+# ===== S7: 服务管理 =====
+
 argosbxstatus(){
 echo "=========当前三大内核运行状态========="
 procs=$(find /proc/*/exe -type l 2>/dev/null | grep -E '/proc/[0-9]+/exe' | xargs -r readlink 2>/dev/null)
@@ -1175,6 +1157,8 @@ else
 echo "Argo：未启用"
 fi
 }
+# ===== S6: 订阅链接生成 =====
+
 cip(){
 ipbest(){
 serip=$( (command -v curl >/dev/null 2>&1 && (curl -s4m5 -k "$v46url" 2>/dev/null || curl -s6m5 -k "$v46url" 2>/dev/null) ) || (command -v wget >/dev/null 2>&1 && (timeout 3 wget -4 -qO- --tries=2 "$v46url" 2>/dev/null || timeout 3 wget -6 -qO- --tries=2 "$v46url" 2>/dev/null) ) )
@@ -1449,8 +1433,7 @@ cat <<EOF
   type: vmess
   server: $server_ip                        
   port: $port_vm_ws                                     
-  uuid: $uuid       
-  alterId: 0
+  uuid: $uuid
   cipher: auto
   udp: true
   tls: false
@@ -1790,8 +1773,7 @@ cat <<EOF
   type: vmess
   server: "$cdnip1"                       
   port: 443                                     
-  uuid: $uuid       
-  alterId: 0
+  uuid: $uuid
   cipher: auto
   udp: true
   tls: true
@@ -1805,8 +1787,7 @@ cat <<EOF
   type: vmess
   server: "$cdnip2"                        
   port: 80                                     
-  uuid: $uuid       
-  alterId: 0
+  uuid: $uuid
   cipher: auto
   udp: true
   tls: false
@@ -2183,6 +2164,8 @@ else
 nohup $HOME/agsbx/sing-box run -c $HOME/agsbx/sb.json >/dev/null 2>&1 &
 fi
 }
+# ===== S8: 命令入口 =====
+
 if [ "$1" = "del" ]; then
 cleandel
 rm -rf sbx_update "$HOME/agsbx" "$HOME/websbx"

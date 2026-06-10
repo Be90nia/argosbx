@@ -1,0 +1,33 @@
+    {
+      "tag": "reality-vision",
+      "listen": "::",
+      "port": __PORT_VL_RE__,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "__UUID__",
+            "flow": "xtls-rprx-vision"
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "fingerprint": "chrome",
+          "dest": "__YM_VL_RE__:443",
+          "serverNames": [
+            "__YM_VL_RE__"
+          ],
+          "privateKey": "__PRIVATE_KEY_X__",
+          "shortIds": ["__SHORT_ID_X__"]
+        }
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"],
+        "metadataOnly": false
+      }
+    }

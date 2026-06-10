@@ -1,0 +1,20 @@
+    {
+      "type": "hysteria2",
+      "tag": "hy2-sb",
+      "listen": "::",
+      "listen_port": __PORT_HY2__,
+      "users": [
+        {
+          "password": "__UUID__"
+        }
+      ],
+      "ignore_client_bandwidth": false,
+      "tls": {
+        "enabled": true,
+        "alpn": [
+          "h3"
+        ],
+        "certificate_path": "__HOME__/agsbx/cert.crt",
+        "key_path": "__HOME__/agsbx/private.key"
+      }
+    }

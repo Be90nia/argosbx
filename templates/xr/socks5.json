@@ -1,0 +1,21 @@
+    {
+      "tag": "socks5-xr",
+      "port": __PORT_SO__,
+      "listen": "::",
+      "protocol": "socks",
+      "settings": {
+        "auth": "password",
+        "accounts": [
+          {
+            "user": "__UUID__",
+            "pass": "__UUID__"
+          }
+        ],
+        "udp": true
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"],
+        "metadataOnly": false
+      }
+    }

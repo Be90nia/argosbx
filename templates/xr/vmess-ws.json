@@ -1,0 +1,25 @@
+    {
+      "tag": "vmess-xr",
+      "listen": "::",
+      "port": __PORT_VM_WS__,
+      "protocol": "vmess",
+      "settings": {
+        "clients": [
+          {
+            "id": "__UUID__"
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "ws",
+        "security": "none",
+        "wsSettings": {
+          "path": "__UUID__-vm"
+        }
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"],
+        "metadataOnly": false
+      }
+    }

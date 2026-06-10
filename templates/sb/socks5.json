@@ -1,0 +1,12 @@
+    {
+      "type": "socks",
+      "tag": "socks5-sb",
+      "listen": "::",
+      "listen_port": __PORT_SO__,
+      "users": [
+        {
+          "username": "__UUID__",
+          "password": "__UUID__"
+        }
+      ]
+    }
