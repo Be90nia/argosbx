@@ -24,13 +24,18 @@ export LANG=en_US.UTF-8
 [ -z "${mxpt+x}" ] || mxp=yes
 [ -z "${swpt+x}" ] || swp=yes
 [ -z "${vwept+x}" ] || vwep=yes
+[ -z "${stpt+x}" ] || stp=yes
+[ -z "${napt+x}" ] || nap=yes
+[ -z "${trpt+x}" ] || trp=yes
+[ -z "${vtpt+x}" ] || vtp=yes
+[ -z "${ttpt+x}" ] || ttp=yes
 [ -z "${warp+x}" ] || wap=yes
 if find /proc/*/exe -type l 2>/dev/null | grep -E '/proc/[0-9]+/exe' | xargs -r readlink 2>/dev/null | grep -Eq 'agsbx/(s|x)' || pgrep -f 'agsbx/(s|x)' >/dev/null 2>&1; then
 if [ "$1" = "rep" ]; then
-[ "$vwp" = yes ] || [ "$sop" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || [ "$vup" = yes ] || [ "$twp" = yes ] || [ "$tuhp" = yes ] || [ "$vgp" = yes ] || [ "$tgp" = yes ] || [ "$mgp" = yes ] || [ "$mup" = yes ] || [ "$txp" = yes ] || [ "$mxp" = yes ] || [ "$swp" = yes ] || [ "$vwep" = yes ] || { echo "提示：rep重置协议时，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
+[ "$vwp" = yes ] || [ "$sop" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || [ "$vup" = yes ] || [ "$twp" = yes ] || [ "$tuhp" = yes ] || [ "$vgp" = yes ] || [ "$tgp" = yes ] || [ "$mgp" = yes ] || [ "$mup" = yes ] || [ "$txp" = yes ] || [ "$mxp" = yes ] || [ "$swp" = yes ] || [ "$vwep" = yes ] || [ "$stp" = yes ] || [ "$nap" = yes ] || [ "$trp" = yes ] || [ "$vtp" = yes ] || [ "$ttp" = yes ] || { echo "提示：rep重置协议时，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
 fi
 else
-[ "$1" = "del" ] || [ "$vwp" = yes ] || [ "$sop" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || [ "$vup" = yes ] || [ "$twp" = yes ] || [ "$tuhp" = yes ] || [ "$vgp" = yes ] || [ "$tgp" = yes ] || [ "$mgp" = yes ] || [ "$mup" = yes ] || [ "$txp" = yes ] || [ "$mxp" = yes ] || [ "$swp" = yes ] || [ "$vwep" = yes ] || { echo "提示：未安装argosbx脚本，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
+[ "$1" = "del" ] || [ "$vwp" = yes ] || [ "$sop" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || [ "$vup" = yes ] || [ "$twp" = yes ] || [ "$tuhp" = yes ] || [ "$vgp" = yes ] || [ "$tgp" = yes ] || [ "$mgp" = yes ] || [ "$mup" = yes ] || [ "$txp" = yes ] || [ "$mxp" = yes ] || [ "$swp" = yes ] || [ "$vwep" = yes ] || [ "$stp" = yes ] || [ "$nap" = yes ] || [ "$trp" = yes ] || [ "$vtp" = yes ] || [ "$ttp" = yes ] || { echo "提示：未安装argosbx脚本，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
 fi
 export uuid=${uuid:-''}
 export port_vl_re=${vlpt:-''}
@@ -44,6 +49,13 @@ export port_an=${anpt:-''}
 export port_ar=${arpt:-''}
 export port_ss=${sspt:-''}
 export port_so=${sopt:-''}
+export port_st=${stpt:-''}
+export port_na=${napt:-''}
+export port_tr=${trpt:-''}
+export port_vtv=${vtpt:-''}
+export port_tt=${ttpt:-''}
+export nap_user=${nap_user:-''}
+export stls_dest=${stdst:-''}
 export ym_vl_re=${reym:-''}
 export cdnym=${cdnym:-''}
 export directnym=${directnym:-''}
@@ -474,7 +486,7 @@ cat > "$HOME/agsbx/xr.json" <<EOF
   "inbounds": [
 EOF
 insuuid
-if [ -n "$xhp" ] || [ -n "$vlp" ]; then
+if [ -n "$xhp" ] || [ -n "$vlp" ] || [ -n "$trp" ]; then
 if [ -z "$ym_vl_re" ]; then
 ym_vl_re=apple.com
 fi
@@ -964,6 +976,104 @@ EOF
 else
 vlp=vlptargo
 fi
+if [ -n "$trp" ]; then
+  trp=trpt
+  [ -z "$ym_vl_re" ] && ym_vl_re=apple.com
+  echo "Reality域名：$ym_vl_re"
+  alloc_port port_tr
+  echo "Trojan+Reality端口：$port_tr"
+  cat >> "$HOME/agsbx/xr.json" <<EOF
+        {
+          "tag": "trojan-reality",
+          "listen": "::",
+          "port": ${port_tr},
+          "protocol": "trojan",
+          "settings": {
+            "users": [{ "password": "${uuid}" }]
+          },
+          "streamSettings": {
+            "network": "tcp",
+            "security": "reality",
+            "realitySettings": {
+              "dest": "${ym_vl_re}:443",
+              "serverNames": ["${ym_vl_re}"],
+              "privateKey": "$private_key_x",
+              "shortIds": ["$short_id_x"]
+            }
+          },
+          "sniffing": {
+            "enabled": true,
+            "destOverride": ["http", "tls", "quic"],
+            "metadataOnly": false
+          }
+        },
+EOF
+fi
+if [ -n "$vtp" ]; then
+  vtp=vtpt
+  alloc_port port_vtv
+  echo "VLESS+TLS+Vision端口：$port_vtv"
+  cat >> "$HOME/agsbx/xr.json" <<EOF
+        {
+          "tag": "vless-tls-vision",
+          "listen": "::",
+          "port": ${port_vtv},
+          "protocol": "vless",
+          "settings": {
+            "users": [{ "id": "${uuid}", "flow": "xtls-rprx-vision" }],
+            "decryption": "none"
+          },
+          "streamSettings": {
+            "network": "tcp",
+            "security": "tls",
+            "tlsSettings": {
+              "certificates": [{
+                "certificateFile": "/etc/argosbx/certs/directnym.crt",
+                "keyFile": "/etc/argosbx/certs/directnym.key"
+              }],
+              "alpn": ["http/1.1"]
+            }
+          },
+          "sniffing": {
+            "enabled": true,
+            "destOverride": ["http", "tls", "quic"],
+            "metadataOnly": false
+          }
+        },
+EOF
+fi
+if [ -n "$ttp" ]; then
+  ttp=ttpt
+  alloc_port port_tt
+  echo "Trojan+TLS端口：$port_tt"
+  cat >> "$HOME/agsbx/xr.json" <<EOF
+        {
+          "tag": "trojan-tls",
+          "listen": "::",
+          "port": ${port_tt},
+          "protocol": "trojan",
+          "settings": {
+            "users": [{ "password": "${uuid}" }]
+          },
+          "streamSettings": {
+            "network": "tcp",
+            "security": "tls",
+            "tlsSettings": {
+              "certificates": [{
+                "certificateFile": "/etc/argosbx/certs/directnym.crt",
+                "keyFile": "/etc/argosbx/certs/directnym.key"
+              }],
+              "alpn": ["http/1.1"]
+            }
+          },
+          "sniffing": {
+            "enabled": true,
+            "destOverride": ["http", "tls", "quic"],
+            "metadataOnly": false
+          }
+        },
+EOF
+fi
 }
 
 installsb(){
@@ -1152,6 +1262,71 @@ cat >> "$HOME/agsbx/sb.json" <<EOF
 EOF
 else
 ssp=ssptargo
+fi
+if [ -n "$stp" ]; then
+  stp=stpt
+  if [ ! -e "$HOME/agsbx/stlspass" ]; then
+    stlspass=$("$HOME/agsbx/sing-box" generate rand 16 --base64)
+    echo "$stlspass" > "$HOME/agsbx/stlspass"
+  fi
+  if [ ! -e "$HOME/agsbx/ssintkey" ]; then
+    ssintkey=$("$HOME/agsbx/sing-box" generate rand 32 --base64)
+    echo "$ssintkey" > "$HOME/agsbx/ssintkey"
+  fi
+  stlspass=$(cat "$HOME/agsbx/stlspass")
+  ssintkey=$(cat "$HOME/agsbx/ssintkey")
+  [ -z "$stls_dest" ] && stls_dest=www.microsoft.com
+  alloc_port port_st
+  echo "ShadowTLS端口：$port_st (伪装目标: $stls_dest)"
+  cat >> "$HOME/agsbx/sb.json" <<EOF
+        {
+            "type": "shadowtls",
+            "tag": "stls-in",
+            "listen": "::",
+            "listen_port": ${port_st},
+            "version": 3,
+            "password": "${stlspass}",
+            "tls": {
+                "server_name": "${stls_dest}"
+            },
+            "detour": "ss-internal-in"
+        },
+        {
+            "type": "shadowsocks",
+            "tag": "ss-internal-in",
+            "listen": "127.0.0.1",
+            "listen_port": 0,
+            "method": "2022-blake3-aes-256-gcm",
+            "password": "${ssintkey}"
+        },
+EOF
+fi
+if [ -n "$nap" ]; then
+  nap=napt
+  [ -z "$nap_user" ] && nap_user=$("$HOME/agsbx/sing-box" generate rand 8)
+  echo "$nap_user" > "$HOME/agsbx/nap_user"
+  alloc_port port_na
+  echo "Naive端口：$port_na"
+  cat >> "$HOME/agsbx/sb.json" <<EOF
+        {
+            "type": "naive",
+            "tag": "naive-in",
+            "listen": "::",
+            "listen_port": ${port_na},
+            "users": [
+                {
+                    "username": "${nap_user}",
+                    "password": "${uuid}"
+                }
+            ],
+            "tls": {
+                "enabled": true,
+                "certificate_path": "$HOME/agsbx/cert.crt",
+                "key_path": "$HOME/agsbx/private.key"
+            },
+            "network": "tcp,udp"
+        },
+EOF
 fi
 }
 
@@ -1473,20 +1648,24 @@ ins(){
 if [ -n "$cdnym" ] && [ -n "$cfapi" ] && { [ -n "$vxp" ] || [ -n "$vwp" ] || [ -n "$vup" ] || [ -n "$twp" ] || [ -n "$tuhp" ] || [ -n "$vmp" ] || [ -n "$mup" ] || [ -n "$txp" ] || [ -n "$mxp" ] || [ -n "$swp" ] || [ -n "$vwep" ]; }; then
   certsign "$cdnym" "cdnym" || echo "⚠️ CDN证书签发失败，CDN协议可能无法正常工作(CF Full Strict模式)"
 fi
-if [ "$hyp" != yes ] && [ "$tup" != yes ] && [ "$anp" != yes ] && [ "$arp" != yes ] && [ "$ssp" != yes ]; then
+# 证书签发(直连TLS协议需要directnym证书)
+if [ -n "$directnym" ] && [ -n "$cfapi" ] && { [ -n "$vtp" ] || [ -n "$ttp" ]; }; then
+  certsign "$directnym" "directnym" || echo "⚠️ directnym证书签发失败，直连TLS协议可能无法正常工作"
+fi
+if [ "$hyp" != yes ] && [ "$tup" != yes ] && [ "$anp" != yes ] && [ "$arp" != yes ] && [ "$ssp" != yes ] && [ "$stp" != yes ] && [ "$nap" != yes ]; then
 installxray
 xrsbvm
 xrsbso
 warpsx
 xrsbout
-hyp="hyptargo"; tup="tuptargo"; anp="anptargo"; arp="arptargo"; ssp="ssptargo"
-elif [ "$xhp" != yes ] && [ "$vlp" != yes ] && [ "$vxp" != yes ] && [ "$vwp" != yes ] && [ "$vup" != yes ] && [ "$twp" != yes ] && [ "$tuhp" != yes ] && [ "$vgp" != yes ] && [ "$tgp" != yes ] && [ "$mgp" != yes ] && [ "$mup" != yes ] && [ "$txp" != yes ] && [ "$mxp" != yes ] && [ "$swp" != yes ] && [ "$vwep" != yes ]; then
+hyp="hyptargo"; tup="tuptargo"; anp="anptargo"; arp="arptargo"; ssp="ssptargo"; stp="stptargo"; nap="naptargo"
+elif [ "$xhp" != yes ] && [ "$vlp" != yes ] && [ "$vxp" != yes ] && [ "$vwp" != yes ] && [ "$vup" != yes ] && [ "$twp" != yes ] && [ "$tuhp" != yes ] && [ "$vgp" != yes ] && [ "$tgp" != yes ] && [ "$mgp" != yes ] && [ "$mup" != yes ] && [ "$txp" != yes ] && [ "$mxp" != yes ] && [ "$swp" != yes ] && [ "$vwep" != yes ] && [ "$trp" != yes ] && [ "$vtp" != yes ] && [ "$ttp" != yes ]; then
 installsb
 xrsbvm
 xrsbso
 warpsx
 xrsbout
-xhp="xhptargo"; vlp="vlptargo"; vxp="vxptargo"; vwp="vwptargo"; vup="vuptargo"; twp="twptargo"; tuhp="tuhptargo"; vgp="vgptargo"; tgp="tgptargo"; mgp="mgptargo"; mup="muptargo"; txp="txptargo"; mxp="mxptargo"; swp="swptargo"; vwep="vweptargo"
+xhp="xhptargo"; vlp="vlptargo"; vxp="vxptargo"; vwp="vwptargo"; vup="vuptargo"; twp="twptargo"; tuhp="tuhptargo"; vgp="vgptargo"; tgp="tgptargo"; mgp="mgptargo"; mup="muptargo"; txp="txptargo"; mxp="mxptargo"; swp="swptargo"; vwep="vweptargo"; trp="trptargo"; vtp="vtptargo"; ttp="ttptargo"
 else
 installsb
 installxray
@@ -2312,6 +2491,58 @@ echo "客户端地址：$server_ip"
 echo "客户端端口：$port_so"
 echo "客户端用户名：$uuid"
 echo "客户端密码：$uuid"
+echo
+fi
+# C9 ShadowTLS v3+SS (无官方URI，仅输出连接参数)
+if grep stls-in "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
+echo "💣【 ShadowTLS v3+SS 】节点信息如下："
+port_st=$(cat "$HOME/agsbx/port_st")
+stlspass=$(cat "$HOME/agsbx/stlspass")
+ssintkey=$(cat "$HOME/agsbx/ssintkey")
+stls_dest=${stls_dest:-www.microsoft.com}
+echo "⚠️ ShadowTLS无官方URI格式，以下为手动配置参数："
+echo "地址：$server_ip  端口：$port_st  ShadowTLS版本：v3"
+echo "ShadowTLS密码：$stlspass  伪装域名：$stls_dest"
+echo "内嵌SS加密：2022-blake3-aes-256-gcm  SS密码：$ssintkey"
+echo
+fi
+# C10 Naive
+if grep naive-in "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
+echo "💣【 Naive 】节点信息如下："
+port_na=$(cat "$HOME/agsbx/port_na")
+nap_user=$(cat "$HOME/agsbx/nap_user")
+nap_link="naive+https://${nap_user}:${uuid}@${server_ip}:${port_na}/#${sxname}naive-$hostname"
+echo "$nap_link" >> "$HOME/agsbx/jhsub.txt"
+echo "$nap_link"
+echo
+fi
+# C11 Trojan+Reality
+if grep trojan-reality "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+echo "💣【 Trojan+Reality 】节点信息如下："
+port_tr=$(cat "$HOME/agsbx/port_tr")
+tr_link="trojan://${uuid}@${server_ip}:${port_tr}?security=reality&sni=${ym_vl_re}&fp=chrome&pbk=${public_key_x}&sid=${short_id_x}&type=tcp#${sxname}trojan-reality-$hostname"
+echo "$tr_link" >> "$HOME/agsbx/jhsub.txt"
+echo "$tr_link"
+echo
+fi
+# C12 VLESS+TLS+Vision
+if grep vless-tls-vision "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+echo "💣【 VLESS+TLS+Vision 】节点信息如下："
+port_vtv=$(cat "$HOME/agsbx/port_vtv")
+_vtp_host=${directnym:-$server_ip}
+vtv_link="vless://${uuid}@${_vtp_host}:${port_vtv}?encryption=none&security=tls&type=tcp&flow=xtls-rprx-vision&sni=${_vtp_host}&fp=chrome#${sxname}vless-tls-vision-$hostname"
+echo "$vtv_link" >> "$HOME/agsbx/jhsub.txt"
+echo "$vtv_link"
+echo
+fi
+# C13 Trojan+TLS
+if grep trojan-tls "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+echo "💣【 Trojan+TLS 】节点信息如下："
+port_tt=$(cat "$HOME/agsbx/port_tt")
+_ttp_host=${directnym:-$server_ip}
+tt_link="trojan://${uuid}@${_ttp_host}:${port_tt}?security=tls&sni=${_ttp_host}&type=tcp&fp=chrome#${sxname}trojan-tls-$hostname"
+echo "$tt_link" >> "$HOME/agsbx/jhsub.txt"
+echo "$tt_link"
 echo
 fi
 argodomain=$(cat "$HOME/agsbx/sbargoym.log" 2>/dev/null)
