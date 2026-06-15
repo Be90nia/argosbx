@@ -126,19 +126,22 @@ dl_s() {
   return 1
 }
 
-# alloc_port portvar — 端口分配(随机/指定/持久化)
+# alloc_port portvar — 端口分配(随机/指定/持久化，flock串行化防竞态)
 alloc_port() {
   local _apvar="$1"
   local _apval
   eval _apval="\$$_apvar"
   local _apfile="$HOME/agsbx/$_apvar"
-  if [ -z "$_apval" ] && [ ! -e "$_apfile" ]; then
-    eval "$_apvar=\$(shuf -i 10000-65535 -n 1)"
-    eval "echo \"\$$_apvar\" > \"$_apfile\""
-  elif [ -n "$_apval" ]; then
-    eval "echo \"\$$_apvar\" > \"$_apfile\""
-  fi
-  eval "$_apvar=\$(cat \"$_apfile\")"
+  (
+    flock 9
+    if [ -z "$_apval" ] && [ ! -e "$_apfile" ]; then
+      eval "$_apvar=\$(shuf -i 10000-65535 -n 1)"
+      eval "echo \"\$$_apvar\" > \"$_apfile\""
+    elif [ -n "$_apval" ]; then
+      eval "echo \"\$$_apvar\" > \"$_apfile\""
+    fi
+    eval "$_apvar=\$(cat \"$_apfile\")"
+  ) 9>"$HOME/agsbx/.port.lock"
 }
 
 # gen_basepath — 生成或读取basepath(用户指定 or 随机16位hex，持久化)
@@ -151,6 +154,19 @@ gen_basepath() {
     echo "$basepath" > "$HOME/agsbx/basepath"
   fi
   basepath=$(cat "$HOME/agsbx/basepath")
+}
+
+# validate_input — 验证用户输入的安全性(域名/UUID/basepath/端口)
+validate_input() {
+  if [ -n "$cdnym" ]; then
+    echo "$cdnym" | grep -qE '^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$' || { echo "⚠️ 域名格式无效: $cdnym"; exit 1; }
+  fi
+  if [ -n "$uuid" ]; then
+    echo "$uuid" | grep -qiE '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' || { echo "⚠️ UUID格式无效: $uuid"; exit 1; }
+  fi
+  if [ -n "$basepath" ]; then
+    echo "$basepath" | grep -qE '^[a-zA-Z0-9_-]+$' || { echo "⚠️ basepath含非法字符(仅允许字母数字下划线连字符): $basepath"; exit 1; }
+  fi
 }
 
 # parse_argopro — 解析argopro变量为argo_xxx标志(兼容旧argo变量)
@@ -545,6 +561,9 @@ if [ -n "$vxp" ] || [ -n "$vwp" ] || [ -n "$vup" ] || [ -n "$twp" ] || [ -n "$tu
   gen_basepath
   echo "Basepath: $basepath"
 fi
+
+# 输入安全验证(域名/UUID/basepath格式校验)
+validate_input
 
 if [ -n "$xhp" ]; then
 xhp=xhpt
@@ -1823,6 +1842,10 @@ echo '@reboot sleep 10 && /bin/bash -c "nohup $HOME/agsbx/cloudflared tunnel --u
 fi
 fi
 fi
+# 证书过期监控(每日检测，<30天告警)
+if ! pidof systemd >/dev/null 2>&1 && ! command -v rc-service >/dev/null 2>&1; then
+echo '0 6 * * * for _c in /etc/argosbx/certs/*.crt; do [ -f "$_c" ] || continue; _e=$(openssl x509 -enddate -noout -in "$_c" 2>/dev/null | cut -d= -f2); _d=$(( ($(date -d "$_e" +%s 2>/dev/null || echo 0) - $(date +%s)) / 86400 )); [ "$_d" -lt 30 ] && echo "⚠️ 证书 $(basename "$_c") 剩余 ${_d} 天" >> "$HOME/agsbx/cert_warn.log"; done' >> /tmp/crontab.tmp
+fi
 crontab /tmp/crontab.tmp >/dev/null 2>&1
 rm /tmp/crontab.tmp
 echo "Argosbx脚本进程启动成功，安装完毕" && sleep 2
@@ -2823,6 +2846,188 @@ EOF
 clvmargopt1(){
 case " $argo_sel " in *" vm "*) echo "- ${sxname}vmess-ws-tls-argo-$hostname-443" ;; esac
 }
+sbvwargopt(){
+case " $argo_sel " in *" vw "*)
+cat <<EOF
+{
+    "server": "$cdnip1",
+    "server_port": 443,
+    "tag": "${sxname}vless-ws-tls-argo-$hostname-443",
+    "tls": { "enabled": true, "server_name": "$argodomain", "insecure": false, "utls": { "enabled": true, "fingerprint": "chrome" } },
+    "transport": { "headers": { "Host": ["$argodomain"] }, "path": "/$basepath-vw", "type": "ws" },
+    "type": "vless", "uuid": "$uuid"
+},
+EOF
+;; esac
+}
+sbvwargopt1(){
+case " $argo_sel " in *" vw "*) echo "\"${sxname}vless-ws-tls-argo-$hostname-443\"," ;; esac
+}
+clvwargopt(){
+case " $argo_sel " in *" vw "*)
+cat <<EOF
+- name: ${sxname}vless-ws-tls-argo-$hostname-443
+  type: vless
+  server: "$cdnip1"
+  port: 443
+  uuid: $uuid
+  udp: true
+  tls: true
+  network: ws
+  servername: $argodomain
+  client-fingerprint: chrome
+  ws-opts:
+    path: "/$basepath-vw"
+    headers:
+      Host: $argodomain
+EOF
+;; esac
+}
+clvwargopt1(){
+case " $argo_sel " in *" vw "*) echo "- ${sxname}vless-ws-tls-argo-$hostname-443" ;; esac
+}
+sbtwargopt(){
+case " $argo_sel " in *" tw "*)
+cat <<EOF
+{
+    "server": "$cdnip1",
+    "server_port": 443,
+    "tag": "${sxname}trojan-ws-tls-argo-$hostname-443",
+    "tls": { "enabled": true, "server_name": "$argodomain", "insecure": false, "utls": { "enabled": true, "fingerprint": "chrome" } },
+    "transport": { "headers": { "Host": ["$argodomain"] }, "path": "/$basepath-tw", "type": "ws" },
+    "type": "trojan", "password": "$uuid"
+},
+EOF
+;; esac
+}
+sbtwargopt1(){
+case " $argo_sel " in *" tw "*) echo "\"${sxname}trojan-ws-tls-argo-$hostname-443\"," ;; esac
+}
+cltwargopt(){
+case " $argo_sel " in *" tw "*)
+cat <<EOF
+- name: ${sxname}trojan-ws-tls-argo-$hostname-443
+  type: trojan
+  server: "$cdnip1"
+  port: 443
+  password: $uuid
+  udp: true
+  tls: true
+  network: ws
+  sni: $argodomain
+  client-fingerprint: chrome
+  ws-opts:
+    path: "/$basepath-tw"
+    headers:
+      Host: $argodomain
+EOF
+;; esac
+}
+cltwargopt1(){
+case " $argo_sel " in *" tw "*) echo "- ${sxname}trojan-ws-tls-argo-$hostname-443" ;; esac
+}
+sbtuargopt(){
+case " $argo_sel " in *" tu "*)
+cat <<EOF
+{
+    "server": "$cdnip1",
+    "server_port": 443,
+    "tag": "${sxname}trojan-httpupgrade-tls-argo-$hostname-443",
+    "tls": { "enabled": true, "server_name": "$argodomain", "insecure": false, "utls": { "enabled": true, "fingerprint": "chrome" } },
+    "transport": { "headers": { "Host": ["$argodomain"] }, "path": "/$basepath-tu", "type": "httpupgrade" },
+    "type": "trojan", "password": "$uuid"
+},
+EOF
+;; esac
+}
+sbtuargopt1(){
+case " $argo_sel " in *" tu "*) echo "\"${sxname}trojan-httpupgrade-tls-argo-$hostname-443\"," ;; esac
+}
+cltuargopt(){
+case " $argo_sel " in *" tu "*)
+cat <<EOF
+- name: ${sxname}trojan-httpupgrade-tls-argo-$hostname-443
+  type: trojan
+  server: "$cdnip1"
+  port: 443
+  password: $uuid
+  udp: true
+  tls: true
+  network: httpupgrade
+  sni: $argodomain
+  client-fingerprint: chrome
+  httpupgrade-opts:
+    path: "/$basepath-tu"
+    headers:
+      Host: $argodomain
+EOF
+;; esac
+}
+cltuargopt1(){
+case " $argo_sel " in *" tu "*) echo "- ${sxname}trojan-httpupgrade-tls-argo-$hostname-443" ;; esac
+}
+sbmuargopt(){
+case " $argo_sel " in *" mu "*)
+cat <<EOF
+{
+    "server": "$cdnip1",
+    "server_port": 443,
+    "tag": "${sxname}vmess-httpupgrade-tls-argo-$hostname-443",
+    "tls": { "enabled": true, "server_name": "$argodomain", "insecure": false, "utls": { "enabled": true, "fingerprint": "chrome" } },
+    "transport": { "headers": { "Host": ["$argodomain"] }, "path": "/$basepath-mu", "type": "httpupgrade" },
+    "type": "vmess", "security": "auto", "uuid": "$uuid"
+},
+EOF
+;; esac
+}
+sbmuargopt1(){
+case " $argo_sel " in *" mu "*) echo "\"${sxname}vmess-httpupgrade-tls-argo-$hostname-443\"," ;; esac
+}
+clmuargopt(){
+case " $argo_sel " in *" mu "*)
+cat <<EOF
+- name: ${sxname}vmess-httpupgrade-tls-argo-$hostname-443
+  type: vmess
+  server: "$cdnip1"
+  port: 443
+  uuid: $uuid
+  cipher: auto
+  udp: true
+  tls: true
+  network: httpupgrade
+  servername: $argodomain
+  httpupgrade-opts:
+    path: "/$basepath-mu"
+    headers:
+      Host: $argodomain
+EOF
+;; esac
+}
+clmuargopt1(){
+case " $argo_sel " in *" mu "*) echo "- ${sxname}vmess-httpupgrade-tls-argo-$hostname-443" ;; esac
+}
+clswargopt(){
+case " $argo_sel " in *" sw "*)
+cat <<EOF
+- name: ${sxname}ss-ws-tls-argo-$hostname-443
+  type: ss
+  server: "$cdnip1"
+  port: 443
+  cipher: 2022-blake3-aes-128-gcm
+  password: "$sskey"
+  udp: true
+  plugin: v2ray-plugin
+  plugin-opts:
+    mode: websocket
+    tls: true
+    host: $argodomain
+    path: "/$basepath-sw"
+EOF
+;; esac
+}
+clswargopt1(){
+case " $argo_sel " in *" sw "*) echo "- ${sxname}ss-ws-tls-argo-$hostname-443" ;; esac
+}
 sbtk=$(cat "$HOME/agsbx/sbargotoken.log" 2>/dev/null)
 [ -n "$sbtk" ] && nametn="Argo固定隧道token：$sbtk"
 argoshow=$(echo "Argo域名：$argodomain
@@ -2835,6 +3040,24 @@ sbvmargopt(){ :; }
 sbvmargopt1(){ :; }
 clvmargopt(){ :; }
 clvmargopt1(){ :; }
+sbvwargopt(){ :; }
+sbvwargopt1(){ :; }
+clvwargopt(){ :; }
+clvwargopt1(){ :; }
+sbtwargopt(){ :; }
+sbtwargopt1(){ :; }
+cltwargopt(){ :; }
+cltwargopt1(){ :; }
+sbtuargopt(){ :; }
+sbtuargopt1(){ :; }
+cltuargopt(){ :; }
+cltuargopt1(){ :; }
+sbmuargopt(){ :; }
+sbmuargopt1(){ :; }
+clmuargopt(){ :; }
+clmuargopt1(){ :; }
+clswargopt(){ :; }
+clswargopt1(){ :; }
 fi
 
 get_func() {
@@ -2845,12 +3068,12 @@ out=$($f)
 [ -n "$out" ] && printf "%s\n" "$out"
 fi
 }
-  sbxy="$(get_func sbvlpt; get_func sbsspt; get_func sbanpt; get_func sbarpt; get_func sbvmpt; get_func sbhypt; get_func sbtupt; get_func sbvmargopt; get_func sbstpt; get_func sbnapt; get_func sbtrpt; get_func sbvtpt; get_func sbttpt)"
-  clxy="$(get_func clvlpt; get_func clsspt; get_func clanpt; get_func clvmpt; get_func clhypt; get_func cltupt; get_func clvmargopt; get_func cltrpt; get_func clvtpt; get_func clttpt)"
-  sbgz="$(get_func sbvlpt1; get_func sbsspt1; get_func sbanpt1; get_func sbarpt1; get_func sbvmpt1; get_func sbhypt1; get_func sbtupt1; get_func sbvmargopt1; get_func sbstpt1; get_func sbnapt1; get_func sbtrpt1; get_func sbvtpt1; get_func sbttpt1)"
-  clgz="$({ get_func clvlpt1; get_func clsspt1; get_func clanpt1; get_func clvmpt1; get_func clhypt1; get_func cltupt1; get_func clvmargopt1; get_func cltrpt1; get_func clvtpt1; get_func clttpt1; } | sed '2,$s/^/    /')"
+  sbxy="$(get_func sbvlpt; get_func sbsspt; get_func sbanpt; get_func sbarpt; get_func sbvmpt; get_func sbhypt; get_func sbtupt; get_func sbvmargopt; get_func sbvwargopt; get_func sbtwargopt; get_func sbtuargopt; get_func sbmuargopt; get_func sbstpt; get_func sbnapt; get_func sbtrpt; get_func sbvtpt; get_func sbttpt)"
+  clxy="$(get_func clvlpt; get_func clsspt; get_func clanpt; get_func clvmpt; get_func clhypt; get_func cltupt; get_func clvmargopt; get_func clvwargopt; get_func cltwargopt; get_func cltuargopt; get_func clmuargopt; get_func clswargopt; get_func cltrpt; get_func clvtpt; get_func clttpt)"
+  sbgz="$(get_func sbvlpt1; get_func sbsspt1; get_func sbanpt1; get_func sbarpt1; get_func sbvmpt1; get_func sbhypt1; get_func sbtupt1; get_func sbvmargopt1; get_func sbvwargopt1; get_func sbtwargopt1; get_func sbtuargopt1; get_func sbmuargopt1; get_func sbstpt1; get_func sbnapt1; get_func sbtrpt1; get_func sbvtpt1; get_func sbttpt1)"
+  clgz="$({ get_func clvlpt1; get_func clsspt1; get_func clanpt1; get_func clvmpt1; get_func clhypt1; get_func cltupt1; get_func clvmargopt1; get_func clvwargopt1; get_func cltwargopt1; get_func cltuargopt1; get_func clmuargopt1; get_func clswargopt1; get_func cltrpt1; get_func clvtpt1; get_func clttpt1; } | sed '2,$s/^/    /')"
 sbgz=$(printf "%s\n" "$sbgz" | sed '$ s/,$//')
-cat > $HOME/agsbx/sbox.json <<EOF
+  cat > $HOME/agsbx/sbox.json.tmp <<EOF
 {
     "log": {
         "disabled": false,
@@ -3028,8 +3251,9 @@ cat > $HOME/agsbx/sbox.json <<EOF
     ]
 }
 EOF
+  mv "$HOME/agsbx/sbox.json.tmp" "$HOME/agsbx/sbox.json"
 
-cat > $HOME/agsbx/clmi.yaml <<EOF
+cat > $HOME/agsbx/clmi.yaml.tmp <<EOF
 port: 7890
 allow-lan: true
 mode: rule
@@ -3099,6 +3323,7 @@ rules:
   - GEOIP,CN,DIRECT
   - MATCH,🌍选择代理节点
 EOF
+mv "$HOME/agsbx/clmi.yaml.tmp" "$HOME/agsbx/clmi.yaml"
 echo "---------------------------------------------------------"
 echo "$argoshow"
 echo
