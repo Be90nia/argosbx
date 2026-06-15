@@ -1440,53 +1440,8 @@ fi
 }
 
 xrsbso(){
-if [ -n "$sop" ]; then
-sop=sopt
-alloc_port port_so
- echo "Socks5端口：$port_so"
-if [ -e "$HOME/agsbx/xr.json" ]; then
-cat >> "$HOME/agsbx/xr.json" <<EOF
-        {
-         "tag": "socks5-xr",
-         "port": ${port_so},
-         "listen": "::",
-         "protocol": "socks",
-         "settings": {
-            "auth": "password",
-             "accounts": [
-               {
-               "user": "${uuid}",
-               "pass": "${uuid}"
-               }
-            ],
-            "udp": true
-          },
-            "sniffing": {
-            "enabled": true,
-            "destOverride": ["http", "tls", "quic"],
-            "metadataOnly": false
-            }
-         }, 
-EOF
-else
-cat >> "$HOME/agsbx/sb.json" <<EOF
-    {
-      "tag": "socks5-sb",
-      "type": "socks",
-      "listen": "::",
-      "listen_port": ${port_so},
-      "users": [
-      {
-      "username": "${uuid}",
-      "password": "${uuid}"
-      }
-     ]
-    },
-EOF
-fi
-else
+# SOCKS5已移除(V2.9.1): 认证明文传输，功能被SS-2022直连完全覆盖
 sop=soptargo
-fi
 }
 
 xrsbout(){
@@ -2528,16 +2483,6 @@ EOF
 cltupt1(){
 echo "- ${sxname}tuic5-$hostname"
 }
-fi
-if grep socks5-xr "$HOME/agsbx/xr.json" >/dev/null 2>&1 || grep socks5-sb "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
-echo "💣【 Socks5 】客户端信息如下："
-port_so=$(cat "$HOME/agsbx/port_so")
-echo "请配合其他应用内置代理使用，勿做节点直接使用"
-echo "客户端地址：$server_ip"
-echo "客户端端口：$port_so"
-echo "客户端用户名：$uuid"
-echo "客户端密码：$uuid"
-echo
 fi
 # C9 ShadowTLS v3+SS (无官方URI，仅输出连接参数)
 if grep stls-in "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
