@@ -13,13 +13,19 @@ export LANG=en_US.UTF-8
 [ -z "${sspt+x}" ] || ssp=yes
 [ -z "${arpt+x}" ] || arp=yes
 [ -z "${sopt+x}" ] || sop=yes
+[ -z "${vupt+x}" ] || { vup=yes; vmag=yes; }
+[ -z "${twpt+x}" ] || { twp=yes; vmag=yes; }
+[ -z "${tuhpt+x}" ] || { tuhp=yes; vmag=yes; }
+[ -z "${vgpt+x}" ] || vgp=yes
+[ -z "${tgpt+x}" ] || tgp=yes
+[ -z "${mgpt+x}" ] || mgp=yes
 [ -z "${warp+x}" ] || wap=yes
 if find /proc/*/exe -type l 2>/dev/null | grep -E '/proc/[0-9]+/exe' | xargs -r readlink 2>/dev/null | grep -Eq 'agsbx/(s|x)' || pgrep -f 'agsbx/(s|x)' >/dev/null 2>&1; then
 if [ "$1" = "rep" ]; then
-[ "$vwp" = yes ] || [ "$sop" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || { echo "提示：rep重置协议时，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
+[ "$vwp" = yes ] || [ "$sop" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || [ "$vup" = yes ] || [ "$twp" = yes ] || [ "$tuhp" = yes ] || [ "$vgp" = yes ] || [ "$tgp" = yes ] || [ "$mgp" = yes ] || { echo "提示：rep重置协议时，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
 fi
 else
-[ "$1" = "del" ] || [ "$vwp" = yes ] || [ "$sop" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || { echo "提示：未安装argosbx脚本，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
+[ "$1" = "del" ] || [ "$vwp" = yes ] || [ "$sop" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || [ "$vup" = yes ] || [ "$twp" = yes ] || [ "$tuhp" = yes ] || [ "$vgp" = yes ] || [ "$tgp" = yes ] || [ "$mgp" = yes ] || { echo "提示：未安装argosbx脚本，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
 fi
 export uuid=${uuid:-''}
 export port_vl_re=${vlpt:-''}
@@ -35,6 +41,10 @@ export port_ss=${sspt:-''}
 export port_so=${sopt:-''}
 export ym_vl_re=${reym:-''}
 export cdnym=${cdnym:-''}
+export directnym=${directnym:-''}
+export basepath=${basepath:-''}
+export cfapi=${cfapi:-''}
+export cfzone=${cfzone:-''}
 export argo=${argo:-''}
 export ARGO_DOMAIN=${agn:-''}
 export ARGO_AUTH=${agk:-''}
@@ -95,6 +105,65 @@ alloc_port() {
     eval "echo \"\$$_apvar\" > \"$_apfile\""
   fi
   eval "$_apvar=\$(cat \"$_apfile\")"
+}
+
+# gen_basepath — 生成或读取basepath(用户指定 or 随机16位hex，持久化)
+gen_basepath() {
+  mkdir -p "$HOME/agsbx"
+  if [ -z "$basepath" ] && [ ! -e "$HOME/agsbx/basepath" ]; then
+    basepath=$(head -c 32 /dev/urandom | sha256sum | cut -c 1-16)
+    echo "$basepath" > "$HOME/agsbx/basepath"
+  elif [ -n "$basepath" ]; then
+    echo "$basepath" > "$HOME/agsbx/basepath"
+  fi
+  basepath=$(cat "$HOME/agsbx/basepath")
+}
+
+# certsign 域名 证书名 — 使用acme.sh + CF DNS API签发TLS证书(含泛域名)
+certsign() {
+  local _csdomain="$1"
+  local _csprefix="$2"
+  local _cscrt="/etc/argosbx/certs/${_csprefix}.crt"
+  local _cskey="/etc/argosbx/certs/${_csprefix}.key"
+  local _acme="$HOME/.acme.sh/acme.sh"
+  mkdir -p /etc/argosbx/certs
+  if [ -f "$_cscrt" ] && [ -f "$_cskey" ]; then
+    echo "证书已存在: $_cscrt"
+    return 0
+  fi
+  if [ ! -e "$_acme" ]; then
+    echo "安装acme.sh..."
+    dl https://get.acme.sh "$HOME/agsbx/acme_install.sh" && sh "$HOME/agsbx/acme_install.sh" && rm -f "$HOME/agsbx/acme_install.sh"
+  fi
+  if [ ! -e "$_acme" ]; then
+    echo "⚠️ acme.sh安装失败，无法签发证书"
+    return 1
+  fi
+  export CF_Token="$cfapi"
+  export CF_Zone_ID="$cfzone"
+  echo "签发证书: $_csdomain (含泛域名)..."
+  local _csretry=0
+  while [ "$_csretry" -lt 3 ]; do
+    if "$_acme" --issue -d "$_csdomain" -d "*.$_csdomain" --dns dns_cf; then
+      break
+    fi
+    _csretry=$((_csretry + 1))
+    if [ "$_csretry" -lt 3 ]; then
+      echo "签发重试(${_csretry}/3)，等待30秒..."
+      sleep 30
+    fi
+  done
+  if [ "$_csretry" -ge 3 ]; then
+    echo "⚠️ 证书签发失败: $_csdomain（已重试3次）"
+    unset CF_Token CF_Zone_ID
+    return 1
+  fi
+  "$_acme" --install-cert -d "$_csdomain" -d "*.$_csdomain" \
+    --key-file "$_cskey" \
+    --fullchain-file "$_cscrt" \
+    --reloadcmd "if command -v systemctl >/dev/null 2>&1; then systemctl restart xray sing-box 2>/dev/null; elif command -v rc-service >/dev/null 2>&1; then rc-service xray restart 2>/dev/null; rc-service sing-box restart 2>/dev/null; fi"
+  unset CF_Token CF_Zone_ID
+  echo "✅ 证书签发成功: $_csdomain → $_cscrt"
 }
 
 # ===== S3: 系统初始化 =====
@@ -297,7 +366,7 @@ private_key_x=$(cat "$HOME/agsbx/xrk/private_key")
 public_key_x=$(cat "$HOME/agsbx/xrk/public_key")
 short_id_x=$(cat "$HOME/agsbx/xrk/short_id")
 fi
-if [ -n "$xhp" ] || [ -n "$vxp" ] || [ -n "$vwp" ]; then
+if [ -n "$xhp" ] || [ -n "$vxp" ] || [ -n "$vwp" ] || [ -n "$vup" ] || [ -n "$vgp" ]; then
 if [ ! -e "$HOME/agsbx/xrk/dekey" ]; then
 vlkey=$("$HOME/agsbx/xray" vlessenc)
 dekey=$(echo "$vlkey" | grep '"decryption":' | sed -n '2p' | cut -d' ' -f2- | tr -d '"')
@@ -305,8 +374,14 @@ enkey=$(echo "$vlkey" | grep '"encryption":' | sed -n '2p' | cut -d' ' -f2- | tr
 echo "$dekey" > "$HOME/agsbx/xrk/dekey"
 echo "$enkey" > "$HOME/agsbx/xrk/enkey"
 fi
-dekey=$(cat "$HOME/agsbx/xrk/dekey")
-enkey=$(cat "$HOME/agsbx/xrk/enkey")
+  dekey=$(cat "$HOME/agsbx/xrk/dekey")
+  enkey=$(cat "$HOME/agsbx/xrk/enkey")
+fi
+
+# basepath生成(CDN协议path和gRPC serviceName需要)
+if [ -n "$vxp" ] || [ -n "$vwp" ] || [ -n "$vup" ] || [ -n "$twp" ] || [ -n "$tuhp" ] || [ -n "$vgp" ] || [ -n "$tgp" ] || [ -n "$mgp" ]; then
+  gen_basepath
+  echo "Basepath: $basepath"
 fi
 
 if [ -n "$xhp" ]; then
@@ -356,35 +431,42 @@ EOF
 else
 xhp=xhptargo
 fi
+# cdnym持久化(任何CDN协议启用时统一处理)
+if [ -n "$cdnym" ] && { [ -n "$vxp" ] || [ -n "$vwp" ] || [ -n "$vup" ] || [ -n "$twp" ] || [ -n "$tuhp" ]; }; then
+echo "$cdnym" > "$HOME/agsbx/cdnym"
+echo "CDN host域名: $cdnym"
+fi
 if [ -n "$vxp" ]; then
 vxp=vxpt
-alloc_port port_vx
- echo "Vless-xhttp-enc端口：$port_vx"
-if [ -n "$cdnym" ]; then
-echo "$cdnym" > "$HOME/agsbx/cdnym"
-echo "80系CDN或者回源CDN的host域名 (确保IP已解析在CF域名)：$cdnym"
-fi
+ echo "Vless-xhttp-enc端口：2053 (CF HTTPS固定端口)"
 cat >> "$HOME/agsbx/xr.json" <<EOF
     {
       "tag":"vless-xhttp",
       "listen": "::",
-      "port": ${port_vx},
+      "port": 2053,
       "protocol": "vless",
       "settings": {
-        "clients": [
+        "users": [
           {
-            "id": "${uuid}",
-            "flow": "xtls-rprx-vision"
+            "id": "${uuid}"
           }
         ],
         "decryption": "${dekey}"
       },
       "streamSettings": {
         "network": "xhttp",
+        "security": "tls",
         "xhttpSettings": {
           "host": "",
-          "path": "${uuid}-vx",
-          "mode": "auto"
+          "path": "/${basepath}-vx",
+          "mode": "packet-up"
+        },
+        "tlsSettings": {
+          "certificates": [{
+            "certificateFile": "/etc/argosbx/certs/cdnym.crt",
+            "keyFile": "/etc/argosbx/certs/cdnym.key"
+          }],
+          "alpn": ["h2", "http/1.1"]
         }
       },
         "sniffing": {
@@ -399,31 +481,54 @@ vxp=vxptargo
 fi
 if [ -n "$vwp" ]; then
 vwp=vwpt
-alloc_port port_vw
- echo "Vless-ws-enc端口：$port_vw"
-if [ -n "$cdnym" ]; then
-echo "$cdnym" > "$HOME/agsbx/cdnym"
-echo "80系CDN或者回源CDN的host域名 (确保IP已解析在CF域名)：$cdnym"
-fi
+ echo "Vless-ws端口：443 (CF HTTPS主端口, 含gRPC fallbacks)"
 cat >> "$HOME/agsbx/xr.json" <<EOF
     {
       "tag":"vless-ws",
       "listen": "::",
-      "port": ${port_vw},
+      "port": 443,
       "protocol": "vless",
       "settings": {
-        "clients": [
+        "users": [
           {
-            "id": "${uuid}",
-            "flow": "xtls-rprx-vision"
+            "id": "${uuid}"
           }
         ],
-        "decryption": "${dekey}"
+        "decryption": "none",
+        "fallbacks": [
+EOF
+if [ -n "$vgp" ]; then
+cat >> "$HOME/agsbx/xr.json" <<EOF
+          {"alpn":"h2","path":"/${basepath}-vg","dest":"@vless-grpc","xver":0},
+EOF
+fi
+if [ -n "$tgp" ]; then
+cat >> "$HOME/agsbx/xr.json" <<EOF
+          {"alpn":"h2","path":"/${basepath}-tg","dest":"@trojan-grpc","xver":0},
+EOF
+fi
+if [ -n "$mgp" ]; then
+cat >> "$HOME/agsbx/xr.json" <<EOF
+          {"alpn":"h2","path":"/${basepath}-mg","dest":"@vmess-grpc","xver":0},
+EOF
+fi
+cat >> "$HOME/agsbx/xr.json" <<EOF
+          {"dest":444}
+        ]
       },
       "streamSettings": {
         "network": "ws",
+        "security": "tls",
         "wsSettings": {
-          "path": "${uuid}-vw"
+          "path": "/${basepath}-vw",
+          "host": ""
+        },
+        "tlsSettings": {
+          "certificates": [{
+            "certificateFile": "/etc/argosbx/certs/cdnym.crt",
+            "keyFile": "/etc/argosbx/certs/cdnym.key"
+          }],
+          "alpn": ["h2", "http/1.1"]
         }
       },
         "sniffing": {
@@ -435,6 +540,230 @@ cat >> "$HOME/agsbx/xr.json" <<EOF
 EOF
 else
 vwp=vwptargo
+fi
+if [ -n "$vup" ]; then
+vup=vupt
+ echo "Vless-httpupgrade-enc端口：2087 (CF HTTPS固定端口)"
+cat >> "$HOME/agsbx/xr.json" <<EOF
+    {
+      "tag":"vless-httpupgrade",
+      "listen": "::",
+      "port": 2087,
+      "protocol": "vless",
+      "settings": {
+        "users": [
+          {
+            "id": "${uuid}"
+          }
+        ],
+        "decryption": "${dekey}"
+      },
+      "streamSettings": {
+        "network": "httpupgrade",
+        "security": "tls",
+        "httpupgradeSettings": {
+          "path": "/${basepath}-vu",
+          "host": ""
+        },
+        "tlsSettings": {
+          "certificates": [{
+            "certificateFile": "/etc/argosbx/certs/cdnym.crt",
+            "keyFile": "/etc/argosbx/certs/cdnym.key"
+          }],
+          "alpn": ["h2", "http/1.1"]
+        }
+      },
+        "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"],
+        "metadataOnly": false
+      }
+    },
+EOF
+else
+vup=vuptargo
+fi
+if [ -n "$twp" ]; then
+twp=twpt
+ echo "Trojan-ws端口：2096 (CF HTTPS固定端口)"
+cat >> "$HOME/agsbx/xr.json" <<EOF
+    {
+      "tag":"trojan-ws",
+      "listen": "::",
+      "port": 2096,
+      "protocol": "trojan",
+      "settings": {
+        "users": [
+          {
+            "password": "${uuid}"
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "ws",
+        "security": "tls",
+        "wsSettings": {
+          "path": "/${basepath}-tw",
+          "host": ""
+        },
+        "tlsSettings": {
+          "certificates": [{
+            "certificateFile": "/etc/argosbx/certs/cdnym.crt",
+            "keyFile": "/etc/argosbx/certs/cdnym.key"
+          }],
+          "alpn": ["h2", "http/1.1"]
+        }
+      },
+        "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"],
+        "metadataOnly": false
+      }
+    },
+EOF
+else
+twp=twptargo
+fi
+if [ -n "$tuhp" ]; then
+tuhp=tuhpt
+ echo "Trojan-httpupgrade端口：8443 (CF HTTPS固定端口)"
+cat >> "$HOME/agsbx/xr.json" <<EOF
+    {
+      "tag":"trojan-httpupgrade",
+      "listen": "::",
+      "port": 8443,
+      "protocol": "trojan",
+      "settings": {
+        "users": [
+          {
+            "password": "${uuid}"
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "httpupgrade",
+        "security": "tls",
+        "httpupgradeSettings": {
+          "path": "/${basepath}-tuh",
+          "host": ""
+        },
+        "tlsSettings": {
+          "certificates": [{
+            "certificateFile": "/etc/argosbx/certs/cdnym.crt",
+            "keyFile": "/etc/argosbx/certs/cdnym.key"
+          }],
+          "alpn": ["h2", "http/1.1"]
+        }
+      },
+        "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"],
+        "metadataOnly": false
+      }
+    },
+EOF
+else
+tuhp=tuhptargo
+fi
+if [ -n "$vgp" ]; then
+vgp=vgpt
+ echo "Vless-grpc-enc：443 fallbacks转发 (Unix socket @vless-grpc, TLS在443终止)"
+cat >> "$HOME/agsbx/xr.json" <<EOF
+    {
+      "tag":"vless-grpc",
+      "listen": "@vless-grpc",
+      "protocol": "vless",
+      "settings": {
+        "users": [
+          {
+            "id": "${uuid}"
+          }
+        ],
+        "decryption": "${dekey}"
+      },
+      "streamSettings": {
+        "network": "grpc",
+        "security": "none",
+        "grpcSettings": {
+          "serviceName": "${basepath}-vg",
+          "multiMode": true
+        }
+      },
+        "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"],
+        "metadataOnly": false
+      }
+    },
+EOF
+else
+vgp=vgptargo
+fi
+if [ -n "$tgp" ]; then
+tgp=tgpt
+ echo "Trojan-grpc：443 fallbacks转发 (Unix socket @trojan-grpc, TLS在443终止)"
+cat >> "$HOME/agsbx/xr.json" <<EOF
+    {
+      "tag":"trojan-grpc",
+      "listen": "@trojan-grpc",
+      "protocol": "trojan",
+      "settings": {
+        "users": [
+          {
+            "password": "${uuid}"
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "grpc",
+        "security": "none",
+        "grpcSettings": {
+          "serviceName": "${basepath}-tg",
+          "multiMode": true
+        }
+      },
+        "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"],
+        "metadataOnly": false
+      }
+    },
+EOF
+else
+tgp=tgptargo
+fi
+if [ -n "$mgp" ]; then
+mgp=mgpt
+ echo "Vmess-grpc：443 fallbacks转发 (Unix socket @vmess-grpc, TLS在443终止)"
+cat >> "$HOME/agsbx/xr.json" <<EOF
+    {
+      "tag":"vmess-grpc",
+      "listen": "@vmess-grpc",
+      "protocol": "vmess",
+      "settings": {
+        "users": [
+          {
+            "id": "${uuid}"
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "grpc",
+        "security": "none",
+        "grpcSettings": {
+          "serviceName": "${basepath}-mg",
+          "multiMode": true
+        }
+      },
+        "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"],
+        "metadataOnly": false
+      }
+    },
+EOF
+else
+mgp=mgptargo
 fi
 if [ -n "$vlp" ]; then
 vlp=vlpt
@@ -672,21 +1001,18 @@ fi
 xrsbvm(){
 if [ -n "$vmp" ]; then
 vmp=vmpt
+gen_basepath
+echo "Vmess-ws：xray模式→端口2083(CF固定) / singbox模式→随机端口"
 alloc_port port_vm_ws
- echo "Vmess-ws端口：$port_vm_ws"
-if [ -n "$cdnym" ]; then
-echo "$cdnym" > "$HOME/agsbx/cdnym"
-echo "80系CDN或者回源CDN的host域名 (确保IP已解析在CF域名)：$cdnym"
-fi
 if [ -e "$HOME/agsbx/xr.json" ]; then
 cat >> "$HOME/agsbx/xr.json" <<EOF
         {
             "tag": "vmess-xr",
             "listen": "::",
-            "port": ${port_vm_ws},
+            "port": 2083,
             "protocol": "vmess",
             "settings": {
-                "clients": [
+                "users": [
                     {
                         "id": "${uuid}"
                     }
@@ -694,10 +1020,17 @@ cat >> "$HOME/agsbx/xr.json" <<EOF
             },
             "streamSettings": {
                 "network": "ws",
-                "security": "none",
+                "security": "tls",
                 "wsSettings": {
-                  "path": "${uuid}-vm"
-            }
+                  "path": "/${basepath}-vm"
+                },
+                "tlsSettings": {
+                  "certificates": [{
+                    "certificateFile": "/etc/argosbx/certs/cdnym.crt",
+                    "keyFile": "/etc/argosbx/certs/cdnym.key"
+                  }],
+                  "alpn": ["h2", "http/1.1"]
+                }
         },
             "sniffing": {
             "enabled": true,
@@ -720,7 +1053,7 @@ cat >> "$HOME/agsbx/sb.json" <<EOF
         ],
         "transport": {
             "type": "ws",
-            "path": "${uuid}-vm",
+            "path": "/${basepath}-vm",
             "max_early_data":2048,
             "early_data_header_name": "Sec-WebSocket-Protocol"
         }
@@ -979,6 +1312,10 @@ fi
 fi
 }
 ins(){
+# 证书签发(CDN协议需要cdnym证书, acme.sh + CF DNS API)
+if [ -n "$cdnym" ] && [ -n "$cfapi" ] && { [ -n "$vxp" ] || [ -n "$vwp" ] || [ -n "$vup" ] || [ -n "$twp" ] || [ -n "$tuhp" ] || [ -n "$vmp" ]; }; then
+  certsign "$cdnym" "cdnym" || echo "⚠️ CDN证书签发失败，CDN协议可能无法正常工作(CF Full Strict模式)"
+fi
 if [ "$hyp" != yes ] && [ "$tup" != yes ] && [ "$anp" != yes ] && [ "$arp" != yes ] && [ "$ssp" != yes ]; then
 installxray
 xrsbvm
@@ -986,13 +1323,13 @@ xrsbso
 warpsx
 xrsbout
 hyp="hyptargo"; tup="tuptargo"; anp="anptargo"; arp="arptargo"; ssp="ssptargo"
-elif [ "$xhp" != yes ] && [ "$vlp" != yes ] && [ "$vxp" != yes ] && [ "$vwp" != yes ]; then
+elif [ "$xhp" != yes ] && [ "$vlp" != yes ] && [ "$vxp" != yes ] && [ "$vwp" != yes ] && [ "$vup" != yes ] && [ "$twp" != yes ] && [ "$tuhp" != yes ] && [ "$vgp" != yes ] && [ "$tgp" != yes ] && [ "$mgp" != yes ]; then
 installsb
 xrsbvm
 xrsbso
 warpsx
 xrsbout
-xhp="xhptargo"; vlp="vlptargo"; vxp="vxptargo"; vwp="vwptargo"
+xhp="xhptargo"; vlp="vlptargo"; vxp="vxptargo"; vwp="vwptargo"; vup="vuptargo"; twp="twptargo"; tuhp="tuhptargo"; vgp="vgptargo"; tgp="tgptargo"; mgp="mgptargo"
 else
 installsb
 installxray
@@ -1254,35 +1591,101 @@ echo "$vl_xh_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vl_xh_link"
 echo
 fi
+basepath=$(cat "$HOME/agsbx/basepath" 2>/dev/null)
 if grep vless-xhttp "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 echo "💣【 Vless-xhttp-enc 】支持ENC加密，节点信息如下："
-port_vx=$(cat "$HOME/agsbx/port_vx")
-vl_vx_link="vless://$uuid@$server_ip:$port_vx?encryption=$enkey&flow=xtls-rprx-vision&type=xhttp&path=$uuid-vx&mode=auto#${sxname}vl-xhttp-enc-$hostname"
+vl_vx_link="vless://$uuid@$server_ip:2053?encryption=$enkey&type=xhttp&path=/${basepath}-vx&mode=packet-up&security=tls&sni=$xvvmcdnym&fp=chrome#${sxname}vl-xhttp-enc-$hostname"
 echo "$vl_vx_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vl_vx_link"
 echo
 if [ -f "$HOME/agsbx/cdnym" ]; then
-echo "💣【 Vless-xhttp-ecn-cdn 】支持ENC加密，节点信息如下："
-echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，如是回源端口需手动修改443或者80系端口"
-vl_vx_cdn_link="vless://$uuid@yg$(cfipsj).ygkkk.dpdns.org:$port_vx?encryption=$enkey&flow=xtls-rprx-vision&type=xhttp&host=$xvvmcdnym&path=$uuid-vx&mode=auto#${sxname}vl-xhttp-enc-cdn-$hostname"
+ echo "💣【 Vless-xhttp-enc-cdn 】支持ENC加密，节点信息如下："
+ echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定2053端口+TLS"
+ vl_vx_cdn_link="vless://$uuid@yg$(cfipsj).ygkkk.dpdns.org:443?encryption=$enkey&type=xhttp&host=$xvvmcdnym&path=/${basepath}-vx&mode=packet-up&security=tls&sni=$xvvmcdnym&fp=chrome#${sxname}vl-xhttp-enc-cdn-$hostname"
 echo "$vl_vx_cdn_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vl_vx_cdn_link"
 echo
 fi
 fi
 if grep vless-ws "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
-echo "💣【 Vless-ws-enc 】支持ENC加密，节点信息如下："
-port_vw=$(cat "$HOME/agsbx/port_vw")
-vl_vw_link="vless://$uuid@$server_ip:$port_vw?encryption=$enkey&flow=xtls-rprx-vision&type=ws&path=$uuid-vw#${sxname}vl-ws-enc-$hostname"
+echo "💣【 Vless-ws 】节点信息如下："
+vl_vw_link="vless://$uuid@$server_ip:443?encryption=none&type=ws&path=/${basepath}-vw&security=tls&sni=$xvvmcdnym&fp=chrome#${sxname}vl-ws-$hostname"
 echo "$vl_vw_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vl_vw_link"
 echo
 if [ -f "$HOME/agsbx/cdnym" ]; then
-echo "💣【 Vless-ws-enc-cdn 】支持ENC加密，节点信息如下："
-echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，如是回源端口需手动修改443或者80系端口"
-vl_vw_cdn_link="vless://$uuid@yg$(cfipsj).ygkkk.dpdns.org:$port_vw?encryption=$enkey&flow=xtls-rprx-vision&type=ws&host=$xvvmcdnym&path=$uuid-vw#${sxname}vl-ws-enc-cdn-$hostname"
+ echo "💣【 Vless-ws-cdn 】节点信息如下："
+ echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定443端口+TLS"
+ vl_vw_cdn_link="vless://$uuid@yg$(cfipsj).ygkkk.dpdns.org:443?encryption=none&type=ws&host=$xvvmcdnym&path=/${basepath}-vw&security=tls&sni=$xvvmcdnym&fp=chrome#${sxname}vl-ws-cdn-$hostname"
 echo "$vl_vw_cdn_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vl_vw_cdn_link"
+echo
+fi
+fi
+if grep vless-httpupgrade "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+echo "💣【 Vless-httpupgrade-enc 】支持ENC加密，节点信息如下："
+vl_vu_link="vless://$uuid@$server_ip:2087?encryption=$enkey&type=httpupgrade&path=/${basepath}-vu&security=tls&sni=$xvvmcdnym&fp=chrome#${sxname}vl-httpupgrade-enc-$hostname"
+echo "$vl_vu_link" >> "$HOME/agsbx/jhsub.txt"
+echo "$vl_vu_link"
+echo
+if [ -f "$HOME/agsbx/cdnym" ]; then
+ echo "💣【 Vless-httpupgrade-enc-cdn 】支持ENC加密，节点信息如下："
+ echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定443端口+TLS"
+ vl_vu_cdn_link="vless://$uuid@yg$(cfipsj).ygkkk.dpdns.org:443?encryption=$enkey&type=httpupgrade&host=$xvvmcdnym&path=/${basepath}-vu&security=tls&sni=$xvvmcdnym&fp=chrome#${sxname}vl-httpupgrade-enc-cdn-$hostname"
+echo "$vl_vu_cdn_link" >> "$HOME/agsbx/jhsub.txt"
+echo "$vl_vu_cdn_link"
+echo
+fi
+fi
+if grep trojan-ws "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+echo "💣【 Trojan-ws 】节点信息如下："
+tr_tw_link="trojan://$uuid@$server_ip:2096?security=tls&type=ws&path=/${basepath}-tw&sni=$xvvmcdnym&fp=chrome#${sxname}tr-ws-$hostname"
+echo "$tr_tw_link" >> "$HOME/agsbx/jhsub.txt"
+echo "$tr_tw_link"
+echo
+if [ -f "$HOME/agsbx/cdnym" ]; then
+ echo "💣【 Trojan-ws-cdn 】节点信息如下："
+ echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定443端口+TLS"
+ tr_tw_cdn_link="trojan://$uuid@yg$(cfipsj).ygkkk.dpdns.org:443?security=tls&type=ws&host=$xvvmcdnym&path=/${basepath}-tw&sni=$xvvmcdnym&fp=chrome#${sxname}tr-ws-cdn-$hostname"
+echo "$tr_tw_cdn_link" >> "$HOME/agsbx/jhsub.txt"
+echo "$tr_tw_cdn_link"
+echo
+fi
+fi
+if grep trojan-httpupgrade "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+echo "💣【 Trojan-httpupgrade 】节点信息如下："
+tr_tuh_link="trojan://$uuid@$server_ip:8443?security=tls&type=httpupgrade&path=/${basepath}-tuh&sni=$xvvmcdnym&fp=chrome#${sxname}tr-httpupgrade-$hostname"
+echo "$tr_tuh_link" >> "$HOME/agsbx/jhsub.txt"
+echo "$tr_tuh_link"
+echo
+if [ -f "$HOME/agsbx/cdnym" ]; then
+ echo "💣【 Trojan-httpupgrade-cdn 】节点信息如下："
+ echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定443端口+TLS"
+ tr_tuh_cdn_link="trojan://$uuid@yg$(cfipsj).ygkkk.dpdns.org:443?security=tls&type=httpupgrade&host=$xvvmcdnym&path=/${basepath}-tuh&sni=$xvvmcdnym&fp=chrome#${sxname}tr-httpupgrade-cdn-$hostname"
+echo "$tr_tuh_cdn_link" >> "$HOME/agsbx/jhsub.txt"
+echo "$tr_tuh_cdn_link"
+echo
+fi
+fi
+if grep vless-grpc "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+if [ -f "$HOME/agsbx/cdnym" ]; then
+echo "💣【 Vless-grpc-enc-cdn 】支持ENC加密，gRPC走443 fallbacks，节点信息如下："
+echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定443端口+TLS"
+echo "⚠️ gRPC需在CF Dashboard → Network → 开启gRPC开关"
+vl_vg_cdn_link="vless://$uuid@yg$(cfipsj).ygkkk.dpdns.org:443?encryption=$enkey&type=grpc&serviceName=${basepath}-vg&authority=$xvvmcdnym&mode=gun&security=tls&sni=$xvvmcdnym&fp=chrome#${sxname}vl-grpc-enc-cdn-$hostname"
+echo "$vl_vg_cdn_link" >> "$HOME/agsbx/jhsub.txt"
+echo "$vl_vg_cdn_link"
+echo
+fi
+fi
+if grep trojan-grpc "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+if [ -f "$HOME/agsbx/cdnym" ]; then
+echo "💣【 Trojan-grpc-cdn 】gRPC走443 fallbacks，节点信息如下："
+echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定443端口+TLS"
+echo "⚠️ gRPC需在CF Dashboard → Network → 开启gRPC开关"
+tr_tg_cdn_link="trojan://$uuid@yg$(cfipsj).ygkkk.dpdns.org:443?security=tls&type=grpc&serviceName=${basepath}-tg&authority=$xvvmcdnym&mode=gun&sni=$xvvmcdnym&fp=chrome#${sxname}tr-grpc-cdn-$hostname"
+echo "$tr_tg_cdn_link" >> "$HOME/agsbx/jhsub.txt"
+echo "$tr_tg_cdn_link"
 echo
 fi
 fi
@@ -1388,8 +1791,7 @@ echo "- ${sxname}Shadowsocks-2022-$hostname"
 fi
 if grep vmess-xr "$HOME/agsbx/xr.json" >/dev/null 2>&1 || grep vmess-sb "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
 echo "💣【 Vmess-ws 】节点信息如下："
-port_vm_ws=$(cat "$HOME/agsbx/port_vm_ws")
-vm_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-$hostname\", \"add\": \"$server_ip\", \"port\": \"$port_vm_ws\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"www.bing.com\", \"path\": \"/$uuid-vm\", \"tls\": \"\"}" | base64 -w0)"
+vm_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-$hostname\", \"add\": \"$server_ip\", \"port\": \"2083\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$basepath-vm\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"fp\": \"chrome\"}" | base64 -w0)"
 echo "$vm_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vm_link"
 echo
@@ -1415,7 +1817,7 @@ cat <<EOF
                         "www.bing.com"
                     ]
                 },
-                "path": "$uuid-vm",
+                "path": "/$basepath-vm",
                 "type": "ws"
             },
             "type": "vmess",
@@ -1440,7 +1842,7 @@ cat <<EOF
   network: ws
   servername: www.bing.com                    
   ws-opts:
-    path: "$uuid-vm"                             
+    path: "/$basepath-vm"                             
     headers:
       Host: www.bing.com
 EOF
@@ -1449,11 +1851,22 @@ clvmpt1(){
 echo "- ${sxname}vmess-ws-$hostname"
 }
 if [ -f "$HOME/agsbx/cdnym" ]; then
-echo "💣【 Vmess-ws-cdn 】节点信息如下："
-echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，如是回源端口需手动修改443或者80系端口"
-vm_cdn_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-cdn-$hostname\", \"add\": \"yg$(cfipsj).ygkkk.dpdns.org\", \"port\": \"$port_vm_ws\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$uuid-vm\", \"tls\": \"\"}" | base64 -w0)"
+ echo "💣【 Vmess-ws-cdn 】节点信息如下："
+ echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定443端口+TLS"
+ vm_cdn_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-cdn-$hostname\", \"add\": \"yg$(cfipsj).ygkkk.dpdns.org\", \"port\": \"443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$basepath-vm\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)"
 echo "$vm_cdn_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vm_cdn_link"
+echo
+fi
+fi
+if grep vmess-grpc "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+if [ -f "$HOME/agsbx/cdnym" ]; then
+echo "💣【 Vmess-grpc-cdn 】gRPC走443 fallbacks，节点信息如下："
+echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定443端口+TLS"
+echo "⚠️ gRPC需在CF Dashboard → Network → 开启gRPC开关"
+vm_mg_cdn_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-grpc-cdn-$hostname\", \"add\": \"yg$(cfipsj).ygkkk.dpdns.org\", \"port\": \"443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"grpc\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"$basepath-mg\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"fp\": \"chrome\"}" | base64 -w0)"
+echo "$vm_mg_cdn_link" >> "$HOME/agsbx/jhsub.txt"
+echo "$vm_mg_cdn_link"
 echo
 fi
 fi
@@ -1727,7 +2140,7 @@ cat <<EOF
                         "$argodomain"
                     ]
                 },
-                "path": "$uuid-vm",
+                "path": "/$basepath-vm",
                 "type": "ws"
             },
             "type": "vmess",
@@ -1754,7 +2167,7 @@ cat <<EOF
                         "$argodomain"
                     ]
                 },
-                "path": "$uuid-vm",
+                "path": "/$basepath-vm",
                 "type": "ws"
             },
             "type": "vmess",
@@ -1780,7 +2193,7 @@ cat <<EOF
   network: ws
   servername: $argodomain                    
   ws-opts:
-    path: "$uuid-vm"                             
+    path: "/$basepath-vm"                             
     headers:
       Host: $argodomain
 - name: ${sxname}vmess-ws-argo-$hostname-80                         
@@ -1794,7 +2207,7 @@ cat <<EOF
   network: ws
   servername: $argodomain                    
   ws-opts:
-    path: "$uuid-vm"                             
+    path: "/$basepath-vm"                             
     headers:
       Host: $argodomain
 EOF
