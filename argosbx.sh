@@ -166,8 +166,9 @@ gen_basepath() {
 
 # validate_input — 验证用户输入的安全性(域名/UUID/basepath/端口)
 validate_input() {
+  # 域名验证: 允许字母/数字/连字符/下划线(部分DNS provider如CF支持下划线子域名)
   if [ -n "$cdnym" ]; then
-    echo "$cdnym" | grep -qE '^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$' || { echo "⚠️ 域名格式无效: $cdnym"; exit 1; }
+    echo "$cdnym" | grep -qE '^[a-zA-Z0-9_]([a-zA-Z0-9_-]*[a-zA-Z0-9_])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$' || { echo "⚠️ 域名格式无效: $cdnym"; exit 1; }
   fi
   if [ -n "$uuid" ]; then
     echo "$uuid" | grep -qiE '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' || { echo "⚠️ UUID格式无效: $uuid"; exit 1; }
@@ -371,6 +372,47 @@ tpl_sb() {
       -e "s|__SHORT_ID_S__|${short_id_s}|g" \
       -e "s|__HOME__|${HOME}|g" \
       "$_tplfile" | sed '$s/$/,/' >> "$HOME/agsbx/sb.json"
+}
+
+# tpl_fw 子目录 模板名 — 加载框架配置(header/outbound), sed替换WARP变量, 输出到stdout(不加逗号)
+# 用法: tpl_fw xr header.json > xr.json  /  tpl_fw xr outbound.json >> xr.json
+tpl_fw() {
+  local _fwsub="$1"
+  local _fwtpl="$2"
+  local _fwdir="$HOME/agsbx/templates/$_fwsub"
+  local _fwfile="$_fwdir/$_fwtpl"
+  mkdir -p "$_fwdir"
+  if [ ! -f "$_fwfile" ]; then
+    dl "$tplbaseurl/$_fwsub/$_fwtpl" "$_fwfile" || { echo "⚠️ 框架模板下载失败: $_fwsub/$_fwtpl"; return 1; }
+  fi
+  sed -e "s|__XRYX__|${xryx:-AsIs}|g" \
+      -e "s|__WXRYX__|${wxryx:-AsIs}|g" \
+      -e "s|__SRYX__|${sbyx:-prefer_ipv6}|g" \
+      -e "s|__PVK__|${pvk:-}|g" \
+      -e "s|__WPV6__|${wpv6:-}|g" \
+      -e "s|__XENDIP__|${xendip:-engage.cloudflareclient.com}|g" \
+      -e "s|__RES__|${res:-[]}|g" \
+      -e "s|__XIP__|${xip:-}|g" \
+      -e "s|__X1OUTTAG__|${x1outtag:-direct}|g" \
+      -e "s|__X2OUTTAG__|${x2outtag:-direct}|g" \
+      -e "s|__HOME__|${HOME}|g" \
+      "$_fwfile"
+}
+
+# tpl_client 模板名 输出文件 — 加载客户端配置, awk替换多行占位符
+# 用法: tpl_client clmi-client.yaml $HOME/agsbx/clmi.yaml
+tpl_client() {
+  local _ctpl="$1"
+  local _cout="$2"
+  local _cdir="$HOME/agsbx/templates/client"
+  local _cfile="$_cdir/$_ctpl"
+  mkdir -p "$_cdir"
+  if [ ! -f "$_cfile" ]; then
+    dl "$tplbaseurl/client/$_ctpl" "$_cfile" || { echo "⚠️ 客户端模板下载失败: $_ctpl"; return 1; }
+  fi
+  awk -v sbxy="${sbxy:-}" -v sbgz="${sbgz:-}" -v clxy="${clxy:-}" -v clgz="${clgz:-}" \
+    '{gsub(/__SBXY__/, sbxy); gsub(/__SBGZ__/, sbgz); gsub(/__CLXY__/, clxy); gsub(/__CLGZ__/, clgz); print}' \
+    "$_cfile" > "$_cout.tmp" 2>/dev/null && mv "$_cout.tmp" "$_cout"
 }
 
 # ===== S3: 系统初始化 =====
