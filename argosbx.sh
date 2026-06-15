@@ -19,13 +19,18 @@ export LANG=en_US.UTF-8
 [ -z "${vgpt+x}" ] || vgp=yes
 [ -z "${tgpt+x}" ] || tgp=yes
 [ -z "${mgpt+x}" ] || mgp=yes
+[ -z "${mupt+x}" ] || mup=yes
+[ -z "${txpt+x}" ] || txp=yes
+[ -z "${mxpt+x}" ] || mxp=yes
+[ -z "${swpt+x}" ] || swp=yes
+[ -z "${vwept+x}" ] || vwep=yes
 [ -z "${warp+x}" ] || wap=yes
 if find /proc/*/exe -type l 2>/dev/null | grep -E '/proc/[0-9]+/exe' | xargs -r readlink 2>/dev/null | grep -Eq 'agsbx/(s|x)' || pgrep -f 'agsbx/(s|x)' >/dev/null 2>&1; then
 if [ "$1" = "rep" ]; then
-[ "$vwp" = yes ] || [ "$sop" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || [ "$vup" = yes ] || [ "$twp" = yes ] || [ "$tuhp" = yes ] || [ "$vgp" = yes ] || [ "$tgp" = yes ] || [ "$mgp" = yes ] || { echo "提示：rep重置协议时，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
+[ "$vwp" = yes ] || [ "$sop" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || [ "$vup" = yes ] || [ "$twp" = yes ] || [ "$tuhp" = yes ] || [ "$vgp" = yes ] || [ "$tgp" = yes ] || [ "$mgp" = yes ] || [ "$mup" = yes ] || [ "$txp" = yes ] || [ "$mxp" = yes ] || [ "$swp" = yes ] || [ "$vwep" = yes ] || { echo "提示：rep重置协议时，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
 fi
 else
-[ "$1" = "del" ] || [ "$vwp" = yes ] || [ "$sop" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || [ "$vup" = yes ] || [ "$twp" = yes ] || [ "$tuhp" = yes ] || [ "$vgp" = yes ] || [ "$tgp" = yes ] || [ "$mgp" = yes ] || { echo "提示：未安装argosbx脚本，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
+[ "$1" = "del" ] || [ "$vwp" = yes ] || [ "$sop" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || [ "$vup" = yes ] || [ "$twp" = yes ] || [ "$tuhp" = yes ] || [ "$vgp" = yes ] || [ "$tgp" = yes ] || [ "$mgp" = yes ] || [ "$mup" = yes ] || [ "$txp" = yes ] || [ "$mxp" = yes ] || [ "$swp" = yes ] || [ "$vwep" = yes ] || { echo "提示：未安装argosbx脚本，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
 fi
 export uuid=${uuid:-''}
 export port_vl_re=${vlpt:-''}
@@ -54,6 +59,7 @@ export name=${name:-''}
 export oap=${oap:-''}
 v46url="https://icanhazip.com"
 agsbxurl="https://raw.githubusercontent.com/Be90nia/argosbx/main/argosbx.sh"
+tplbaseurl="https://raw.githubusercontent.com/Be90nia/argosbx/main/templates"
 showmode(){
 echo "Argosbx脚本一键SSH命令生器在线网址：https://yonggekkk.github.io/argosbx/"
 echo "主脚本：bash <(curl -Ls https://raw.githubusercontent.com/Be90nia/argosbx/main/argosbx.sh) 或 bash <(wget -qO- https://raw.githubusercontent.com/Be90nia/argosbx/main/argosbx.sh)"  
@@ -164,6 +170,22 @@ certsign() {
     --reloadcmd "if command -v systemctl >/dev/null 2>&1; then systemctl restart xray sing-box 2>/dev/null; elif command -v rc-service >/dev/null 2>&1; then rc-service xray restart 2>/dev/null; rc-service sing-box restart 2>/dev/null; fi"
   unset CF_Token CF_Zone_ID
   echo "✅ 证书签发成功: $_csdomain → $_cscrt"
+}
+
+# tpl_xr 模板名 — 加载xray inbound模板(下载/缓存)，替换占位符，追加到xr.json(末尾加逗号)
+tpl_xr() {
+  local _tplname="$1"
+  local _tpldir="$HOME/agsbx/templates/xr"
+  local _tplfile="$_tpldir/$_tplname.json"
+  mkdir -p "$_tpldir"
+  if [ ! -f "$_tplfile" ]; then
+    dl "$tplbaseurl/xr/$_tplname.json" "$_tplfile" || { echo "⚠️ 模板下载失败: $_tplname"; return 1; }
+  fi
+  sed -e "s|__UUID__|${uuid}|g" \
+      -e "s|__BASEPATH__|${basepath}|g" \
+      -e "s|__DEKEY__|${dekey}|g" \
+      -e "s|__SSKEY__|${sskey}|g" \
+      "$_tplfile" | sed '$s/$/,/' >> "$HOME/agsbx/xr.json"
 }
 
 # ===== S3: 系统初始化 =====
@@ -366,7 +388,7 @@ private_key_x=$(cat "$HOME/agsbx/xrk/private_key")
 public_key_x=$(cat "$HOME/agsbx/xrk/public_key")
 short_id_x=$(cat "$HOME/agsbx/xrk/short_id")
 fi
-if [ -n "$xhp" ] || [ -n "$vxp" ] || [ -n "$vwp" ] || [ -n "$vup" ] || [ -n "$vgp" ]; then
+if [ -n "$xhp" ] || [ -n "$vxp" ] || [ -n "$vwp" ] || [ -n "$vup" ] || [ -n "$vgp" ] || [ -n "$vwep" ]; then
 if [ ! -e "$HOME/agsbx/xrk/dekey" ]; then
 vlkey=$("$HOME/agsbx/xray" vlessenc)
 dekey=$(echo "$vlkey" | grep '"decryption":' | sed -n '2p' | cut -d' ' -f2- | tr -d '"')
@@ -379,7 +401,7 @@ fi
 fi
 
 # basepath生成(CDN协议path和gRPC serviceName需要)
-if [ -n "$vxp" ] || [ -n "$vwp" ] || [ -n "$vup" ] || [ -n "$twp" ] || [ -n "$tuhp" ] || [ -n "$vgp" ] || [ -n "$tgp" ] || [ -n "$mgp" ]; then
+if [ -n "$vxp" ] || [ -n "$vwp" ] || [ -n "$vup" ] || [ -n "$twp" ] || [ -n "$tuhp" ] || [ -n "$vgp" ] || [ -n "$tgp" ] || [ -n "$mgp" ] || [ -n "$mup" ] || [ -n "$txp" ] || [ -n "$mxp" ] || [ -n "$swp" ] || [ -n "$vwep" ]; then
   gen_basepath
   echo "Basepath: $basepath"
 fi
@@ -764,6 +786,36 @@ cat >> "$HOME/agsbx/xr.json" <<EOF
 EOF
 else
 mgp=mgptargo
+fi
+if [ -n "$mup" ]; then
+mup=mupt
+ echo "VMess-httpupgrade端口：39000 (B组Origin Rules回源端口)"
+ tpl_xr b-mu-httpupgrade
+fi
+if [ -n "$txp" ]; then
+txp=txpt
+ echo "Trojan-xhttp端口：39001 (B组Origin Rules回源端口)"
+ tpl_xr b-tx-xhttp
+fi
+if [ -n "$mxp" ]; then
+mxp=mxpt
+ echo "VMess-xhttp端口：39002 (B组Origin Rules回源端口)"
+ tpl_xr b-mx-xhttp
+fi
+if [ -n "$swp" ]; then
+swp=swpt
+ if [ ! -e "$HOME/agsbx/sskey" ]; then
+ sskey=$("$HOME/agsbx/sing-box" generate rand 16 --base64)
+ echo "$sskey" > "$HOME/agsbx/sskey"
+ fi
+ sskey=$(cat "$HOME/agsbx/sskey")
+ echo "Shadowsocks-ws端口：39003 (B组Origin Rules回源端口)"
+ tpl_xr b-sw-ws
+fi
+if [ -n "$vwep" ]; then
+vwep=vwept
+ echo "Vless-ws-enc端口：39004 (B组Origin Rules回源端口，支持ENC加密)"
+ tpl_xr b-vwe-ws-enc
 fi
 if [ -n "$vlp" ]; then
 vlp=vlpt
@@ -1313,7 +1365,7 @@ fi
 }
 ins(){
 # 证书签发(CDN协议需要cdnym证书, acme.sh + CF DNS API)
-if [ -n "$cdnym" ] && [ -n "$cfapi" ] && { [ -n "$vxp" ] || [ -n "$vwp" ] || [ -n "$vup" ] || [ -n "$twp" ] || [ -n "$tuhp" ] || [ -n "$vmp" ]; }; then
+if [ -n "$cdnym" ] && [ -n "$cfapi" ] && { [ -n "$vxp" ] || [ -n "$vwp" ] || [ -n "$vup" ] || [ -n "$twp" ] || [ -n "$tuhp" ] || [ -n "$vmp" ] || [ -n "$mup" ] || [ -n "$txp" ] || [ -n "$mxp" ] || [ -n "$swp" ] || [ -n "$vwep" ]; }; then
   certsign "$cdnym" "cdnym" || echo "⚠️ CDN证书签发失败，CDN协议可能无法正常工作(CF Full Strict模式)"
 fi
 if [ "$hyp" != yes ] && [ "$tup" != yes ] && [ "$anp" != yes ] && [ "$arp" != yes ] && [ "$ssp" != yes ]; then
@@ -1323,13 +1375,13 @@ xrsbso
 warpsx
 xrsbout
 hyp="hyptargo"; tup="tuptargo"; anp="anptargo"; arp="arptargo"; ssp="ssptargo"
-elif [ "$xhp" != yes ] && [ "$vlp" != yes ] && [ "$vxp" != yes ] && [ "$vwp" != yes ] && [ "$vup" != yes ] && [ "$twp" != yes ] && [ "$tuhp" != yes ] && [ "$vgp" != yes ] && [ "$tgp" != yes ] && [ "$mgp" != yes ]; then
+elif [ "$xhp" != yes ] && [ "$vlp" != yes ] && [ "$vxp" != yes ] && [ "$vwp" != yes ] && [ "$vup" != yes ] && [ "$twp" != yes ] && [ "$tuhp" != yes ] && [ "$vgp" != yes ] && [ "$tgp" != yes ] && [ "$mgp" != yes ] && [ "$mup" != yes ] && [ "$txp" != yes ] && [ "$mxp" != yes ] && [ "$swp" != yes ] && [ "$vwep" != yes ]; then
 installsb
 xrsbvm
 xrsbso
 warpsx
 xrsbout
-xhp="xhptargo"; vlp="vlptargo"; vxp="vxptargo"; vwp="vwptargo"; vup="vuptargo"; twp="twptargo"; tuhp="tuhptargo"; vgp="vgptargo"; tgp="tgptargo"; mgp="mgptargo"
+xhp="xhptargo"; vlp="vlptargo"; vxp="vxptargo"; vwp="vwptargo"; vup="vuptargo"; twp="twptargo"; tuhp="tuhptargo"; vgp="vgptargo"; tgp="tgptargo"; mgp="mgptargo"; mup="muptargo"; txp="txptargo"; mxp="mxptargo"; swp="swptargo"; vwep="vweptargo"
 else
 installsb
 installxray
@@ -1686,6 +1738,63 @@ echo "⚠️ gRPC需在CF Dashboard → Network → 开启gRPC开关"
 tr_tg_cdn_link="trojan://$uuid@yg$(cfipsj).ygkkk.dpdns.org:443?security=tls&type=grpc&serviceName=${basepath}-tg&authority=$xvvmcdnym&mode=gun&sni=$xvvmcdnym&fp=chrome#${sxname}tr-grpc-cdn-$hostname"
 echo "$tr_tg_cdn_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$tr_tg_cdn_link"
+echo
+fi
+fi
+if grep vmess-httpupgrade "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+if [ -f "$HOME/agsbx/cdnym" ]; then
+echo "💣【 VMess-httpupgrade-cdn 】B组Origin Rules回源39000，节点信息如下："
+echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN走443端口+Origin Rules回源39000"
+echo "⚠️ 需在CF Dashboard → Rules → Origin Rules 添加规则：URI Path starts with \"/${basepath}-mu\" → Rewrite to Port 39000"
+vm_mu_cdn_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-httpupgrade-cdn-$hostname\", \"add\": \"yg$(cfipsj).ygkkk.dpdns.org\", \"port\": \"443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"httpupgrade\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$basepath-mu\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"fp\": \"chrome\"}" | base64 -w0)"
+echo "$vm_mu_cdn_link" >> "$HOME/agsbx/jhsub.txt"
+echo "$vm_mu_cdn_link"
+echo
+fi
+fi
+if grep trojan-xhttp "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+if [ -f "$HOME/agsbx/cdnym" ]; then
+echo "💣【 Trojan-xhttp-cdn 】B组Origin Rules回源39001，节点信息如下："
+echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN走443端口+Origin Rules回源39001"
+echo "⚠️ 需在CF Dashboard → Rules → Origin Rules 添加规则：URI Path starts with \"/${basepath}-tx\" → Rewrite to Port 39001"
+tr_tx_cdn_link="trojan://$uuid@yg$(cfipsj).ygkkk.dpdns.org:443?security=tls&type=xhttp&host=$xvvmcdnym&path=/${basepath}-tx&mode=packet-up&sni=$xvvmcdnym&fp=chrome#${sxname}tr-xhttp-cdn-$hostname"
+echo "$tr_tx_cdn_link" >> "$HOME/agsbx/jhsub.txt"
+echo "$tr_tx_cdn_link"
+echo
+fi
+fi
+if grep vmess-xhttp "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+if [ -f "$HOME/agsbx/cdnym" ]; then
+echo "💣【 VMess-xhttp-cdn 】B组Origin Rules回源39002，节点信息如下："
+echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN走443端口+Origin Rules回源39002"
+echo "⚠️ 需在CF Dashboard → Rules → Origin Rules 添加规则：URI Path starts with \"/${basepath}-mx\" → Rewrite to Port 39002"
+echo "⚠️ net=xhttp 需要 v2rayN 6.x+ / xray-core 1.8.8+"
+vm_mx_cdn_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-xhttp-cdn-$hostname\", \"add\": \"yg$(cfipsj).ygkkk.dpdns.org\", \"port\": \"443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"xhttp\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$basepath-mx\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"fp\": \"chrome\"}" | base64 -w0)"
+echo "$vm_mx_cdn_link" >> "$HOME/agsbx/jhsub.txt"
+echo "$vm_mx_cdn_link"
+echo
+fi
+fi
+if grep ss-ws "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+if [ -f "$HOME/agsbx/cdnym" ]; then
+echo "💣【 Shadowsocks-ws-cdn 】B组Origin Rules回源39003，节点信息如下："
+echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN走443端口+Origin Rules回源39003"
+echo "⚠️ 需在CF Dashboard → Rules → Origin Rules 添加规则：URI Path starts with \"/${basepath}-sw\" → Rewrite to Port 39003"
+sskey=$(cat "$HOME/agsbx/sskey" 2>/dev/null)
+ss_sw_cdn_link="ss://2022-blake3-aes-128-gcm:${sskey}@yg$(cfipsj).ygkkk.dpdns.org:443/?type=ws&host=$xvvmcdnym&path=/${basepath}-sw&security=tls&sni=$xvvmcdnym#${sxname}ss-ws-cdn-$hostname"
+echo "$ss_sw_cdn_link" >> "$HOME/agsbx/jhsub.txt"
+echo "$ss_sw_cdn_link"
+echo
+fi
+fi
+if grep vless-ws-enc "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+if [ -f "$HOME/agsbx/cdnym" ]; then
+echo "💣【 Vless-ws-enc-cdn 】B组Origin Rules回源39004，支持ENC加密，节点信息如下："
+echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN走443端口+Origin Rules回源39004"
+echo "⚠️ 需在CF Dashboard → Rules → Origin Rules 添加规则：URI Path starts with \"/${basepath}-vwe\" → Rewrite to Port 39004"
+vl_vwe_cdn_link="vless://$uuid@yg$(cfipsj).ygkkk.dpdns.org:443?encryption=$enkey&type=ws&host=$xvvmcdnym&path=/${basepath}-vwe&security=tls&sni=$xvvmcdnym&fp=chrome#${sxname}vl-ws-enc-cdn-$hostname"
+echo "$vl_vwe_cdn_link" >> "$HOME/agsbx/jhsub.txt"
+echo "$vl_vwe_cdn_link"
 echo
 fi
 fi
@@ -2750,6 +2859,44 @@ fi
 fi
 cip
 echo
+if grep -qE 'vmess-httpupgrade|trojan-xhttp|vmess-xhttp|ss-ws|vless-ws-enc' "$HOME/agsbx/xr.json" 2>/dev/null; then
+basepath=$(cat "$HOME/agsbx/basepath" 2>/dev/null)
+echo "=== CF Origin Rules 配置指引 ==="
+echo "B组协议需在CF面板手动配置Origin Rules(客户端443→CF→path回源到39000-39004)"
+echo "请在 Cloudflare Dashboard → Rules → Origin Rules 中添加以下规则："
+echo
+if grep -q 'vmess-httpupgrade' "$HOME/agsbx/xr.json" 2>/dev/null; then
+echo "规则: VMess+HTTPUpgrade"
+echo "  条件: URI Path starts with \"/${basepath}-mu\""
+echo "  操作: Rewrite to Destination Port → 39000"
+fi
+if grep -q 'trojan-xhttp' "$HOME/agsbx/xr.json" 2>/dev/null; then
+echo "规则: Trojan+XHTTP"
+echo "  条件: URI Path starts with \"/${basepath}-tx\""
+echo "  操作: Rewrite to Destination Port → 39001"
+fi
+if grep -q 'vmess-xhttp' "$HOME/agsbx/xr.json" 2>/dev/null; then
+echo "规则: VMess+XHTTP"
+echo "  条件: URI Path starts with \"/${basepath}-mx\""
+echo "  操作: Rewrite to Destination Port → 39002"
+fi
+if grep -q 'ss-ws' "$HOME/agsbx/xr.json" 2>/dev/null; then
+echo "规则: Shadowsocks+WS"
+echo "  条件: URI Path starts with \"/${basepath}-sw\""
+echo "  操作: Rewrite to Destination Port → 39003"
+fi
+if grep -q 'vless-ws-enc' "$HOME/agsbx/xr.json" 2>/dev/null; then
+echo "规则: VLESS+WS+ENC"
+echo "  条件: URI Path starts with \"/${basepath}-vwe\""
+echo "  操作: Rewrite to Destination Port → 39004"
+fi
+echo
+echo "注意1: 使用\"starts with\"而非\"contains\"，避免子串误匹配"
+echo "注意2: CF Free计划限10条规则，B组最多5条Origin Rules"
+echo "注意3: gRPC协议(VLESS/Trojan/VMess gRPC)走A组443 fallbacks，不走Origin Rules"
+echo "注意4: 使用gRPC前需在CF Dashboard → Network → 开启gRPC开关"
+echo
+fi
 else
 echo "Argosbx脚本已安装"
 echo

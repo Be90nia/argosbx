@@ -1,0 +1,33 @@
+    {
+      "tag": "vmess-xhttp",
+      "listen": "::",
+      "port": 39002,
+      "protocol": "vmess",
+      "settings": {
+        "users": [
+          {
+            "id": "__UUID__"
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "xhttp",
+        "security": "tls",
+        "xhttpSettings": {
+          "path": "/__BASEPATH__-mx",
+          "mode": "packet-up"
+        },
+        "tlsSettings": {
+          "certificates": [{
+            "certificateFile": "/etc/argosbx/certs/cdnym.crt",
+            "keyFile": "/etc/argosbx/certs/cdnym.key"
+          }],
+          "alpn": ["h2", "http/1.1"]
+        }
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"],
+        "metadataOnly": false
+      }
+    }

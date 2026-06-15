@@ -1,0 +1,34 @@
+    {
+      "tag": "vless-ws-enc",
+      "listen": "::",
+      "port": 39004,
+      "protocol": "vless",
+      "settings": {
+        "users": [
+          {
+            "id": "__UUID__"
+          }
+        ],
+        "decryption": "__DEKEY__"
+      },
+      "streamSettings": {
+        "network": "ws",
+        "security": "tls",
+        "wsSettings": {
+          "path": "/__BASEPATH__-vwe",
+          "host": ""
+        },
+        "tlsSettings": {
+          "certificates": [{
+            "certificateFile": "/etc/argosbx/certs/cdnym.crt",
+            "keyFile": "/etc/argosbx/certs/cdnym.key"
+          }],
+          "alpn": ["h2", "http/1.1"]
+        }
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"],
+        "metadataOnly": false
+      }
+    }

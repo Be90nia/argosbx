@@ -1,0 +1,33 @@
+    {
+      "tag": "vmess-httpupgrade",
+      "listen": "::",
+      "port": 39000,
+      "protocol": "vmess",
+      "settings": {
+        "users": [
+          {
+            "id": "__UUID__"
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "httpupgrade",
+        "security": "tls",
+        "httpupgradeSettings": {
+          "path": "/__BASEPATH__-mu",
+          "host": ""
+        },
+        "tlsSettings": {
+          "certificates": [{
+            "certificateFile": "/etc/argosbx/certs/cdnym.crt",
+            "keyFile": "/etc/argosbx/certs/cdnym.key"
+          }],
+          "alpn": ["h2", "http/1.1"]
+        }
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"],
+        "metadataOnly": false
+      }
+    }
