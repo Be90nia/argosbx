@@ -1,6 +1,21 @@
 #!/bin/sh
 export LANG=en_US.UTF-8
 
+# ===== S0: 安全加固初始化 =====
+umask 077
+EUID=$(id -u 2>/dev/null || echo 0)
+agsbx_lockfile="/var/lock/argosbx.lock"
+agsbx_tmpdir="${TMPDIR:-/tmp}"
+agsbx_cleanup(){
+  [ -n "$agsbx_cftoken_tmp" ] && [ -f "$agsbx_cftoken_tmp" ] && shred -u "$agsbx_cftoken_tmp" 2>/dev/null || rm -f "$agsbx_cftoken_tmp" 2>/dev/null
+  [ -f "$agsbx_lockfile" ] && flock -u 200 2>/dev/null
+}
+trap 'agsbx_cleanup; exit 1' INT TERM
+trap 'agsbx_cleanup' EXIT
+if [ -z "$1" ] || { [ "$1" != "list" ] && [ "$1" != "doctor" ] && [ "$1" != "backup" ] && [ "$1" != "restore" ]; }; then
+  exec 200>"$agsbx_lockfile" 2>/dev/null && flock -n 200 2>/dev/null || { echo "⚠️ 另一个argosbx实例正在运行，请等待其完成或手动删除锁文件: $agsbx_lockfile"; exit 1; }
+fi
+
 # ===== S1: 全局变量与初始化 =====
 [ -z "${vlpt+x}" ] || vlp=yes
 [ -z "${vmpt+x}" ] || { vmp=yes; vmag=yes; }
@@ -284,7 +299,7 @@ certsign() {
   "$_acme" --install-cert -d "$_csdomain" -d "*.$_csdomain" \
     --key-file "$_cskey" \
     --fullchain-file "$_cscrt" \
-    --reloadcmd "if command -v systemctl >/dev/null 2>&1; then systemctl restart xray sing-box 2>/dev/null; elif command -v rc-service >/dev/null 2>&1; then rc-service xray restart 2>/dev/null; rc-service sing-box restart 2>/dev/null; fi"
+    --reloadcmd "if command -v systemctl >/dev/null 2>&1; then systemctl restart xray 2>/dev/null; systemctl restart sing-box 2>/dev/null; elif command -v rc-service >/dev/null 2>&1; then rc-service xray restart 2>/dev/null; rc-service sing-box restart 2>/dev/null; fi"
   unset CF_Token CF_Zone_ID
   echo "✅ 证书签发成功: $_csdomain → $_cscrt"
 }
@@ -322,7 +337,7 @@ amd64|x86_64) cpu=amd64;;
 *) echo "目前脚本不支持$(uname -m)架构" && exit
 esac
 if [ "$1" != "del" ]; then
-mkdir -p "$HOME/agsbx"
+mkdir -p "$HOME/agsbx" && chmod 700 "$HOME/agsbx"
 if [ ! -f sbx_update ]; then
 echo "执行必要的脚本依赖中，请稍等10秒……"
 if command -v apk >/dev/null 2>&1; then
@@ -419,12 +434,16 @@ tmpdir=$(mktemp -d)
 url="https://github.com/XTLS/Xray-core/releases/download/v${xrcore}/Xray-linux-${xrarch}.zip"
 out="$tmpdir/xray.zip"
 dl "$url" "$out"
-if [ -f "$out" ]; then
+if [ -f "$out" ] && [ "$(wc -c < "$out" 2>/dev/null || echo 0)" -gt 1048576 ]; then
   command -v unzip >/dev/null 2>&1 || { command -v apk >/dev/null 2>&1 && apk add --no-cache unzip >/dev/null 2>&1; } || { command -v apt >/dev/null 2>&1 && apt install -y unzip >/dev/null 2>&1; }
   unzip -o "$out" -d "$tmpdir/xray_extract" >/dev/null 2>&1
   mv "$tmpdir/xray_extract/xray" "$HOME/agsbx/xray" 2>/dev/null
   chmod +x "$HOME/agsbx/xray"
   rm -rf "$tmpdir"
+else
+  echo "⚠️ Xray内核下载失败或文件不完整"
+  rm -rf "$tmpdir"
+  return 1
 fi
 sbcore=$("$HOME/agsbx/xray" version 2>/dev/null | awk '/^Xray/{print $2}')
 echo "已安装Xray正式版内核：$sbcore"
@@ -437,11 +456,15 @@ tmpdir=$(mktemp -d)
 url="https://github.com/SagerNet/sing-box/releases/download/v${sbcore}/sing-box-${sbcore}-linux-${sbarch}.tar.gz"
 out="$tmpdir/sing-box.tar.gz"
 dl "$url" "$out"
-if [ -f "$out" ]; then
+if [ -f "$out" ] && [ "$(wc -c < "$out" 2>/dev/null || echo 0)" -gt 1048576 ]; then
   tar -xzf "$out" -C "$tmpdir" >/dev/null 2>&1
   mv "$tmpdir/sing-box-${sbcore}-linux-${sbarch}/sing-box" "$HOME/agsbx/sing-box" 2>/dev/null
   chmod +x "$HOME/agsbx/sing-box"
   rm -rf "$tmpdir"
+else
+  echo "⚠️ Sing-box内核下载失败或文件不完整"
+  rm -rf "$tmpdir"
+  return 1
 fi
 sbcore=$("$HOME/agsbx/sing-box" version 2>/dev/null | awk '/version/{print $NF}')
 echo "已安装Sing-box正式版内核：$sbcore"
@@ -3151,6 +3174,74 @@ else
 nohup $HOME/agsbx/sing-box run -c $HOME/agsbx/sb.json >/dev/null 2>&1 &
 fi
 }
+# ===== S7.5: 运维工具函数 =====
+agsbx_doctor(){
+  echo "═══ Argosbx 健康检查 ═══"
+  echo
+  echo "【进程状态】"
+  if pgrep -f 'agsbx/x' >/dev/null 2>&1; then echo "  ✅ Xray: 运行中"; else echo "  ❌ Xray: 未运行"; fi
+  if pgrep -f 'agsbx/s' >/dev/null 2>&1; then echo "  ✅ Sing-box: 运行中"; else echo "  ❌ Sing-box: 未运行"; fi
+  if [ -e "$HOME/agsbx/cloudflared" ]; then
+    if pgrep -f 'agsbx/c' >/dev/null 2>&1; then echo "  ✅ Cloudflared: 运行中"; else echo "  ❌ Cloudflared: 未运行"; fi
+  fi
+  echo
+  echo "【证书有效期】"
+  for _cert in /etc/argosbx/certs/*.crt; do
+    [ -f "$_cert" ] || continue
+    _cn=$(basename "$_cert")
+    if command -v openssl >/dev/null 2>&1; then
+      _expire=$(openssl x509 -enddate -noout -in "$_cert" 2>/dev/null | cut -d= -f2)
+      _epoch=$(date -d "$_expire" +%s 2>/dev/null || echo 0)
+      _now=$(date +%s)
+      _days=$(( (_epoch - _now) / 86400 ))
+      if [ "$_days" -gt 7 ]; then echo "  ✅ $_cn: 剩余 ${_days} 天"
+      elif [ "$_days" -gt 0 ]; then echo "  ⚠️ $_cn: 剩余 ${_days} 天（即将过期）"
+      else echo "  ❌ $_cn: 已过期"; fi
+    else echo "  ⚠️ $_cn: openssl未安装"; fi
+  done
+  echo
+  echo "【端口监听】"
+  if [ -f "$HOME/agsbx/xr.json" ]; then
+    for _port in $(grep -oE '"port"[[:space:]]*:[[:space:]]*[0-9]+' "$HOME/agsbx/xr.json" | grep -oE '[0-9]+$' | sort -un); do
+      if ss -tln 2>/dev/null | grep -q ":$_port " || netstat -tln 2>/dev/null | grep -q ":$_port "; then
+        echo "  ✅ 端口 $_port: 监听中"
+      else echo "  ❌ 端口 $_port: 未监听"; fi
+    done
+  fi
+  echo
+  echo "【配置校验】"
+  if [ -f "$HOME/agsbx/xr.json" ]; then
+    "$HOME/agsbx/xray" run -test -c "$HOME/agsbx/xr.json" >/dev/null 2>&1 && echo "  ✅ xr.json: 语法正确" || echo "  ❌ xr.json: 语法错误"
+  fi
+  if [ -f "$HOME/agsbx/sb.json" ]; then
+    "$HOME/agsbx/sing-box" check -c "$HOME/agsbx/sb.json" >/dev/null 2>&1 && echo "  ✅ sb.json: 语法正确" || echo "  ❌ sb.json: 语法错误"
+  fi
+  echo
+  echo "═══ 检查完成 ═══"
+}
+agsbx_backup(){
+  _bkfile="argosbx_backup_$(date +%Y%m%d_%H%M%S).tar.gz"
+  _bkpath="${2:-$HOME/$_bkfile}"
+  echo "备份Argosbx配置到: $_bkpath"
+  tar -czf "$_bkpath" -C "$HOME" agsbx -C / etc/argosbx 2>/dev/null
+  _bksize=$(wc -c < "$_bkpath" 2>/dev/null || echo 0)
+  echo "✅ 备份完成: $_bkpath ($((_bksize / 1024)) KB)"
+  echo "恢复命令: argosbx restore $_bkpath"
+}
+agsbx_restore(){
+  _bkfile="$2"
+  if [ -z "$_bkfile" ] || [ ! -f "$_bkfile" ]; then
+    echo "用法: argosbx restore <备份文件>"
+    exit 1
+  fi
+  echo "从 $_bkfile 恢复Argosbx配置..."
+  for P in /proc/[0-9]*; do [ -L "$P/exe" ] || continue; TARGET=$(readlink -f "$P/exe" 2>/dev/null) || continue; case "$TARGET" in */agsbx/*) kill "$(basename "$P")" 2>/dev/null ;; esac; done
+  tar -xzf "$_bkfile" -C "$HOME" 2>/dev/null
+  tar -xzf "$_bkfile" -C / 2>/dev/null
+  echo "✅ 配置恢复完成，正在重启服务..."
+  bash "$HOME/bin/agsbx" res
+}
+
 # ===== S8: 命令入口 =====
 
 if [ "$1" = "del" ]; then
@@ -3223,6 +3314,15 @@ fi
 esac
 done
 sleep 5 && echo "重启完成" && sleep 3 && cip
+exit
+elif [ "$1" = "doctor" ]; then
+agsbx_doctor
+exit
+elif [ "$1" = "backup" ]; then
+agsbx_backup "$@"
+exit
+elif [ "$1" = "restore" ]; then
+agsbx_restore "$@"
 exit
 fi
 if ! find /proc/*/exe -type l 2>/dev/null | grep -E '/proc/[0-9]+/exe' | xargs -r readlink 2>/dev/null | grep -Eq 'agsbx/(s|x)' && ! pgrep -f 'agsbx/(s|x)' >/dev/null 2>&1; then
