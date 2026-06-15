@@ -51,6 +51,7 @@ export basepath=${basepath:-''}
 export cfapi=${cfapi:-''}
 export cfzone=${cfzone:-''}
 export argo=${argo:-''}
+export argopro=${argopro:-''}
 export ARGO_DOMAIN=${agn:-''}
 export ARGO_AUTH=${agk:-''}
 export ippz=${ippz:-''}
@@ -123,6 +124,110 @@ gen_basepath() {
     echo "$basepath" > "$HOME/agsbx/basepath"
   fi
   basepath=$(cat "$HOME/agsbx/basepath")
+}
+
+# parse_argopro — 解析argopro变量为argo_xxx标志(兼容旧argo变量)
+# 支持的协议缩写: vw vx vm vu tw tu mu tx mx sw (不含gRPC，CF Tunnel bug #1641)
+parse_argopro() {
+  # 兼容旧argo变量: argo=vwpt/vmpt/vxpt → argopro=vw/vm/vx
+  if [ -z "$argopro" ] && [ -n "$argo" ]; then
+    case $argo in
+      vwpt) argopro=vw ;;
+      vmpt) argopro=vm ;;
+      vxpt) argopro=vx ;;
+    esac
+  fi
+  # all=全部10个按path分发的CDN协议
+  if [ "$argopro" = "all" ]; then
+    argopro="vw,vx,vm,vu,tw,tu,mu,tx,mx,sw"
+  fi
+  # 解析逗号分隔列表为独立标志
+  if [ -n "$argopro" ]; then
+    for _p in $(echo "$argopro" | tr ',' ' '); do
+      case $_p in
+        vw|vx|vm|vu|tw|tu|mu|tx|mx|sw) eval "argo_$_p=1" ;;
+      esac
+    done
+  fi
+}
+
+# argopro_setup — 构建Argo选中协议的端口映射，设置argoport.log(临时隧道首协议)和argo_cf_rules(CF Dashboard配置指引)
+argopro_setup() {
+  _xrjson="$HOME/agsbx/xr.json"
+  argo_first_port=""
+  argo_cf_rules=""
+  argo_count=0
+  # vw: VLESS+WS (tag=vless-ws, port=port_vw动态)
+  if [ -n "$argo_vw" ] && grep -q 'vless-ws' "$_xrjson" 2>/dev/null; then
+    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-vw | HTTP | localhost:${port_vw}\\n"
+    [ -z "$argo_first_port" ] && argo_first_port="$port_vw"; argo_count=$((argo_count+1))
+  fi
+  # vx: VLESS+XHTTP (tag=vless-xhttp, port=2053固定)
+  if [ -n "$argo_vx" ] && grep -q 'vless-xhttp' "$_xrjson" 2>/dev/null; then
+    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-vx | HTTP | localhost:2053\\n"
+    [ -z "$argo_first_port" ] && argo_first_port=2053; argo_count=$((argo_count+1))
+  fi
+  # vm: VMess+WS (tag=vmess-xr, port=2083固定)
+  if [ -n "$argo_vm" ] && grep -q 'vmess-xr' "$_xrjson" 2>/dev/null; then
+    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-vm | HTTP | localhost:2083\\n"
+    [ -z "$argo_first_port" ] && argo_first_port=2083; argo_count=$((argo_count+1))
+  fi
+  # vu: VLESS+HTTPUpgrade+ENC (tag=vless-httpupgrade, port=2087固定)
+  if [ -n "$argo_vu" ] && grep -q 'vless-httpupgrade' "$_xrjson" 2>/dev/null; then
+    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-vu | HTTP | localhost:2087\\n"
+    [ -z "$argo_first_port" ] && argo_first_port=2087; argo_count=$((argo_count+1))
+  fi
+  # tw: Trojan+WS (tag=trojan-ws, port=2096固定)
+  if [ -n "$argo_tw" ] && grep -q 'trojan-ws' "$_xrjson" 2>/dev/null; then
+    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-tw | HTTP | localhost:2096\\n"
+    [ -z "$argo_first_port" ] && argo_first_port=2096; argo_count=$((argo_count+1))
+  fi
+  # tu: Trojan+HTTPUpgrade (tag=trojan-httpupgrade, port=8443固定)
+  if [ -n "$argo_tu" ] && grep -q 'trojan-httpupgrade' "$_xrjson" 2>/dev/null; then
+    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-tu | HTTP | localhost:8443\\n"
+    [ -z "$argo_first_port" ] && argo_first_port=8443; argo_count=$((argo_count+1))
+  fi
+  # mu: VMess+HTTPUpgrade (tag=vmess-httpupgrade, port=39000固定, B组)
+  if [ -n "$argo_mu" ] && grep -q 'vmess-httpupgrade' "$_xrjson" 2>/dev/null; then
+    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-mu | HTTP | localhost:39000\\n"
+    [ -z "$argo_first_port" ] && argo_first_port=39000; argo_count=$((argo_count+1))
+  fi
+  # tx: Trojan+XHTTP (tag=trojan-xhttp, port=39001固定, B组)
+  if [ -n "$argo_tx" ] && grep -q 'trojan-xhttp' "$_xrjson" 2>/dev/null; then
+    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-tx | HTTP | localhost:39001\\n"
+    [ -z "$argo_first_port" ] && argo_first_port=39001; argo_count=$((argo_count+1))
+  fi
+  # mx: VMess+XHTTP (tag=vmess-xhttp, port=39002固定, B组)
+  if [ -n "$argo_mx" ] && grep -q 'vmess-xhttp' "$_xrjson" 2>/dev/null; then
+    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-mx | HTTP | localhost:39002\\n"
+    [ -z "$argo_first_port" ] && argo_first_port=39002; argo_count=$((argo_count+1))
+  fi
+  # sw: SS+WS (tag=ss-ws, port=39003固定, B组)
+  if [ -n "$argo_sw" ] && grep -q 'ss-ws' "$_xrjson" 2>/dev/null; then
+    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-sw | HTTP | localhost:39003\\n"
+    [ -z "$argo_first_port" ] && argo_first_port=39003; argo_count=$((argo_count+1))
+  fi
+  echo "$argo_first_port" > "$HOME/agsbx/argoport.log"
+  # 持久化选中Argo的已安装协议缩写列表(cip函数读取)
+  argo_sel_list=""
+  for _p in vw vx vm vu tw tu mu tx mx sw; do
+    eval "_flag=\$argo_$_p"
+    if [ -n "$_flag" ]; then
+      case $_p in
+        vw) grep -q 'vless-ws' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list vw" ;;
+        vx) grep -q 'vless-xhttp' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list vx" ;;
+        vm) grep -q 'vmess-xr' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list vm" ;;
+        vu) grep -q 'vless-httpupgrade' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list vu" ;;
+        tw) grep -q 'trojan-ws' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list tw" ;;
+        tu) grep -q 'trojan-httpupgrade' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list tu" ;;
+        mu) grep -q 'vmess-httpupgrade' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list mu" ;;
+        tx) grep -q 'trojan-xhttp' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list tx" ;;
+        mx) grep -q 'vmess-xhttp' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list mx" ;;
+        sw) grep -q 'ss-ws' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list sw" ;;
+      esac
+    fi
+  done
+  echo "$argo_sel_list" > "$HOME/agsbx/argopro_sel.log"
 }
 
 # certsign 域名 证书名 — 使用acme.sh + CF DNS API签发TLS证书(含泛域名)
@@ -1390,13 +1495,14 @@ xrsbso
 warpsx
 xrsbout
 fi
-if [ -n "$argo" ] && [ -n "$vmag" ]; then
+parse_argopro
+argopro_setup
+if [ -n "$vmag" ] && [ "$argo_count" -gt 0 ]; then
 echo
 echo "=========启用Cloudflared-argo内核========="
 if [ ! -e "$HOME/agsbx/cloudflared" ]; then
 upcloudflared
 fi
-if [ "$argo" = "vmpt" ]; then argoport=$(cat "$HOME/agsbx/port_vm_ws" 2>/dev/null); echo "Vmess" > "$HOME/agsbx/vlvm"; elif [ "$argo" = "vwpt" ]; then argoport=$(cat "$HOME/agsbx/port_vw" 2>/dev/null); echo "Vless" > "$HOME/agsbx/vlvm"; fi; echo "$argoport" > "$HOME/agsbx/argoport.log"
 if [ -n "${ARGO_DOMAIN}" ] && [ -n "${ARGO_AUTH}" ]; then
 argoname='固定'
 if pidof systemd >/dev/null 2>&1 && [ "$EUID" -eq 0 ]; then
@@ -1450,6 +1556,18 @@ argodomain=$(grep -a trycloudflare.com "$HOME/agsbx/argo.log" 2>/dev/null | awk 
 fi
 if [ -n "${argodomain}" ]; then
 echo "Argo$argoname隧道申请成功"
+# 固定隧道多协议CF Dashboard配置指引
+if [ -n "${ARGO_DOMAIN}" ] && [ -n "${ARGO_AUTH}" ] && [ "$argo_count" -gt 0 ]; then
+echo
+echo "=========Cloudflare Tunnel Public Hostname配置指引========="
+echo "请在CF Zero Trust → Networks → Tunnels → 选择您的隧道 → Public Hostname中配置以下${argo_count}条规则:"
+echo
+echo "  域名 | Path(Go正则) | 类型 | Service"
+printf "$argo_cf_rules"
+echo
+echo "注: Path必须加^前缀实现精确前缀匹配，每个协议1条规则。"
+echo "================================================================="
+fi
 else
 echo "Argo$argoname隧道申请失败，请稍后再试"
 fi
@@ -1464,7 +1582,7 @@ mkdir -p "$HOME/bin"
 (command -v curl >/dev/null 2>&1 && curl -sL "$agsbxurl" -o "$SCRIPT_PATH") || (command -v wget >/dev/null 2>&1 && wget -qO "$SCRIPT_PATH" "$agsbxurl")
 chmod +x "$SCRIPT_PATH"
 if ! pidof systemd >/dev/null 2>&1 && ! command -v rc-service >/dev/null 2>&1; then
-echo "if ! find /proc/*/exe -type l 2>/dev/null | grep -E '/proc/[0-9]+/exe' | xargs -r readlink 2>/dev/null | grep -Eq 'agsbx/(s|x)' && ! pgrep -f 'agsbx/(s|x)' >/dev/null 2>&1; then echo '检测到系统可能中断过，或者变量格式错误？建议在SSH对话框输入 reboot 重启下服务器。现在自动执行Argosbx脚本的节点恢复操作，请稍等……'; sleep 6; export cfip=\"${cfip}\" hyjpt=\"${hyjpt}\" cdnym=\"${cdnym}\" name=\"${name}\" ippz=\"${ippz}\" argo=\"${argo}\" uuid=\"${uuid}\" $wap=\"${warp}\" $xhp=\"${port_xh}\" $vxp=\"${port_vx}\" $ssp=\"${port_ss}\" $sop=\"${port_so}\" $anp=\"${port_an}\" $arp=\"${port_ar}\" $vlp=\"${port_vl_re}\" $vwp=\"${port_vw}\" $vmp=\"${port_vm_ws}\" $hyp=\"${port_hy2}\" $tup=\"${port_tu}\" reym=\"${ym_vl_re}\" agn=\"${ARGO_DOMAIN}\" agk=\"${ARGO_AUTH}\"; bash "$HOME/bin/agsbx"; fi" >> ~/.bashrc
+echo "if ! find /proc/*/exe -type l 2>/dev/null | grep -E '/proc/[0-9]+/exe' | xargs -r readlink 2>/dev/null | grep -Eq 'agsbx/(s|x)' && ! pgrep -f 'agsbx/(s|x)' >/dev/null 2>&1; then echo '检测到系统可能中断过，或者变量格式错误？建议在SSH对话框输入 reboot 重启下服务器。现在自动执行Argosbx脚本的节点恢复操作，请稍等……'; sleep 6; export cfip=\"${cfip}\" hyjpt=\"${hyjpt}\" cdnym=\"${cdnym}\" name=\"${name}\" ippz=\"${ippz}\" argo=\"${argo}\" argopro=\"${argopro}\" uuid=\"${uuid}\" $wap=\"${warp}\" $xhp=\"${port_xh}\" $vxp=\"${port_vx}\" $ssp=\"${port_ss}\" $sop=\"${port_so}\" $anp=\"${port_an}\" $arp=\"${port_ar}\" $vlp=\"${port_vl_re}\" $vwp=\"${port_vw}\" $vmp=\"${port_vm_ws}\" $hyp=\"${port_hy2}\" $tup=\"${port_tu}\" reym=\"${ym_vl_re}\" agn=\"${ARGO_DOMAIN}\" agk=\"${ARGO_AUTH}\"; bash "$HOME/bin/agsbx"; fi" >> ~/.bashrc
 fi
 sed -i '/export PATH="\$HOME\/bin:\$PATH"/d' ~/.bashrc
 echo 'export PATH="$HOME/bin:$PATH"' >> "$HOME/.bashrc"
@@ -1482,7 +1600,7 @@ echo '@reboot sleep 10 && /bin/sh -c "nohup $HOME/agsbx/xray run -c $HOME/agsbx/
 fi
 fi
 sed -i '/agsbx\/cloudflared/d' /tmp/crontab.tmp
-if [ -n "$argo" ] && [ -n "$vmag" ]; then
+if [ -n "$argo_count" ] && [ "$argo_count" -gt 0 ]; then
 if [ -n "${ARGO_DOMAIN}" ] && [ -n "${ARGO_AUTH}" ]; then
 if ! pidof systemd >/dev/null 2>&1 && ! command -v rc-service >/dev/null 2>&1; then
 echo '@reboot sleep 10 && /bin/sh -c "nohup $HOME/agsbx/cloudflared tunnel --no-autoupdate --edge-ip-version auto --protocol http2 run --token $(cat $HOME/agsbx/sbargotoken.log 2>/dev/null) >/dev/null 2>&1 &"' >> /tmp/crontab.tmp
@@ -2198,155 +2316,106 @@ echo
 fi
 argodomain=$(cat "$HOME/agsbx/sbargoym.log" 2>/dev/null)
 [ -z "$argodomain" ] && argodomain=$(grep -a trycloudflare.com "$HOME/agsbx/argo.log" 2>/dev/null | awk 'NR==2{print}' | awk -F// '{print $2}' | awk '{print $1}')
-if [ -n "$argodomain" ]; then
-vlvm=$(cat $HOME/agsbx/vlvm 2>/dev/null)
-if [ "$vlvm" = "Vmess" ]; then
-vmatls_link1="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vmess-ws-tls-argo-$hostname-443\", \"add\": \"$cdnip1\", \"port\": \"443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"tls\", \"sni\": \"$argodomain\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)"
-echo "$vmatls_link1" >> "$HOME/agsbx/jhsub.txt"
-vmatls_link2="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vmess-ws-tls-argo-$hostname-8443\", \"add\": \"yg2.ygkkk.dpdns.org\", \"port\": \"8443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"tls\", \"sni\": \"$argodomain\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)"
-echo "$vmatls_link2" >> "$HOME/agsbx/jhsub.txt"
-vmatls_link3="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vmess-ws-tls-argo-$hostname-2053\", \"add\": \"yg3.ygkkk.dpdns.org\", \"port\": \"2053\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"tls\", \"sni\": \"$argodomain\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)"
-echo "$vmatls_link3" >> "$HOME/agsbx/jhsub.txt"
-vmatls_link4="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vmess-ws-tls-argo-$hostname-2083\", \"add\": \"yg4.ygkkk.dpdns.org\", \"port\": \"2083\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"tls\", \"sni\": \"$argodomain\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)"
-echo "$vmatls_link4" >> "$HOME/agsbx/jhsub.txt"
-vmatls_link5="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vmess-ws-tls-argo-$hostname-2087\", \"add\": \"yg5.ygkkk.dpdns.org\", \"port\": \"2087\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"tls\", \"sni\": \"$argodomain\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)"
-echo "$vmatls_link5" >> "$HOME/agsbx/jhsub.txt"
-vmatls_link6="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vmess-ws-tls-argo-$hostname-2096\", \"add\": \"[2606:4700::0]\", \"port\": \"2096\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"tls\", \"sni\": \"$argodomain\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)"
-echo "$vmatls_link6" >> "$HOME/agsbx/jhsub.txt"
-vma_link7="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vmess-ws-argo-$hostname-80\", \"add\": \"$cdnip2\", \"port\": \"80\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"\"}" | base64 -w0)"
-echo "$vma_link7" >> "$HOME/agsbx/jhsub.txt"
-vma_link8="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vmess-ws-argo-$hostname-8080\", \"add\": \"yg7.ygkkk.dpdns.org\", \"port\": \"8080\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"\"}" | base64 -w0)"
-echo "$vma_link8" >> "$HOME/agsbx/jhsub.txt"
-vma_link9="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vmess-ws-argo-$hostname-8880\", \"add\": \"yg8.ygkkk.dpdns.org\", \"port\": \"8880\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"\"}" | base64 -w0)"
-echo "$vma_link9" >> "$HOME/agsbx/jhsub.txt"
-vma_link10="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vmess-ws-argo-$hostname-2052\", \"add\": \"yg9.ygkkk.dpdns.org\", \"port\": \"2052\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"\"}" | base64 -w0)"
-echo "$vma_link10" >> "$HOME/agsbx/jhsub.txt"
-vma_link11="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vmess-ws-argo-$hostname-2082\", \"add\": \"yg10.ygkkk.dpdns.org\", \"port\": \"2082\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"\"}" | base64 -w0)"
-echo "$vma_link11" >> "$HOME/agsbx/jhsub.txt"
-vma_link12="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vmess-ws-argo-$hostname-2086\", \"add\": \"yg11.ygkkk.dpdns.org\", \"port\": \"2086\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"\"}" | base64 -w0)"
-echo "$vma_link12" >> "$HOME/agsbx/jhsub.txt"
-vma_link13="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vmess-ws-argo-$hostname-2095\", \"add\": \"[2400:cb00:2049::0]\", \"port\": \"2095\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$argodomain\", \"path\": \"/$uuid-vm\", \"tls\": \"\"}" | base64 -w0)"
-echo "$vma_link13" >> "$HOME/agsbx/jhsub.txt"
+argo_sel=$(cat "$HOME/agsbx/argopro_sel.log" 2>/dev/null)
+if [ -n "$argodomain" ] && [ -n "$argo_sel" ]; then
+# 为每个选中Argo的协议生成分享链接(443+TLS, 80+无TLS)
+for _p in $argo_sel; do
+  case $_p in
+    vw)
+      echo "vless://${uuid}@${cdnip1}:443?encryption=none&security=tls&sni=${argodomain}&fp=chrome&type=ws&host=${argodomain}&path=/${basepath}-vw#${sxname}vless-ws-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
+      echo "vless://${uuid}@${cdnip2}:80?encryption=none&type=ws&host=${argodomain}&path=/${basepath}-vw#${sxname}vless-ws-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
+      ;;
+    vx)
+      echo "vless://${uuid}@${cdnip1}:443?encryption=none&security=tls&sni=${argodomain}&fp=chrome&type=xhttp&host=${argodomain}&path=/${basepath}-vx&mode=packet-up#${sxname}vless-xhttp-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
+      echo "vless://${uuid}@${cdnip2}:80?encryption=none&type=xhttp&host=${argodomain}&path=/${basepath}-vx&mode=packet-up#${sxname}vless-xhttp-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
+      ;;
+    vm)
+      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-ws-tls-argo-$hostname-443\",\"add\":\"$cdnip1\",\"port\":\"443\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"ws\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-vm\",\"tls\":\"tls\",\"sni\":\"$argodomain\",\"alpn\":\"\",\"fp\":\"chrome\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
+      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-ws-argo-$hostname-80\",\"add\":\"$cdnip2\",\"port\":\"80\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"ws\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-vm\",\"tls\":\"\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
+      ;;
+    vu)
+      echo "vless://${uuid}@${cdnip1}:443?encryption=${enkey}&security=tls&sni=${argodomain}&fp=chrome&type=httpupgrade&host=${argodomain}&path=/${basepath}-vu#${sxname}vless-httpupgrade-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
+      echo "vless://${uuid}@${cdnip2}:80?encryption=${enkey}&type=httpupgrade&host=${argodomain}&path=/${basepath}-vu#${sxname}vless-httpupgrade-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
+      ;;
+    tw)
+      echo "trojan://${uuid}@${cdnip1}:443?security=tls&sni=${argodomain}&fp=chrome&type=ws&host=${argodomain}&path=/${basepath}-tw#${sxname}trojan-ws-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
+      echo "trojan://${uuid}@${cdnip2}:80?type=ws&host=${argodomain}&path=/${basepath}-tw#${sxname}trojan-ws-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
+      ;;
+    tu)
+      echo "trojan://${uuid}@${cdnip1}:443?security=tls&sni=${argodomain}&fp=chrome&type=httpupgrade&host=${argodomain}&path=/${basepath}-tu#${sxname}trojan-httpupgrade-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
+      echo "trojan://${uuid}@${cdnip2}:80?type=httpupgrade&host=${argodomain}&path=/${basepath}-tu#${sxname}trojan-httpupgrade-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
+      ;;
+    mu)
+      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-httpupgrade-tls-argo-$hostname-443\",\"add\":\"$cdnip1\",\"port\":\"443\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"httpupgrade\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-mu\",\"tls\":\"tls\",\"sni\":\"$argodomain\",\"alpn\":\"\",\"fp\":\"chrome\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
+      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-httpupgrade-argo-$hostname-80\",\"add\":\"$cdnip2\",\"port\":\"80\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"httpupgrade\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-mu\",\"tls\":\"\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
+      ;;
+    tx)
+      echo "trojan://${uuid}@${cdnip1}:443?security=tls&sni=${argodomain}&fp=chrome&type=xhttp&host=${argodomain}&path=/${basepath}-tx&mode=packet-up#${sxname}trojan-xhttp-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
+      echo "trojan://${uuid}@${cdnip2}:80?type=xhttp&host=${argodomain}&path=/${basepath}-tx&mode=packet-up#${sxname}trojan-xhttp-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
+      ;;
+    mx)
+      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-xhttp-tls-argo-$hostname-443\",\"add\":\"$cdnip1\",\"port\":\"443\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"xhttp\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-mx\",\"tls\":\"tls\",\"sni\":\"$argodomain\",\"alpn\":\"\",\"fp\":\"chrome\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
+      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-xhttp-argo-$hostname-80\",\"add\":\"$cdnip2\",\"port\":\"80\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"xhttp\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-mx\",\"tls\":\"\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
+      ;;
+    sw)
+      echo "ss://2022-blake3-aes-128-gcm:${sskey}@${cdnip1}:443/?type=ws&host=${argodomain}&path=/${basepath}-sw#${sxname}ss-ws-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
+      echo "ss://2022-blake3-aes-128-gcm:${sskey}@${cdnip2}:80/?type=ws&host=${argodomain}&path=/${basepath}-sw#${sxname}ss-ws-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
+      ;;
+  esac
+done
 sbvmargopt(){
+case " $argo_sel " in *" vm "*)
 cat <<EOF
 {
-            "server": "$cdnip1",
-            "server_port": 443,
-            "tag": "${sxname}vmess-ws-tls-argo-$hostname-443",
-            "tls": {
-                "enabled": true,
-                "server_name": "$argodomain",
-                "insecure": false,
-                "utls": {
-                    "enabled": true,
-                    "fingerprint": "chrome"
-                }
-            },
-            "packet_encoding": "packetaddr",
-            "transport": {
-                "headers": {
-                    "Host": [
-                        "$argodomain"
-                    ]
-                },
-                "path": "/$basepath-vm",
-                "type": "ws"
-            },
-            "type": "vmess",
-            "security": "auto",
-            "uuid": "$uuid"
-        },
-{
-            "server": "$cdnip2",
-            "server_port": 80,
-            "tag": "${sxname}vmess-ws-argo-$hostname-80",
-            "tls": {
-                "enabled": false,
-                "server_name": "$argodomain",
-                "insecure": false,
-                "utls": {
-                    "enabled": true,
-                    "fingerprint": "chrome"
-                }
-            },
-            "packet_encoding": "packetaddr",
-            "transport": {
-                "headers": {
-                    "Host": [
-                        "$argodomain"
-                    ]
-                },
-                "path": "/$basepath-vm",
-                "type": "ws"
-            },
-            "type": "vmess",
-            "security": "auto",
-            "uuid": "$uuid"
-        },
+    "server": "$cdnip1",
+    "server_port": 443,
+    "tag": "${sxname}vmess-ws-tls-argo-$hostname-443",
+    "tls": { "enabled": true, "server_name": "$argodomain", "insecure": false, "utls": { "enabled": true, "fingerprint": "chrome" } },
+    "packet_encoding": "packetaddr",
+    "transport": { "headers": { "Host": ["$argodomain"] }, "path": "/$basepath-vm", "type": "ws" },
+    "type": "vmess", "security": "auto", "uuid": "$uuid"
+},
 EOF
+;; esac
 }
 sbvmargopt1(){
-echo "\"${sxname}vmess-ws-tls-argo-$hostname-443\","
-echo "\"${sxname}vmess-ws-argo-$hostname-80\","
+case " $argo_sel " in *" vm "*) echo "\"${sxname}vmess-ws-tls-argo-$hostname-443\"," ;; esac
 }
 clvmargopt(){
+case " $argo_sel " in *" vm "*)
 cat <<EOF
-- name: ${sxname}vmess-ws-tls-argo-$hostname-443                         
+- name: ${sxname}vmess-ws-tls-argo-$hostname-443
   type: vmess
-  server: "$cdnip1"                       
-  port: 443                                     
+  server: "$cdnip1"
+  port: 443
   uuid: $uuid
   cipher: auto
   udp: true
   tls: true
   network: ws
-  servername: $argodomain                    
+  servername: $argodomain
   ws-opts:
-    path: "/$basepath-vm"                             
-    headers:
-      Host: $argodomain
-- name: ${sxname}vmess-ws-argo-$hostname-80                         
-  type: vmess
-  server: "$cdnip2"                        
-  port: 80                                     
-  uuid: $uuid
-  cipher: auto
-  udp: true
-  tls: false
-  network: ws
-  servername: $argodomain                    
-  ws-opts:
-    path: "/$basepath-vm"                             
+    path: "/$basepath-vm"
     headers:
       Host: $argodomain
 EOF
+;; esac
 }
 clvmargopt1(){
-echo "- ${sxname}vmess-ws-tls-argo-$hostname-443"
-echo "- ${sxname}vmess-ws-argo-$hostname-80"
+case " $argo_sel " in *" vm "*) echo "- ${sxname}vmess-ws-tls-argo-$hostname-443" ;; esac
 }
-elif [ "$vlvm" = "Vless" ]; then
-vwatls_link1="vless://$uuid@$cdnip1:443?encryption=$enkey&flow=xtls-rprx-vision&type=ws&host=$argodomain&path=$uuid-vw&security=tls&sni=$argodomain&fp=chrome&insecure=0&allowInsecure=0#${sxname}vless-ws-tls-argo-enc-vision-$hostname"
-echo "$vwatls_link1" >> "$HOME/agsbx/jhsub.txt"
-vwa_link2="vless://$uuid@$cdnip2:80?encryption=$enkey&flow=xtls-rprx-vision&type=ws&host=$argodomain&path=$uuid-vw&security=none#${sxname}vless-ws-argo-enc-vision-$hostname"
-echo "$vwa_link2" >> "$HOME/agsbx/jhsub.txt"
-fi
 sbtk=$(cat "$HOME/agsbx/sbargotoken.log" 2>/dev/null)
-if [ -n "$sbtk" ]; then
-nametn="Argo固定隧道token：$sbtk"
-fi
-argoshow=$(
-echo "Argo隧道端口正在使用$vlvm-ws主协议端口：$(cat $HOME/agsbx/argoport.log 2>/dev/null)
-Argo域名：$argodomain
+[ -n "$sbtk" ] && nametn="Argo固定隧道token：$sbtk"
+argoshow=$(echo "Argo域名：$argodomain
 $nametn
-
-1、💣443端口的$vlvm-ws-tls-argo节点(优选IP与443系端口随便换)
-${vmatls_link1}${vwatls_link1}
-
-2、💣80端口的$vlvm-ws-argo节点(优选IP与80系端口随便换)
-${vma_link7}${vwa_link2}
-"
-)
+Argo选中协议: ${argo_sel}
+Argo临时隧道端口(首协议): $(cat $HOME/agsbx/argoport.log 2>/dev/null)")
+else
+# 未启用Argo时定义空函数(避免调用报错)
+sbvmargopt(){ :; }
+sbvmargopt1(){ :; }
+clvmargopt(){ :; }
+clvmargopt1(){ :; }
 fi
 
 get_func() {
