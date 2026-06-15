@@ -1,2 +1,6 @@
 .omo/
 graphify-out/
+
+*.pem
+*.crt
+*.key

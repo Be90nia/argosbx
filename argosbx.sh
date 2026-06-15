@@ -3,7 +3,9 @@ export LANG=en_US.UTF-8
 
 # ===== S0: 安全加固初始化 =====
 umask 077
-EUID=$(id -u 2>/dev/null || echo 0)
+# 注意：bash 把 EUID 作为只读内置变量，POSIX sh 则允许赋值。
+# 统一改用 _euid 避免 bash 直接运行时报 "EUID: readonly variable"
+_euid=$(id -u 2>/dev/null || echo 0)
 agsbx_lockfile="/var/lock/argosbx.lock"
 agsbx_tmpdir="${TMPDIR:-/tmp}"
 agsbx_cleanup(){
@@ -45,12 +47,18 @@ fi
 [ -z "${vtpt+x}" ] || vtp=yes
 [ -z "${ttpt+x}" ] || ttp=yes
 [ -z "${warp+x}" ] || wap=yes
+
 if find /proc/*/exe -type l 2>/dev/null | grep -E '/proc/[0-9]+/exe' | xargs -r readlink 2>/dev/null | grep -Eq 'agsbx/(s|x)' || pgrep -f 'agsbx/(s|x)' >/dev/null 2>&1; then
 if [ "$1" = "rep" ]; then
 [ "$vwp" = yes ] || [ "$sop" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || [ "$vup" = yes ] || [ "$twp" = yes ] || [ "$tuhp" = yes ] || [ "$vgp" = yes ] || [ "$tgp" = yes ] || [ "$mgp" = yes ] || [ "$mup" = yes ] || [ "$txp" = yes ] || [ "$mxp" = yes ] || [ "$swp" = yes ] || [ "$vwep" = yes ] || [ "$stp" = yes ] || [ "$nap" = yes ] || [ "$trp" = yes ] || [ "$vtp" = yes ] || [ "$ttp" = yes ] || { echo "提示：rep重置协议时，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
 fi
 else
+# 未安装场景：如果是交互式TTY且无协议变量，跳过exit让S8菜单处理；否则保持原exit逻辑
+if [ -z "$1" ] && [ -t 0 ] 2>/dev/null && [ -z "${vlp:-}${vmp:-}${vwp:-}${hyp:-}${tup:-}${xhp:-}${vxp:-}${anp:-}${ssp:-}${arp:-}${sop:-}${vup:-}${twp:-}${tuhp:-}${vgp:-}${tgp:-}${mgp:-}${mup:-}${txp:-}${mxp:-}${swp:-}${vwep:-}${stp:-}${nap:-}${trp:-}${vtp:-}${ttp:-}" ]; then
+  : # 进入交互菜单模式(在S8入口触发)，跳过协议变量exit检测
+else
 [ "$1" = "del" ] || [ "$vwp" = yes ] || [ "$sop" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || [ "$vup" = yes ] || [ "$twp" = yes ] || [ "$tuhp" = yes ] || [ "$vgp" = yes ] || [ "$tgp" = yes ] || [ "$mgp" = yes ] || [ "$mup" = yes ] || [ "$txp" = yes ] || [ "$mxp" = yes ] || [ "$swp" = yes ] || [ "$vwep" = yes ] || [ "$stp" = yes ] || [ "$nap" = yes ] || [ "$trp" = yes ] || [ "$vtp" = yes ] || [ "$ttp" = yes ] || { echo "提示：未安装argosbx脚本，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
+fi
 fi
 export uuid=${uuid:-''}
 export port_vl_re=${vlpt:-''}
@@ -907,7 +915,7 @@ xrsbout(){
 if [ -e "$HOME/agsbx/xr.json" ]; then
 sed -i '${s/,\s*$//}' "$HOME/agsbx/xr.json"
 tpl_fw xr outbound.json >> "$HOME/agsbx/xr.json"
-if pidof systemd >/dev/null 2>&1 && [ "$EUID" -eq 0 ]; then
+if pidof systemd >/dev/null 2>&1 && [ "$_euid" -eq 0 ]; then
 cat > /etc/systemd/system/xr.service <<EOF
 [Unit]
 Description=xr service
@@ -927,7 +935,7 @@ EOF
 systemctl daemon-reload >/dev/null 2>&1
 systemctl enable xr >/dev/null 2>&1
 systemctl start xr >/dev/null 2>&1
-elif command -v rc-service >/dev/null 2>&1 && [ "$EUID" -eq 0 ]; then
+elif command -v rc-service >/dev/null 2>&1 && [ "$_euid" -eq 0 ]; then
 cat > /etc/init.d/xray <<EOF
 #!/sbin/openrc-run
 description="xr service"
@@ -950,7 +958,7 @@ fi
 if [ -e "$HOME/agsbx/sb.json" ]; then
 sed -i '${s/,\s*$//}' "$HOME/agsbx/sb.json"
 tpl_fw sb outbound.json >> "$HOME/agsbx/sb.json"
-if pidof systemd >/dev/null 2>&1 && [ "$EUID" -eq 0 ]; then
+if pidof systemd >/dev/null 2>&1 && [ "$_euid" -eq 0 ]; then
 cat > /etc/systemd/system/sb.service <<EOF
 [Unit]
 Description=sb service
@@ -970,7 +978,7 @@ EOF
 systemctl daemon-reload >/dev/null 2>&1
 systemctl enable sb >/dev/null 2>&1
 systemctl start sb >/dev/null 2>&1
-elif command -v rc-service >/dev/null 2>&1 && [ "$EUID" -eq 0 ]; then
+elif command -v rc-service >/dev/null 2>&1 && [ "$_euid" -eq 0 ]; then
 cat > /etc/init.d/sing-box <<EOF
 #!/sbin/openrc-run
 description="sb service"
@@ -1032,7 +1040,7 @@ upcloudflared
 fi
 if [ -n "${ARGO_DOMAIN}" ] && [ -n "${ARGO_AUTH}" ]; then
 argoname='固定'
-if pidof systemd >/dev/null 2>&1 && [ "$EUID" -eq 0 ]; then
+if pidof systemd >/dev/null 2>&1 && [ "$_euid" -eq 0 ]; then
 cat > /etc/systemd/system/argo.service <<EOF
 [Unit]
 Description=argo service
@@ -1050,7 +1058,7 @@ EOF
 systemctl daemon-reload >/dev/null 2>&1
 systemctl enable argo >/dev/null 2>&1
 systemctl start argo >/dev/null 2>&1
-elif command -v rc-service >/dev/null 2>&1 && [ "$EUID" -eq 0 ]; then
+elif command -v rc-service >/dev/null 2>&1 && [ "$_euid" -eq 0 ]; then
 cat > /etc/init.d/argo <<EOF
 #!/sbin/openrc-run
 description="argo service"
@@ -2515,7 +2523,674 @@ agsbx_restore(){
   bash "$HOME/bin/agsbx" res
 }
 
+# ===== S7.5: 交互式菜单（V2.9.1 计划第十四章）=====
+# 计划文档 .omo/plans/cdn-protocol-expansion.md L1780-2067
+# 9项主菜单 + 多选控件 + 配置持久化 + 向后兼容环境变量
+
+# ---- 菜单工具函数 ----
+
+# 带默认值的read，输出到stdout
+# 用法: val=$(_rd "提示语" "默认值")
+_rd() {
+  local _p="$1" _d="$2" _v
+  if [ -n "$_d" ]; then
+    printf "%s [%s]: " "$_p" "$_d" >&2
+  else
+    printf "%s: " "$_p" >&2
+  fi
+  read _v
+  echo "${_v:-$_d}"
+}
+
+# Y/N确认，返回0=Y，1=N
+# 用法: _yn "确认?" y  (默认Y)  或 _yn "确认?" n  (默认N)
+_yn() {
+  local _p="$1" _d="${2:-y}" _v
+  while :; do
+    if [ "$_d" = "y" ]; then
+      printf "%s [Y/n]: " "$_p" >&2
+    else
+      printf "%s [y/N]: " "$_p" >&2
+    fi
+    read _v
+    case "${_v:-$_d}" in
+      [Yy]*) return 0 ;;
+      [Nn]*) return 1 ;;
+      *) echo "请输入 Y 或 n" >&2 ;;
+    esac
+  done
+}
+
+# 多选控件，stdout输出选中的编号列表(空格分隔)
+# 用法: _checklist "标题" "选项1
+# 选项2
+# 选项3" "默认选中(如:1 3 或空)"
+_checklist() {
+  local _title="$1"
+  local _items="$2"
+  local _dflt="${3:-}"
+  local _count _sel _n _result _valid _i
+
+  _count=$(printf "%s\n" "$_items" | grep -c '')
+
+  while :; do
+    clear 2>/dev/null || true
+    echo "=== $_title ==="
+    echo
+    _n=1
+    printf "%s\n" "$_items" | while IFS= read -r _line || [ -n "$_line" ]; do
+      printf "  [%s] %s. %s\n" \
+        "$(case "$_dflt" in *"$_n"*) echo "✓";; *) echo " ";; esac)" \
+        "$_n" "$_line"
+      _n=$((_n+1))
+    done
+    echo
+    echo "  a=全选  0=全不选  q=取消"
+    echo "  输入编号(多个用空格或逗号分隔，例如: 1 3 5 或 1,3,5)"
+    printf "选择[%s]: " "${_dflt:-无}" >&2
+    read _sel
+    case "$_sel" in
+      [Qq]*) return 1 ;;
+      "")
+        if [ -n "$_dflt" ]; then
+          echo "$_dflt" | tr ',' ' '
+          return 0
+        fi
+        continue
+        ;;
+      [Aa]*)
+        _result=""
+        _i=1
+        while [ "$_i" -le "$_count" ]; do
+          _result="$_result$_i "
+          _i=$((_i+1))
+        done
+        echo "$_result"
+        return 0
+        ;;
+      "0"|"")
+        continue
+        ;;
+    esac
+
+    # 解析并验证编号
+    _sel=$(echo "$_sel" | tr ',' ' ')
+    _result=""
+    _valid=1
+    for _n in $_sel; do
+      case "$_n" in
+        [0-9]*)
+          if [ "$_n" -ge 1 ] && [ "$_n" -le "$_count" ]; then
+            _result="$_result$_n "
+          else
+            echo "无效编号: $_n" >&2
+            _valid=0
+            break
+          fi
+          ;;
+        *)
+          echo "无效输入: $_n" >&2
+          _valid=0
+          break
+          ;;
+      esac
+    done
+    if [ "$_valid" = 1 ] && [ -n "$_result" ]; then
+      echo "$_result"
+      return 0
+    fi
+    echo "按回车重新选择..." >&2
+    read _
+  done
+}
+
+# 单选，stdout输出选中编号
+# 用法: _radiolist "标题" "选项1
+# 选项2" "默认编号"
+_radiolist() {
+  local _title="$1" _items="$2" _dflt="${3:-1}"
+  local _count _sel _n
+  _count=$(printf "%s\n" "$_items" | grep -c '')
+  while :; do
+    clear 2>/dev/null || true
+    echo "=== $_title ==="
+    echo
+    _n=1
+    printf "%s\n" "$_items" | while IFS= read -r _line || [ -n "$_line" ]; do
+      printf "  %s. %s\n" "$_n" "$_line"
+      _n=$((_n+1))
+    done
+    echo
+    printf "选择[%s] (q=取消): " "$_dflt" >&2
+    read _sel
+    case "$_sel" in
+      [Qq]*) return 1 ;;
+      "")
+        [ -n "$_dflt" ] && { echo "$_dflt"; return 0; }
+        continue
+        ;;
+      [0-9]*)
+        if [ "$_sel" -ge 1 ] && [ "$_sel" -le "$_count" ]; then
+          echo "$_sel"
+          return 0
+        fi
+        ;;
+    esac
+    echo "无效选择" >&2
+    sleep 1
+  done
+}
+
+# 保存配置到 $HOME/agsbx/menu_config (键值对)
+# 用法: _save_cfg "key" "value"
+_save_cfg() {
+  local _key="$1" _val="$2"
+  local _cfgdir="$HOME/agsbx"
+  local _cfgfile="$_cfgdir/menu_config"
+  mkdir -p "$_cfgdir"
+  # 删除旧的同名键
+  if [ -f "$_cfgfile" ]; then
+    sed -i "/^${_key}=/d" "$_cfgfile" 2>/dev/null
+  fi
+  # 追加新值
+  printf "%s=%s\n" "$_key" "$_val" >> "$_cfgfile"
+}
+
+# 读取配置
+# 用法: _load_cfg "key" "default"
+_load_cfg() {
+  local _key="$1" _dflt="$2"
+  local _cfgfile="$HOME/agsbx/menu_config"
+  if [ -f "$_cfgfile" ]; then
+    local _val=$(grep "^${_key}=" "$_cfgfile" 2>/dev/null | head -1 | cut -d= -f2-)
+    [ -n "$_val" ] && { echo "$_val"; return; }
+  fi
+  echo "$_dflt"
+}
+
+# ---- 菜单1: CDN协议设置 ----
+menu_cdn() {
+  clear 2>/dev/null || true
+  echo "======================================"
+  echo "  菜单1: CDN协议设置 (A+B组共13个)"
+  echo "======================================"
+  echo
+
+  # 加载已有配置作为默认值
+  local _cdnym_def=$(_load_cfg cdnym "${cdnym:-}")
+  local _uuid_def=$(_load_cfg uuid_xray "")
+  local _basepath_def=$(_load_cfg basepath "${basepath:-}")
+  local _cfapi_def=$(_load_cfg cfapi "${cfapi:-}")
+  local _cfzone_def=$(_load_cfg cfzone "${cfzone:-}")
+  local _cdnsel_def=$(_load_cfg cdn_selected "")
+
+  # [1/5] CDN域名
+  local _cdnym
+  _cdnym=$(_rd "[1/5] 输入CDN域名(小云朵ON, 已托管CF)" "$_cdnym_def")
+  if [ -z "$_cdnym" ]; then
+    echo "❌ CDN域名必填"
+    return 1
+  fi
+  _save_cfg cdnym "$_cdnym"
+
+  # [2/5] UUID
+  local _uuid
+  if [ -z "$_uuid_def" ]; then
+    _uuid_def=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || uuidgen 2>/dev/null)
+  fi
+  _uuid=$(_rd "[2/5] 输入UUID(回车自动生成)" "$_uuid_def")
+  _save_cfg uuid_xray "$_uuid"
+
+  # [3/5] Path前缀
+  local _basepath
+  if [ -z "$_basepath_def" ]; then
+    _basepath_def=$(head -c 8 /dev/urandom 2>/dev/null | od -An -tx1 | tr -d ' \n' | cut -c1-16)
+    [ -z "$_basepath_def" ] && _basepath_def=$(date +%s | sha256sum | cut -c1-16)
+  fi
+  _basepath=$(_rd "[3/5] 输入Path前缀(回车随机生成)" "$_basepath_def")
+  _save_cfg basepath "$_basepath"
+
+  # [4/5] CF API Token + Zone ID (用于acme.sh签发证书)
+  echo
+  echo "[4/5] 证书签发需要CF API Token (DNS:Edit权限) 和 Zone ID"
+  echo "      Dashboard → My Profile → API Tokens → Edit zone DNS"
+  _cfapi=$(_rd "  CF API Token" "$_cfapi_def")
+  _cfzone=$(_rd "  CF Zone ID" "$_cfzone_def")
+  if [ -z "$_cfapi" ] || [ -z "$_cfzone" ]; then
+    echo "⚠ 未提供CF凭证，证书将不会自动签发。"
+    echo "  你可以稍后手动签发或选择手动证书模式"
+  else
+    _save_cfg cfapi "$_cfapi"
+    _save_cfg cfzone "$_cfzone"
+  fi
+
+  # [5/5] 协议多选
+  local _cdn_items="VLESS+WS (A组·443固定)
+VLESS+XHTTP (A组·2053固定)
+VMess+WS (A组·2083固定)
+VLESS+HTTPUpgrade (A组·2087固定)
+Trojan+WS (A组·2096固定)
+Trojan+HTTPUpgrade (A组·8443固定)
+VLESS+gRPC (A组·443 fallbacks)
+Trojan+gRPC (A组·443 fallbacks)
+VMess+gRPC (A组·443 fallbacks)
+VMess+HTTPUpgrade (B组·39000 Origin Rules)
+Trojan+XHTTP (B组·39001 Origin Rules·mode=packet-up)
+VMess+XHTTP (B组·39002 Origin Rules·mode=packet-up)
+Shadowsocks+WS (B组·39003 Origin Rules·SIP002)
+VLESS+WS+ENC (B组·39004 Origin Rules·带ENC)"
+
+  echo
+  echo "[5/5] 选择CDN协议 (A组9个 + B组5个)"
+  echo "  注意: gRPC协议(#7-9)需CF Dashboard→Network→开启gRPC"
+  echo "        B组协议(#10-14)需CF Origin Rules(安装后自动输出指引)"
+  local _sel
+  _sel=$(_checklist "CDN协议多选" "$_cdn_items" "$_cdnsel_def")
+  [ $? -ne 0 ] && { echo "已取消"; return 1; }
+
+  # 确认
+  echo
+  echo "======================================"
+  echo " 确认配置"
+  echo "======================================"
+  echo "  CDN域名:    $_cdnym"
+  echo "  UUID:       $_uuid"
+  echo "  Path前缀:   $_basepath"
+  echo "  CF API:     ${_cfapi:+已设置}${_cfapi:-未设置}"
+  echo "  CF Zone:    ${_cfzone:+已设置}${_cfzone:-未设置}"
+  echo "  已选协议编号: $_sel"
+  echo "  (1=VLESS+WS 2=VLESS+XHTTP 3=VMess+WS 4=VLESS+HTTPUpgrade"
+  echo "   5=Trojan+WS 6=Trojan+HTTPUpgrade 7=VLESS+gRPC 8=Trojan+gRPC 9=VMess+gRPC"
+  echo "   10=VMess+HTTPUpgrade 11=Trojan+XHTTP 12=VMess+XHTTP 13=SS+WS 14=VLESS+WS+ENC)"
+  echo "======================================"
+  if ! _yn "确认开始部署?" y; then
+    echo "已取消，返回主菜单"
+    return 1
+  fi
+  _save_cfg cdn_selected "$_sel"
+
+  # 导出为环境变量供主流程使用
+  export cdnym="$_cdnym"
+  export uuid="$_uuid"
+  export basepath="$_basepath"
+  export cfapi="${_cfapi:-}"
+  export cfzone="${_cfzone:-}"
+
+  # 设置协议开关(覆盖到全局变量)
+  for _n in $_sel; do
+    case "$_n" in
+      1) export vwp=yes; export vmag=yes ;;
+      2) export vxp=yes ;;
+      3) export vmp=yes; export vmag=yes ;;
+      4) export vup=yes; export vmag=yes ;;
+      5) export twp=yes; export vmag=yes ;;
+      6) export tuhp=yes; export vmag=yes ;;
+      7) export vgp=yes ;;
+      8) export tgp=yes ;;
+      9) export mgp=yes ;;
+      10) export mup=yes ;;
+      11) export txp=yes ;;
+      12) export mxp=yes ;;
+      13) export swp=yes ;;
+      14) export vwep=yes ;;
+    esac
+  done
+
+  echo
+  echo "✅ CDN协议配置完成，准备执行安装..."
+  return 0
+}
+
+# ---- 菜单2: 非CDN协议设置 ----
+menu_noncdn() {
+  clear 2>/dev/null || true
+  echo "======================================"
+  echo "  菜单2: 非CDN协议设置 (C组12个)"
+  echo "======================================"
+  echo
+
+  local _directnym_def=$(_load_cfg directnym "${directnym:-}")
+  local _uuid_sb_def=$(_load_cfg uuid_singbox "")
+  local _reality_def=$(_load_cfg reality_dest "www.microsoft.com")
+  local _noncdn_sel_def=$(_load_cfg noncdn_selected "")
+
+  # [1/5] 直连域名
+  local _directnym
+  _directnym=$(_rd "[1/5] 输入直连域名(小云朵OFF, DNS only)" "$_directnym_def")
+  if [ -n "$_directnym" ]; then
+    _save_cfg directnym "$_directnym"
+  fi
+
+  # [2/5] sing-box UUID
+  local _uuid_sb
+  if [ -z "$_uuid_sb_def" ]; then
+    _uuid_sb_def=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || uuidgen 2>/dev/null)
+  fi
+  _uuid_sb=$(_rd "[2/5] 输入sing-box UUID(回车自动生成)" "$_uuid_sb_def")
+  _save_cfg uuid_singbox "$_uuid_sb"
+
+  # [3/5] 证书方式(简化: 复用CDN的CF凭证,或跳过)
+  echo
+  echo "[3/5] 证书方式"
+  echo "  1. 复用CF API Token签发directnym证书(推荐)"
+  echo "  2. 跳过(只安装无TLS协议: SS-2022/ShadowTLS)"
+  local _certmode
+  _certmode=$(_rd "  选择[1-2]" "1")
+  case "$_certmode" in
+    1)
+      # 验证CF凭证已设置
+      local _cfapi_chk=$(_load_cfg cfapi "")
+      local _cfzone_chk=$(_load_cfg cfzone "")
+      if [ -z "$_cfapi_chk" ] || [ -z "$_cfzone_chk" ]; then
+        echo "⚠ 未找到CF凭证，请先在菜单1设置，或手动输入:"
+        _cfapi_chk=$(_rd "  CF API Token" "")
+        _cfzone_chk=$(_rd "  CF Zone ID" "")
+        [ -n "$_cfapi_chk" ] && _save_cfg cfapi "$_cfapi_chk"
+        [ -n "$_cfzone_chk" ] && _save_cfg cfzone "$_cfzone_chk"
+      fi
+      ;;
+    2) echo "  已选跳过证书签发" ;;
+  esac
+
+  # [4/5] Reality目标
+  local _reality
+  _reality=$(_rd "[4/5] Reality伪装目标网站(回车默认)" "$_reality_def")
+  _save_cfg reality_dest "$_reality"
+
+  # [5/5] 协议多选
+  local _noncdn_items="VLESS-XHTTP-Reality-ENC (xray·端口自动)
+VLESS-TCP-Reality-Vision (xray·端口自动)
+Hysteria2 (sing-box·QUIC·TLS)
+TUIC (sing-box·QUIC·TLS)
+AnyTLS (sing-box·TLS)
+Any-Reality VLESS+Reality (sing-box·无证书)
+SS-2022直连 (sing-box·无TLS)
+ShadowTLS v3+SS (sing-box·嵌套SS)
+Naive (sing-box·HTTP/2·TLS)
+Trojan+TCP+Reality (xray·Reality)
+VLESS+TCP+TLS+Vision (xray·TLS·flow=Vision)
+Trojan+TCP+TLS (xray·TLS)"
+
+  echo
+  echo "[5/5] 选择非CDN协议"
+  local _sel
+  _sel=$(_checklist "非CDN协议多选" "$_noncdn_items" "$_noncdn_sel_def")
+  [ $? -ne 0 ] && { echo "已取消"; return 1; }
+
+  # 证书依赖检测
+  local _need_cert=""
+  for _n in $_sel; do
+    case "$_n" in
+      3|4|5|9|11|12) _need_cert="$_need_cert$_n " ;;
+    esac
+  done
+  if [ -n "$_need_cert" ] && [ "$_certmode" = "2" ]; then
+    echo "❌ 选择的协议需要TLS证书(Hysteria2/TUIC/AnyTLS/Naive/VLESS+TLS+Vision/Trojan+TLS)"
+    echo "   请重新选择并配置证书方式"
+    return 1
+  fi
+
+  # 确认
+  echo
+  echo "======================================"
+  echo " 确认配置"
+  echo "======================================"
+  echo "  直连域名:   ${_directnym:-未设置}"
+  echo "  sing-box UUID: $_uuid_sb"
+  echo "  证书方式:   ${_certmode:+acme.sh自动}${_certmode:-未设置}"
+  echo "  Reality目标: $_reality"
+  echo "  已选协议编号: $_sel"
+  echo "  (1=VLESS-Reality-ENC 2=VLESS-Reality-Vision 3=Hysteria2 4=TUIC"
+  echo "   5=AnyTLS 6=Any-Reality 7=SS-2022 8=ShadowTLS 9=Naive"
+  echo "   10=Trojan+Reality 11=VLESS+TLS+Vision 12=Trojan+TLS)"
+  echo "======================================"
+  if ! _yn "确认开始部署?" y; then
+    return 1
+  fi
+  _save_cfg noncdn_selected "$_sel"
+
+  # 导出环境变量
+  export directnym="${_directnym:-}"
+  export uuid="${_uuid_sb}"  # 注: 这里覆盖CDN的uuid，sing-box用独立uuid
+  export ym_vl_re="${_reality}"
+
+  # 设置协议开关
+  for _n in $_sel; do
+    case "$_n" in
+      1) export xhp=yes ;;
+      2) export vlp=yes ;;
+      3) export hyp=yes ;;
+      4) export tup=yes ;;
+      5) export anp=yes ;;
+      6) export arp=yes ;;
+      7) export ssp=yes ;;
+      8) export stp=yes ;;
+      9) export nap=yes ;;
+      10) export trp=yes ;;
+      11) export vtp=yes ;;
+      12) export ttp=yes ;;
+    esac
+  done
+
+  echo
+  echo "✅ 非CDN协议配置完成"
+  return 0
+}
+
+# ---- 菜单3: Argo隧道设置 ----
+menu_argo() {
+  clear 2>/dev/null || true
+  echo "======================================"
+  echo "  菜单3: Argo隧道设置 (D组10变体)"
+  echo "======================================"
+  echo
+  echo "  Argo = Cloudflare Tunnel, 流量经CF隧道转发到本地端口"
+  echo "  支持10个协议: VW/VX/VM/VU/TW/TU/MU/TX/MX/SW"
+  echo "  gRPC不支持Argo(CF Tunnel bug #1641)"
+  echo
+
+  local _argo_domain_def=$(_load_cfg argo_domain "")
+  local _argo_token_def=$(_load_cfg argo_token "")
+  local _argo_sel_def=$(_load_cfg argo_selected "")
+  local _argo_port_def=$(_load_cfg argo_port_start "39007")
+
+  # [1/4] 隧道域名(可选, 仅固定隧道需要)
+  local _argo_domain
+  _argo_domain=$(_rd "[1/4] 输入Argo隧道域名(回车使用临时隧道trycloudflare)" "$_argo_domain_def")
+  [ -n "$_argo_domain" ] && _save_cfg argo_domain "$_argo_domain"
+
+  # [2/4] CF Tunnel Token
+  local _argo_token
+  if [ -n "$_argo_domain" ]; then
+    # 固定隧道必须token
+    _argo_token=$(_rd "[2/4] 输入CF Tunnel Token(必填)" "$_argo_token_def")
+    if [ -z "$_argo_token" ]; then
+      echo "❌ 固定隧道必须提供Token"
+      return 1
+    fi
+    _save_cfg argo_token "$_argo_token"
+  else
+    echo "[2/4] 使用临时隧道(trycloudflare.com)，无需Token"
+  fi
+
+  # [3/4] 端口起始
+  local _argo_port
+  _argo_port=$(_rd "[3/4] Argo监听端口起始值(每协议1端口)" "$_argo_port_def")
+  _save_cfg argo_port_start "$_argo_port"
+
+  # [4/4] 协议多选
+  local _argo_items="VLESS+WS (vw)
+VLESS+XHTTP (vx)
+VMess+WS (vm)
+VLESS+HTTPUpgrade (vu)
+Trojan+WS (tw)
+Trojan+HTTPUpgrade (tu)
+VMess+HTTPUpgrade (mu)
+Trojan+XHTTP (tx)
+VMess+XHTTP (mx)
+Shadowsocks+WS (sw)"
+
+  echo
+  echo "[4/4] 选择Argo代理协议"
+  local _sel
+  _sel=$(_checklist "Argo协议多选" "$_argo_items" "$_argo_sel_def")
+  [ $? -ne 0 ] && { echo "已取消"; return 1; }
+
+  # 把编号映射为协议缩写
+  local _argopro_list=""
+  for _n in $_sel; do
+    case "$_n" in
+      1) _argopro_list="$_argopro_list,vw" ;;
+      2) _argopro_list="$_argopro_list,vx" ;;
+      3) _argopro_list="$_argopro_list,vm" ;;
+      4) _argopro_list="$_argopro_list,vu" ;;
+      5) _argopro_list="$_argopro_list,tw" ;;
+      6) _argopro_list="$_argopro_list,tu" ;;
+      7) _argopro_list="$_argopro_list,mu" ;;
+      8) _argopro_list="$_argopro_list,tx" ;;
+      9) _argopro_list="$_argopro_list,mx" ;;
+      10) _argopro_list="$_argopro_list,sw" ;;
+    esac
+  done
+  _argopro_list="${_argopro_list#,}"  # 去掉开头的逗号
+
+  # 确认
+  echo
+  echo "======================================"
+  echo " 确认配置"
+  echo "======================================"
+  echo "  隧道域名: ${_argo_domain:-临时隧道}"
+  echo "  Token:    ${_argo_token:+已设置}${_argo_token:-无}"
+  echo "  端口起始: $_argo_port"
+  echo "  Argo协议: $_argopro_list"
+  echo "======================================"
+  if ! _yn "确认?" y; then
+    return 1
+  fi
+  _save_cfg argo_selected "$_sel"
+
+  # 导出
+  export agn="${_argo_domain:-}"
+  export agk="${_argo_token:-}"
+  export argopro="$_argopro_list"
+
+  echo
+  echo "✅ Argo隧道配置完成"
+  return 0
+}
+
+# ---- 菜单4: 全部部署 ----
+menu_all() {
+  clear 2>/dev/null || true
+  echo "======================================"
+  echo "  菜单4: 全部部署 (依次执行1→2→3)"
+  echo "======================================"
+  echo
+  if ! _yn "将依次执行 CDN→非CDN→Argo，确认开始?" y; then
+    return 1
+  fi
+  echo
+  echo ">>> 步骤 1/3: CDN协议"
+  menu_cdn || { echo "CDN配置失败，中止"; return 1; }
+  echo
+  echo ">>> 步骤 2/3: 非CDN协议"
+  menu_noncdn || { echo "非CDN配置跳过或失败，继续Argo"; }
+  echo
+  echo ">>> 步骤 3/3: Argo隧道"
+  menu_argo || { echo "Argo配置跳过"; }
+
+  echo
+  echo "======================================"
+  echo " 全部配置完成，准备执行安装"
+  echo "======================================"
+  return 0
+}
+
+# ---- 菜单5-7: 更新内核 ----
+menu_upx() {
+  echo "更新 xray-core ..."
+  upxray && xrestart && echo "✅ Xray内核更新完成"
+}
+menu_ups() {
+  echo "更新 sing-box ..."
+  upsingbox && sbrestart && echo "✅ Sing-box内核更新完成"
+}
+menu_upc() {
+  echo "更新 cloudflared ..."
+  upcloudflared && echo "✅ Cloudflared更新完成"
+}
+
+# ---- 菜单8: 卸载 ----
+menu_del() {
+  echo
+  echo "将删除:"
+  echo "  - xray-core 二进制 + 配置 + 服务"
+  echo "  - sing-box 二进制 + 配置 + 服务"
+  echo "  - cloudflared 二进制 + 服务"
+  echo "  - 证书文件 (/etc/argosbx/certs/)"
+  echo "  - 配置数据 (\$HOME/agsbx/)"
+  echo
+  if _yn "确认卸载?" n; then
+    cleandel
+    rm -rf sbx_update "$HOME/agsbx" "$HOME/websbx"
+    echo "✅ 卸载完成"
+    exit 0
+  fi
+}
+
+# ---- 主菜单 ----
+showmenu_main() {
+  while :; do
+    clear 2>/dev/null || true
+    echo "╔══════════════════════════════════════════╗"
+    echo "║       argosbx 全协议管理面板            ║"
+    echo "║       V2.9.1 计划第十四章               ║"
+    echo "╠══════════════════════════════════════════╣"
+    # 显示已安装状态
+    if [ -e "$HOME/agsbx/xr.json" ] || [ -e "$HOME/agsbx/sb.json" ]; then
+      echo "║  状态: ✅ 已安装                        ║"
+    else
+      echo "║  状态: ⚠ 未安装                         ║"
+    fi
+    echo "╠══════════════════════════════════════════╣"
+    echo "║  1. CDN协议设置 (A+B组13个)             ║"
+    echo "║  2. 非CDN协议设置 (C组12个)             ║"
+    echo "║  3. Argo隧道设置 (D组10变体)            ║"
+    echo "║  4. 全部部署 (1→2→3依次执行)           ║"
+    echo "║  5. 更新 xray-core                      ║"
+    echo "║  6. 更新 sing-box                       ║"
+    echo "║  7. 更新 cloudflared                    ║"
+    echo "║  8. 卸载                                ║"
+    echo "║  9. 退出                                ║"
+    echo "╚══════════════════════════════════════════╝"
+    printf "请选择 [1-9]: "
+    local _choice
+    read _choice
+    case "$_choice" in
+      1) menu_cdn && { echo; echo "配置已保存，将执行安装..."; sleep 2; return 0; } ;;
+      2) menu_noncdn && { echo; echo "配置已保存，将执行安装..."; sleep 2; return 0; } ;;
+      3) menu_argo && { echo; echo "配置已保存，将执行安装..."; sleep 2; return 0; } ;;
+      4) menu_all && { echo; echo "配置已保存，将执行安装..."; sleep 2; return 0; } ;;
+      5) menu_upx ;;
+      6) menu_ups ;;
+      7) menu_upc ;;
+      8) menu_del ;;
+      9) echo "退出"; exit 0 ;;
+      *) echo "无效选择"; sleep 1 ;;
+    esac
+  done
+}
+
 # ===== S8: 命令入口 =====
+
+# --- 交互式菜单入口 (V2.9.1 第十四章) ---
+# 此时所有函数已定义。无子命令 + 是TTY + 未设置任何协议变量 → 进入交互菜单
+if [ -z "$1" ] && [ -t 0 ] 2>/dev/null; then
+  if [ -z "${vlp:-}${vmp:-}${vwp:-}${hyp:-}${tup:-}${xhp:-}${vxp:-}${anp:-}${ssp:-}${arp:-}${sop:-}${vup:-}${twp:-}${tuhp:-}${vgp:-}${tgp:-}${mgp:-}${mup:-}${txp:-}${mxp:-}${swp:-}${vwep:-}${stp:-}${nap:-}${trp:-}${vtp:-}${ttp:-}" ]; then
+    showmenu_main
+    # 菜单返回后，变量已被export设置，继续走主安装流程(ins/cip等)
+  fi
+fi
 
 if [ "$1" = "del" ]; then
 cleandel
