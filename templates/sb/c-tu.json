@@ -1,0 +1,21 @@
+        {
+            "type":"tuic",
+            "tag": "tuic5-sb",
+            "listen": "::",
+            "listen_port": __PORT__,
+            "users": [
+                {
+                    "uuid": "__UUID__",
+                    "password": "__UUID__"
+                }
+            ],
+            "congestion_control": "bbr",
+            "tls":{
+                "enabled": true,
+                "alpn": [
+                    "h3"
+                ],
+                "certificate_path": "__HOME__/agsbx/cert.crt",
+                "key_path": "__HOME__/agsbx/private.key"
+            }
+        }

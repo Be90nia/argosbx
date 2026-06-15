@@ -1,0 +1,33 @@
+    {
+      "tag":"trojan-ws",
+      "listen": "::",
+      "port": 2096,
+      "protocol": "trojan",
+      "settings": {
+        "users": [
+          {
+            "password": "__UUID__"
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "ws",
+        "security": "tls",
+        "wsSettings": {
+          "path": "/__BASEPATH__-tw",
+          "host": ""
+        },
+        "tlsSettings": {
+          "certificates": [{
+            "certificateFile": "/etc/argosbx/certs/cdnym.crt",
+            "keyFile": "/etc/argosbx/certs/cdnym.key"
+          }],
+          "alpn": ["h2", "http/1.1"]
+        }
+      },
+        "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"],
+        "metadataOnly": false
+      }
+    }

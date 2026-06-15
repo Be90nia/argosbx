@@ -1,0 +1,18 @@
+        {
+            "type": "naive",
+            "tag": "naive-in",
+            "listen": "::",
+            "listen_port": __PORT__,
+            "users": [
+                {
+                    "username": "__NAP_USER__",
+                    "password": "__UUID__"
+                }
+            ],
+            "tls": {
+                "enabled": true,
+                "certificate_path": "__HOME__/agsbx/cert.crt",
+                "key_path": "__HOME__/agsbx/private.key"
+            },
+            "network": "tcp,udp"
+        }

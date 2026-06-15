@@ -1,7 +1,7 @@
     {
-      "tag": "reality-vision",
+      "tag":"xhttp-reality",
       "listen": "::",
-      "port": __PORT_VL_RE__,
+      "port": __PORT__,
       "protocol": "vless",
       "settings": {
         "clients": [
@@ -10,19 +10,24 @@
             "flow": "xtls-rprx-vision"
           }
         ],
-        "decryption": "none"
+        "decryption": "__DEKEY__"
       },
       "streamSettings": {
-        "network": "tcp",
+        "network": "xhttp",
         "security": "reality",
         "realitySettings": {
           "fingerprint": "chrome",
-          "dest": "__YM_VL_RE__:443",
+          "target": "__YM_VL_RE__:443",
           "serverNames": [
             "__YM_VL_RE__"
           ],
           "privateKey": "__PRIVATE_KEY_X__",
           "shortIds": ["__SHORT_ID_X__"]
+        },
+        "xhttpSettings": {
+          "host": "",
+          "path": "__UUID__-xh",
+          "mode": "auto"
         }
       },
       "sniffing": {

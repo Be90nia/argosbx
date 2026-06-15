@@ -1,10 +1,9 @@
     {
-      "tag": "vless-ws",
-      "listen": "::",
-      "port": __PORT_VW__,
+      "tag":"vless-grpc",
+      "listen": "@vless-grpc",
       "protocol": "vless",
       "settings": {
-        "clients": [
+        "users": [
           {
             "id": "__UUID__"
           }
@@ -12,12 +11,14 @@
         "decryption": "__DEKEY__"
       },
       "streamSettings": {
-        "network": "ws",
-        "wsSettings": {
-          "path": "__UUID__-vw"
+        "network": "grpc",
+        "security": "none",
+        "grpcSettings": {
+          "serviceName": "__BASEPATH__-vg",
+          "multiMode": true
         }
       },
-      "sniffing": {
+        "sniffing": {
         "enabled": true,
         "destOverride": ["http", "tls", "quic"],
         "metadataOnly": false

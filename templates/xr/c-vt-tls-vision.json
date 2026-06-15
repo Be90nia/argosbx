@@ -1,0 +1,26 @@
+        {
+          "tag": "vless-tls-vision",
+          "listen": "::",
+          "port": __PORT__,
+          "protocol": "vless",
+          "settings": {
+            "users": [{ "id": "__UUID__", "flow": "xtls-rprx-vision" }],
+            "decryption": "none"
+          },
+          "streamSettings": {
+            "network": "tcp",
+            "security": "tls",
+            "tlsSettings": {
+              "certificates": [{
+                "certificateFile": "/etc/argosbx/certs/directnym.crt",
+                "keyFile": "/etc/argosbx/certs/directnym.key"
+              }],
+              "alpn": ["http/1.1"]
+            }
+          },
+          "sniffing": {
+            "enabled": true,
+            "destOverride": ["http", "tls", "quic"],
+            "metadataOnly": false
+          }
+        }

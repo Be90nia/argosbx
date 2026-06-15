@@ -1,0 +1,17 @@
+{
+        "type": "vmess",
+        "tag": "vmess-sb",
+        "listen": "::",
+        "listen_port": __PORT__,
+        "users": [
+            {
+                "uuid": "__UUID__"
+            }
+        ],
+        "transport": {
+            "type": "ws",
+            "path": "/__BASEPATH__-vm",
+            "max_early_data":2048,
+            "early_data_header_name": "Sec-WebSocket-Protocol"
+        }
+    }

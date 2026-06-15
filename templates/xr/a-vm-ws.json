@@ -1,0 +1,32 @@
+        {
+            "tag": "vmess-xr",
+            "listen": "::",
+            "port": 2083,
+            "protocol": "vmess",
+            "settings": {
+                "users": [
+                    {
+                        "id": "__UUID__"
+                    }
+                ]
+            },
+            "streamSettings": {
+                "network": "ws",
+                "security": "tls",
+                "wsSettings": {
+                  "path": "/__BASEPATH__-vm"
+                },
+                "tlsSettings": {
+                  "certificates": [{
+                    "certificateFile": "/etc/argosbx/certs/cdnym.crt",
+                    "keyFile": "/etc/argosbx/certs/cdnym.key"
+                  }],
+                  "alpn": ["h2", "http/1.1"]
+                }
+        },
+            "sniffing": {
+            "enabled": true,
+            "destOverride": ["http", "tls", "quic"],
+            "metadataOnly": false
+            }
+         }

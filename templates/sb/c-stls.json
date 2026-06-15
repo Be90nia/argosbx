@@ -1,0 +1,20 @@
+        {
+            "type": "shadowtls",
+            "tag": "stls-in",
+            "listen": "::",
+            "listen_port": __PORT__,
+            "version": 3,
+            "password": "__STLSPASS__",
+            "tls": {
+                "server_name": "__STLS_DEST__"
+            },
+            "detour": "ss-internal-in"
+        },
+        {
+            "type": "shadowsocks",
+            "tag": "ss-internal-in",
+            "listen": "127.0.0.1",
+            "listen_port": 0,
+            "method": "2022-blake3-aes-256-gcm",
+            "password": "__SSINTKEY__"
+        }

@@ -1,8 +1,0 @@
-    {
-      "type": "shadowsocks",
-      "tag": "ss-2022",
-      "listen": "::",
-      "listen_port": __PORT_SS__,
-      "method": "2022-blake3-aes-128-gcm",
-      "password": "__SSKEY__"
-    }

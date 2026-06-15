@@ -1,23 +1,23 @@
     {
-      "tag": "vmess-xr",
-      "listen": "::",
-      "port": __PORT_VM_WS__,
+      "tag":"vmess-grpc",
+      "listen": "@vmess-grpc",
       "protocol": "vmess",
       "settings": {
-        "clients": [
+        "users": [
           {
             "id": "__UUID__"
           }
         ]
       },
       "streamSettings": {
-        "network": "ws",
+        "network": "grpc",
         "security": "none",
-        "wsSettings": {
-          "path": "__UUID__-vm"
+        "grpcSettings": {
+          "serviceName": "__BASEPATH__-mg",
+          "multiMode": true
         }
       },
-      "sniffing": {
+        "sniffing": {
         "enabled": true,
         "destOverride": ["http", "tls", "quic"],
         "metadataOnly": false

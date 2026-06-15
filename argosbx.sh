@@ -320,9 +320,10 @@ certsign() {
   echo "✅ 证书签发成功: $_csdomain → $_cscrt"
 }
 
-# tpl_xr 模板名 — 加载xray inbound模板(下载/缓存)，替换占位符，追加到xr.json(末尾加逗号)
+# tpl_xr 模板名 [端口] — 加载xray inbound模板，替换占位符，追加到xr.json(末尾加逗号)
 tpl_xr() {
   local _tplname="$1"
+  local _tplport="${2:-}"
   local _tpldir="$HOME/agsbx/templates/xr"
   local _tplfile="$_tpldir/$_tplname.json"
   mkdir -p "$_tpldir"
@@ -332,8 +333,36 @@ tpl_xr() {
   sed -e "s|__UUID__|${uuid}|g" \
       -e "s|__BASEPATH__|${basepath}|g" \
       -e "s|__DEKEY__|${dekey}|g" \
+      -e "s|__ENKEY__|${enkey}|g" \
       -e "s|__SSKEY__|${sskey}|g" \
+      -e "s|__PORT__|${_tplport}|g" \
+      -e "s|__YM_VL_RE__|${ym_vl_re}|g" \
+      -e "s|__PRIVATE_KEY_X__|${private_key_x}|g" \
+      -e "s|__SHORT_ID_X__|${short_id_x}|g" \
       "$_tplfile" | sed '$s/$/,/' >> "$HOME/agsbx/xr.json"
+}
+
+# tpl_sb 模板名 — 加载sing-box inbound模板，替换占位符，追加到sb.json(末尾加逗号)
+tpl_sb() {
+  local _tplname="$1"
+  local _tplport="${2:-}"
+  local _tpldir="$HOME/agsbx/templates/sb"
+  local _tplfile="$_tpldir/$_tplname.json"
+  mkdir -p "$_tpldir"
+  if [ ! -f "$_tplfile" ]; then
+    dl "$tplbaseurl/sb/$_tplname.json" "$_tplfile" || { echo "⚠️ 模板下载失败: $_tplname"; return 1; }
+  fi
+  sed -e "s|__UUID__|${uuid}|g" \
+      -e "s|__PORT__|${_tplport}|g" \
+      -e "s|__STLSPASS__|${stlspass}|g" \
+      -e "s|__SSINTKEY__|${ssintkey}|g" \
+      -e "s|__STLS_DEST__|${stls_dest}|g" \
+      -e "s|__NAP_USER__|${nap_user}|g" \
+      -e "s|__YM_VL_RE__|${ym_vl_re}|g" \
+      -e "s|__PRIVATE_KEY_S__|${private_key_s}|g" \
+      -e "s|__SHORT_ID_S__|${short_id_s}|g" \
+      -e "s|__HOME__|${HOME}|g" \
+      "$_tplfile" | sed '$s/$/,/' >> "$HOME/agsbx/sb.json"
 }
 
 # ===== S3: 系统初始化 =====
@@ -569,46 +598,7 @@ if [ -n "$xhp" ]; then
 xhp=xhpt
 alloc_port port_xh
  echo "Vless-xhttp-reality-enc端口：$port_xh"
-cat >> "$HOME/agsbx/xr.json" <<EOF
-    {
-      "tag":"xhttp-reality",
-      "listen": "::",
-      "port": ${port_xh},
-      "protocol": "vless",
-      "settings": {
-        "clients": [
-          {
-            "id": "${uuid}",
-            "flow": "xtls-rprx-vision"
-          }
-        ],
-        "decryption": "${dekey}"
-      },
-      "streamSettings": {
-        "network": "xhttp",
-        "security": "reality",
-        "realitySettings": {
-          "fingerprint": "chrome",
-          "target": "${ym_vl_re}:443",
-          "serverNames": [
-            "${ym_vl_re}"
-          ],
-          "privateKey": "$private_key_x",
-          "shortIds": ["$short_id_x"]
-        },
-        "xhttpSettings": {
-          "host": "",
-          "path": "${uuid}-xh",
-          "mode": "auto"
-        }
-      },
-      "sniffing": {
-        "enabled": true,
-        "destOverride": ["http", "tls", "quic"],
-        "metadataOnly": false
-      }
-    },
-EOF
+tpl_xr a-xh-reality "$port_xh"
 else
 xhp=xhptargo
 fi
@@ -620,43 +610,7 @@ fi
 if [ -n "$vxp" ]; then
 vxp=vxpt
  echo "Vless-xhttp-enc端口：2053 (CF HTTPS固定端口)"
-cat >> "$HOME/agsbx/xr.json" <<EOF
-    {
-      "tag":"vless-xhttp",
-      "listen": "::",
-      "port": 2053,
-      "protocol": "vless",
-      "settings": {
-        "users": [
-          {
-            "id": "${uuid}"
-          }
-        ],
-        "decryption": "${dekey}"
-      },
-      "streamSettings": {
-        "network": "xhttp",
-        "security": "tls",
-        "xhttpSettings": {
-          "host": "",
-          "path": "/${basepath}-vx",
-          "mode": "packet-up"
-        },
-        "tlsSettings": {
-          "certificates": [{
-            "certificateFile": "/etc/argosbx/certs/cdnym.crt",
-            "keyFile": "/etc/argosbx/certs/cdnym.key"
-          }],
-          "alpn": ["h2", "http/1.1"]
-        }
-      },
-        "sniffing": {
-        "enabled": true,
-        "destOverride": ["http", "tls", "quic"],
-        "metadataOnly": false
-      }
-    },
-EOF
+tpl_xr a-vx-xhttp
 else
 vxp=vxptargo
 fi
@@ -725,224 +679,42 @@ fi
 if [ -n "$vup" ]; then
 vup=vupt
  echo "Vless-httpupgrade-enc端口：2087 (CF HTTPS固定端口)"
-cat >> "$HOME/agsbx/xr.json" <<EOF
-    {
-      "tag":"vless-httpupgrade",
-      "listen": "::",
-      "port": 2087,
-      "protocol": "vless",
-      "settings": {
-        "users": [
-          {
-            "id": "${uuid}"
-          }
-        ],
-        "decryption": "${dekey}"
-      },
-      "streamSettings": {
-        "network": "httpupgrade",
-        "security": "tls",
-        "httpupgradeSettings": {
-          "path": "/${basepath}-vu",
-          "host": ""
-        },
-        "tlsSettings": {
-          "certificates": [{
-            "certificateFile": "/etc/argosbx/certs/cdnym.crt",
-            "keyFile": "/etc/argosbx/certs/cdnym.key"
-          }],
-          "alpn": ["h2", "http/1.1"]
-        }
-      },
-        "sniffing": {
-        "enabled": true,
-        "destOverride": ["http", "tls", "quic"],
-        "metadataOnly": false
-      }
-    },
-EOF
+tpl_xr a-vu-httpupgrade
 else
 vup=vuptargo
 fi
 if [ -n "$twp" ]; then
 twp=twpt
  echo "Trojan-ws端口：2096 (CF HTTPS固定端口)"
-cat >> "$HOME/agsbx/xr.json" <<EOF
-    {
-      "tag":"trojan-ws",
-      "listen": "::",
-      "port": 2096,
-      "protocol": "trojan",
-      "settings": {
-        "users": [
-          {
-            "password": "${uuid}"
-          }
-        ]
-      },
-      "streamSettings": {
-        "network": "ws",
-        "security": "tls",
-        "wsSettings": {
-          "path": "/${basepath}-tw",
-          "host": ""
-        },
-        "tlsSettings": {
-          "certificates": [{
-            "certificateFile": "/etc/argosbx/certs/cdnym.crt",
-            "keyFile": "/etc/argosbx/certs/cdnym.key"
-          }],
-          "alpn": ["h2", "http/1.1"]
-        }
-      },
-        "sniffing": {
-        "enabled": true,
-        "destOverride": ["http", "tls", "quic"],
-        "metadataOnly": false
-      }
-    },
-EOF
+tpl_xr a-tw-ws
 else
 twp=twptargo
 fi
 if [ -n "$tuhp" ]; then
 tuhp=tuhpt
  echo "Trojan-httpupgrade端口：8443 (CF HTTPS固定端口)"
-cat >> "$HOME/agsbx/xr.json" <<EOF
-    {
-      "tag":"trojan-httpupgrade",
-      "listen": "::",
-      "port": 8443,
-      "protocol": "trojan",
-      "settings": {
-        "users": [
-          {
-            "password": "${uuid}"
-          }
-        ]
-      },
-      "streamSettings": {
-        "network": "httpupgrade",
-        "security": "tls",
-        "httpupgradeSettings": {
-          "path": "/${basepath}-tuh",
-          "host": ""
-        },
-        "tlsSettings": {
-          "certificates": [{
-            "certificateFile": "/etc/argosbx/certs/cdnym.crt",
-            "keyFile": "/etc/argosbx/certs/cdnym.key"
-          }],
-          "alpn": ["h2", "http/1.1"]
-        }
-      },
-        "sniffing": {
-        "enabled": true,
-        "destOverride": ["http", "tls", "quic"],
-        "metadataOnly": false
-      }
-    },
-EOF
+tpl_xr a-tu-httpupgrade
 else
 tuhp=tuhptargo
 fi
 if [ -n "$vgp" ]; then
 vgp=vgpt
  echo "Vless-grpc-enc：443 fallbacks转发 (Unix socket @vless-grpc, TLS在443终止)"
-cat >> "$HOME/agsbx/xr.json" <<EOF
-    {
-      "tag":"vless-grpc",
-      "listen": "@vless-grpc",
-      "protocol": "vless",
-      "settings": {
-        "users": [
-          {
-            "id": "${uuid}"
-          }
-        ],
-        "decryption": "${dekey}"
-      },
-      "streamSettings": {
-        "network": "grpc",
-        "security": "none",
-        "grpcSettings": {
-          "serviceName": "${basepath}-vg",
-          "multiMode": true
-        }
-      },
-        "sniffing": {
-        "enabled": true,
-        "destOverride": ["http", "tls", "quic"],
-        "metadataOnly": false
-      }
-    },
-EOF
+tpl_xr a-vg-grpc
 else
 vgp=vgptargo
 fi
 if [ -n "$tgp" ]; then
 tgp=tgpt
  echo "Trojan-grpc：443 fallbacks转发 (Unix socket @trojan-grpc, TLS在443终止)"
-cat >> "$HOME/agsbx/xr.json" <<EOF
-    {
-      "tag":"trojan-grpc",
-      "listen": "@trojan-grpc",
-      "protocol": "trojan",
-      "settings": {
-        "users": [
-          {
-            "password": "${uuid}"
-          }
-        ]
-      },
-      "streamSettings": {
-        "network": "grpc",
-        "security": "none",
-        "grpcSettings": {
-          "serviceName": "${basepath}-tg",
-          "multiMode": true
-        }
-      },
-        "sniffing": {
-        "enabled": true,
-        "destOverride": ["http", "tls", "quic"],
-        "metadataOnly": false
-      }
-    },
-EOF
+tpl_xr a-tg-grpc
 else
 tgp=tgptargo
 fi
 if [ -n "$mgp" ]; then
 mgp=mgpt
  echo "Vmess-grpc：443 fallbacks转发 (Unix socket @vmess-grpc, TLS在443终止)"
-cat >> "$HOME/agsbx/xr.json" <<EOF
-    {
-      "tag":"vmess-grpc",
-      "listen": "@vmess-grpc",
-      "protocol": "vmess",
-      "settings": {
-        "users": [
-          {
-            "id": "${uuid}"
-          }
-        ]
-      },
-      "streamSettings": {
-        "network": "grpc",
-        "security": "none",
-        "grpcSettings": {
-          "serviceName": "${basepath}-mg",
-          "multiMode": true
-        }
-      },
-        "sniffing": {
-        "enabled": true,
-        "destOverride": ["http", "tls", "quic"],
-        "metadataOnly": false
-      }
-    },
-EOF
+tpl_xr a-mg-grpc
 else
 mgp=mgptargo
 fi
@@ -980,41 +752,7 @@ if [ -n "$vlp" ]; then
 vlp=vlpt
 alloc_port port_vl_re
  echo "Vless-tcp-reality-v端口：$port_vl_re"
-cat >> "$HOME/agsbx/xr.json" <<EOF
-        {
-            "tag":"reality-vision",
-            "listen": "::",
-            "port": $port_vl_re,
-            "protocol": "vless",
-            "settings": {
-                "clients": [
-                    {
-                        "id": "${uuid}",
-                        "flow": "xtls-rprx-vision"
-                    }
-                ],
-                "decryption": "none"
-            },
-            "streamSettings": {
-                "network": "tcp",
-                "security": "reality",
-                "realitySettings": {
-                    "fingerprint": "chrome",
-                    "dest": "${ym_vl_re}:443",
-                    "serverNames": [
-                      "${ym_vl_re}"
-                    ],
-                    "privateKey": "$private_key_x",
-                    "shortIds": ["$short_id_x"]
-                }
-            },
-          "sniffing": {
-          "enabled": true,
-          "destOverride": ["http", "tls", "quic"],
-          "metadataOnly": false
-      }
-    },  
-EOF
+tpl_xr c-vl-reality-vision "$port_vl_re"
 else
 vlp=vlptargo
 fi
@@ -1024,97 +762,19 @@ if [ -n "$trp" ]; then
   echo "Reality域名：$ym_vl_re"
   alloc_port port_tr
   echo "Trojan+Reality端口：$port_tr"
-  cat >> "$HOME/agsbx/xr.json" <<EOF
-        {
-          "tag": "trojan-reality",
-          "listen": "::",
-          "port": ${port_tr},
-          "protocol": "trojan",
-          "settings": {
-            "users": [{ "password": "${uuid}" }]
-          },
-          "streamSettings": {
-            "network": "tcp",
-            "security": "reality",
-            "realitySettings": {
-              "dest": "${ym_vl_re}:443",
-              "serverNames": ["${ym_vl_re}"],
-              "privateKey": "$private_key_x",
-              "shortIds": ["$short_id_x"]
-            }
-          },
-          "sniffing": {
-            "enabled": true,
-            "destOverride": ["http", "tls", "quic"],
-            "metadataOnly": false
-          }
-        },
-EOF
+  tpl_xr c-tr-reality "$port_tr"
 fi
 if [ -n "$vtp" ]; then
   vtp=vtpt
   alloc_port port_vtv
   echo "VLESS+TLS+Vision端口：$port_vtv"
-  cat >> "$HOME/agsbx/xr.json" <<EOF
-        {
-          "tag": "vless-tls-vision",
-          "listen": "::",
-          "port": ${port_vtv},
-          "protocol": "vless",
-          "settings": {
-            "users": [{ "id": "${uuid}", "flow": "xtls-rprx-vision" }],
-            "decryption": "none"
-          },
-          "streamSettings": {
-            "network": "tcp",
-            "security": "tls",
-            "tlsSettings": {
-              "certificates": [{
-                "certificateFile": "/etc/argosbx/certs/directnym.crt",
-                "keyFile": "/etc/argosbx/certs/directnym.key"
-              }],
-              "alpn": ["http/1.1"]
-            }
-          },
-          "sniffing": {
-            "enabled": true,
-            "destOverride": ["http", "tls", "quic"],
-            "metadataOnly": false
-          }
-        },
-EOF
+  tpl_xr c-vt-tls-vision "$port_vtv"
 fi
 if [ -n "$ttp" ]; then
   ttp=ttpt
   alloc_port port_tt
   echo "Trojan+TLS端口：$port_tt"
-  cat >> "$HOME/agsbx/xr.json" <<EOF
-        {
-          "tag": "trojan-tls",
-          "listen": "::",
-          "port": ${port_tt},
-          "protocol": "trojan",
-          "settings": {
-            "users": [{ "password": "${uuid}" }]
-          },
-          "streamSettings": {
-            "network": "tcp",
-            "security": "tls",
-            "tlsSettings": {
-              "certificates": [{
-                "certificateFile": "/etc/argosbx/certs/directnym.crt",
-                "keyFile": "/etc/argosbx/certs/directnym.key"
-              }],
-              "alpn": ["http/1.1"]
-            }
-          },
-          "sniffing": {
-            "enabled": true,
-            "destOverride": ["http", "tls", "quic"],
-            "metadataOnly": false
-          }
-        },
-EOF
+  tpl_xr c-tt-tls "$port_tt"
 fi
 }
 
@@ -1150,28 +810,7 @@ if [ -n "$hyp" ]; then
 hyp=hypt
 alloc_port port_hy2
  echo "Hysteria2端口：$port_hy2"
-cat >> "$HOME/agsbx/sb.json" <<EOF
-    {
-        "type": "hysteria2",
-        "tag": "hy2-sb",
-        "listen": "::",
-        "listen_port": ${port_hy2},
-        "users": [
-            {
-                "password": "${uuid}"
-            }
-        ],
-        "ignore_client_bandwidth":false,
-        "tls": {
-            "enabled": true,
-            "alpn": [
-                "h3"
-            ],
-            "certificate_path": "$HOME/agsbx/cert.crt",
-            "key_path": "$HOME/agsbx/private.key"
-        }
-    },
-EOF
+tpl_sb c-hy2 "$port_hy2"
 else
 hyp=hyptargo
 fi
@@ -1179,29 +818,7 @@ if [ -n "$tup" ]; then
 tup=tupt
 alloc_port port_tu
  echo "Tuic端口：$port_tu"
-cat >> "$HOME/agsbx/sb.json" <<EOF
-        {
-            "type":"tuic",
-            "tag": "tuic5-sb",
-            "listen": "::",
-            "listen_port": ${port_tu},
-            "users": [
-                {
-                    "uuid": "${uuid}",
-                    "password": "${uuid}"
-                }
-            ],
-            "congestion_control": "bbr",
-            "tls":{
-                "enabled": true,
-                "alpn": [
-                    "h3"
-                ],
-                "certificate_path": "$HOME/agsbx/cert.crt",
-                "key_path": "$HOME/agsbx/private.key"
-            }
-        },
-EOF
+tpl_sb c-tu "$port_tu"
 else
 tup=tuptargo
 fi
@@ -1209,25 +826,7 @@ if [ -n "$anp" ]; then
 anp=anpt
 alloc_port port_an
  echo "Anytls端口：$port_an"
-cat >> "$HOME/agsbx/sb.json" <<EOF
-        {
-            "type":"anytls",
-            "tag":"anytls-sb",
-            "listen":"::",
-            "listen_port":${port_an},
-            "users":[
-                {
-                  "password":"${uuid}"
-                }
-            ],
-            "padding_scheme":[],
-            "tls":{
-                "enabled": true,
-                "certificate_path": "$HOME/agsbx/cert.crt",
-                "key_path": "$HOME/agsbx/private.key"
-            }
-        },
-EOF
+tpl_sb c-an "$port_an"
 else
 anp=anptargo
 fi
@@ -1251,35 +850,9 @@ fi
 private_key_s=$(cat "$HOME/agsbx/sbk/private_key")
 public_key_s=$(cat "$HOME/agsbx/sbk/public_key")
 short_id_s=$(cat "$HOME/agsbx/sbk/short_id")
-alloc_port port_ar
- echo "Any-Reality端口：$port_ar"
-cat >> "$HOME/agsbx/sb.json" <<EOF
-        {
-            "type":"anytls",
-            "tag":"anyreality-sb",
-            "listen":"::",
-            "listen_port":${port_ar},
-            "users":[
-                {
-                  "password":"${uuid}"
-                }
-            ],
-            "padding_scheme":[],
-            "tls": {
-            "enabled": true,
-            "server_name": "${ym_vl_re}",
-             "reality": {
-              "enabled": true,
-              "handshake": {
-              "server": "${ym_vl_re}",
-              "server_port": 443
-             },
-             "private_key": "$private_key_s",
-             "short_id": ["$short_id_s"]
-            }
-          }
-        },
-EOF
+ alloc_port port_ar
+  echo "Any-Reality端口：$port_ar"
+  tpl_sb c-ar "$port_ar"
 else
 arp=arptargo
 fi
@@ -1289,19 +862,10 @@ if [ ! -e "$HOME/agsbx/sskey" ]; then
 sskey=$("$HOME/agsbx/sing-box" generate rand 16 --base64)
 echo "$sskey" > "$HOME/agsbx/sskey"
 fi
-alloc_port port_ss
- sskey=$(cat "$HOME/agsbx/sskey")
- echo "Shadowsocks-2022端口：$port_ss"
-cat >> "$HOME/agsbx/sb.json" <<EOF
-        {
-            "type": "shadowsocks",
-            "tag":"ss-2022",
-            "listen": "::",
-            "listen_port": $port_ss,
-            "method": "2022-blake3-aes-128-gcm",
-            "password": "$sskey"
-    },  
-EOF
+ alloc_port port_ss
+  sskey=$(cat "$HOME/agsbx/sskey")
+  echo "Shadowsocks-2022端口：$port_ss"
+  tpl_sb c-ss "$port_ss"
 else
 ssp=ssptargo
 fi
@@ -1320,28 +884,7 @@ if [ -n "$stp" ]; then
   [ -z "$stls_dest" ] && stls_dest=www.microsoft.com
   alloc_port port_st
   echo "ShadowTLS端口：$port_st (伪装目标: $stls_dest)"
-  cat >> "$HOME/agsbx/sb.json" <<EOF
-        {
-            "type": "shadowtls",
-            "tag": "stls-in",
-            "listen": "::",
-            "listen_port": ${port_st},
-            "version": 3,
-            "password": "${stlspass}",
-            "tls": {
-                "server_name": "${stls_dest}"
-            },
-            "detour": "ss-internal-in"
-        },
-        {
-            "type": "shadowsocks",
-            "tag": "ss-internal-in",
-            "listen": "127.0.0.1",
-            "listen_port": 0,
-            "method": "2022-blake3-aes-256-gcm",
-            "password": "${ssintkey}"
-        },
-EOF
+  tpl_sb c-stls "$port_st"
 fi
 if [ -n "$nap" ]; then
   nap=napt
@@ -1349,26 +892,7 @@ if [ -n "$nap" ]; then
   echo "$nap_user" > "$HOME/agsbx/nap_user"
   alloc_port port_na
   echo "Naive端口：$port_na"
-  cat >> "$HOME/agsbx/sb.json" <<EOF
-        {
-            "type": "naive",
-            "tag": "naive-in",
-            "listen": "::",
-            "listen_port": ${port_na},
-            "users": [
-                {
-                    "username": "${nap_user}",
-                    "password": "${uuid}"
-                }
-            ],
-            "tls": {
-                "enabled": true,
-                "certificate_path": "$HOME/agsbx/cert.crt",
-                "key_path": "$HOME/agsbx/private.key"
-            },
-            "network": "tcp,udp"
-        },
-EOF
+  tpl_sb c-na "$port_na"
 fi
 }
 
@@ -1379,60 +903,9 @@ gen_basepath
 echo "Vmess-ws：xray模式→端口2083(CF固定) / singbox模式→随机端口"
 alloc_port port_vm_ws
 if [ -e "$HOME/agsbx/xr.json" ]; then
-cat >> "$HOME/agsbx/xr.json" <<EOF
-        {
-            "tag": "vmess-xr",
-            "listen": "::",
-            "port": 2083,
-            "protocol": "vmess",
-            "settings": {
-                "users": [
-                    {
-                        "id": "${uuid}"
-                    }
-                ]
-            },
-            "streamSettings": {
-                "network": "ws",
-                "security": "tls",
-                "wsSettings": {
-                  "path": "/${basepath}-vm"
-                },
-                "tlsSettings": {
-                  "certificates": [{
-                    "certificateFile": "/etc/argosbx/certs/cdnym.crt",
-                    "keyFile": "/etc/argosbx/certs/cdnym.key"
-                  }],
-                  "alpn": ["h2", "http/1.1"]
-                }
-        },
-            "sniffing": {
-            "enabled": true,
-            "destOverride": ["http", "tls", "quic"],
-            "metadataOnly": false
-            }
-         }, 
-EOF
+tpl_xr a-vm-ws
 else
-cat >> "$HOME/agsbx/sb.json" <<EOF
-{
-        "type": "vmess",
-        "tag": "vmess-sb",
-        "listen": "::",
-        "listen_port": ${port_vm_ws},
-        "users": [
-            {
-                "uuid": "${uuid}"
-            }
-        ],
-        "transport": {
-            "type": "ws",
-            "path": "/${basepath}-vm",
-            "max_early_data":2048,
-            "early_data_header_name": "Sec-WebSocket-Protocol"
-        }
-    },
-EOF
+tpl_sb c-vm "$port_vm_ws"
 fi
 else
 vmp=vmptargo

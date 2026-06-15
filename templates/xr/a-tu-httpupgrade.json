@@ -1,0 +1,33 @@
+    {
+      "tag":"trojan-httpupgrade",
+      "listen": "::",
+      "port": 8443,
+      "protocol": "trojan",
+      "settings": {
+        "users": [
+          {
+            "password": "__UUID__"
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "httpupgrade",
+        "security": "tls",
+        "httpupgradeSettings": {
+          "path": "/__BASEPATH__-tuh",
+          "host": ""
+        },
+        "tlsSettings": {
+          "certificates": [{
+            "certificateFile": "/etc/argosbx/certs/cdnym.crt",
+            "keyFile": "/etc/argosbx/certs/cdnym.key"
+          }],
+          "alpn": ["h2", "http/1.1"]
+        }
+      },
+        "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"],
+        "metadataOnly": false
+      }
+    }

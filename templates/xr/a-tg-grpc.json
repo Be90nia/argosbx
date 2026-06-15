@@ -1,0 +1,25 @@
+    {
+      "tag":"trojan-grpc",
+      "listen": "@trojan-grpc",
+      "protocol": "trojan",
+      "settings": {
+        "users": [
+          {
+            "password": "__UUID__"
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "grpc",
+        "security": "none",
+        "grpcSettings": {
+          "serviceName": "__BASEPATH__-tg",
+          "multiMode": true
+        }
+      },
+        "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"],
+        "metadataOnly": false
+      }
+    }

@@ -1,10 +1,10 @@
     {
-      "tag": "vless-xhttp",
+      "tag":"vless-xhttp",
       "listen": "::",
-      "port": __PORT_VX__,
+      "port": 2053,
       "protocol": "vless",
       "settings": {
-        "clients": [
+        "users": [
           {
             "id": "__UUID__"
           }
@@ -13,13 +13,21 @@
       },
       "streamSettings": {
         "network": "xhttp",
+        "security": "tls",
         "xhttpSettings": {
           "host": "",
-          "path": "__UUID__-vx",
-          "mode": "auto"
+          "path": "/__BASEPATH__-vx",
+          "mode": "packet-up"
+        },
+        "tlsSettings": {
+          "certificates": [{
+            "certificateFile": "/etc/argosbx/certs/cdnym.crt",
+            "keyFile": "/etc/argosbx/certs/cdnym.key"
+          }],
+          "alpn": ["h2", "http/1.1"]
         }
       },
-      "sniffing": {
+        "sniffing": {
         "enabled": true,
         "destOverride": ["http", "tls", "quic"],
         "metadataOnly": false
