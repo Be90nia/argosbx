@@ -1761,7 +1761,7 @@ mkdir -p "$HOME/bin"
 (command -v curl >/dev/null 2>&1 && curl -sL "$agsbxurl" -o "$SCRIPT_PATH") || (command -v wget >/dev/null 2>&1 && wget -qO "$SCRIPT_PATH" "$agsbxurl")
 chmod +x "$SCRIPT_PATH"
 if ! pidof systemd >/dev/null 2>&1 && ! command -v rc-service >/dev/null 2>&1; then
-echo "if ! find /proc/*/exe -type l 2>/dev/null | grep -E '/proc/[0-9]+/exe' | xargs -r readlink 2>/dev/null | grep -Eq 'agsbx/(s|x)' && ! pgrep -f 'agsbx/(s|x)' >/dev/null 2>&1; then echo '检测到系统可能中断过，或者变量格式错误？建议在SSH对话框输入 reboot 重启下服务器。现在自动执行Argosbx脚本的节点恢复操作，请稍等……'; sleep 6; export cfip=\"${cfip}\" hyjpt=\"${hyjpt}\" cdnym=\"${cdnym}\" name=\"${name}\" ippz=\"${ippz}\" argo=\"${argo}\" argopro=\"${argopro}\" uuid=\"${uuid}\" $wap=\"${warp}\" $xhp=\"${port_xh}\" $vxp=\"${port_vx}\" $ssp=\"${port_ss}\" $sop=\"${port_so}\" $anp=\"${port_an}\" $arp=\"${port_ar}\" $vlp=\"${port_vl_re}\" $vwp=\"${port_vw}\" $vmp=\"${port_vm_ws}\" $hyp=\"${port_hy2}\" $tup=\"${port_tu}\" reym=\"${ym_vl_re}\" agn=\"${ARGO_DOMAIN}\" agk=\"${ARGO_AUTH}\"; bash "$HOME/bin/agsbx"; fi" >> ~/.bashrc
+echo "if ! find /proc/*/exe -type l 2>/dev/null | grep -E '/proc/[0-9]+/exe' | xargs -r readlink 2>/dev/null | grep -Eq 'agsbx/(s|x)' && ! pgrep -f 'agsbx/(s|x)' >/dev/null 2>&1; then echo '检测到系统可能中断过，或者变量格式错误？建议在SSH对话框输入 reboot 重启下服务器。现在自动执行Argosbx脚本的节点恢复操作，请稍等……'; sleep 6; export cfip=\"${cfip}\" hyjpt=\"${hyjpt}\" cdnym=\"${cdnym}\" name=\"${name}\" ippz=\"${ippz}\" argo=\"${argo}\" argopro=\"${argopro}\" uuid=\"${uuid}\" $wap=\"${warp}\" $xhp=\"${port_xh}\" $vxp=\"${port_vx}\" $ssp=\"${port_ss}\" $sop=\"${port_so}\" $anp=\"${port_an}\" $arp=\"${port_ar}\" $vlp=\"${port_vl_re}\" $vwp=\"${port_vw}\" $vmp=\"${port_vm_ws}\" $hyp=\"${port_hy2}\" $tup=\"${port_tu}\" $stp=\"${port_st}\" $nap=\"${port_na}\" $trp=\"${port_tr}\" $vtp=\"${port_vtv}\" $ttp=\"${port_tt}\" reym=\"${ym_vl_re}\" agn=\"${ARGO_DOMAIN}\" agk=\"${ARGO_AUTH}\"; bash "$HOME/bin/agsbx"; fi" >> ~/.bashrc
 fi
 sed -i '/export PATH="\$HOME\/bin:\$PATH"/d' ~/.bashrc
 echo 'export PATH="$HOME/bin:$PATH"' >> "$HOME/.bashrc"
@@ -2505,6 +2505,33 @@ echo "地址：$server_ip  端口：$port_st  ShadowTLS版本：v3"
 echo "ShadowTLS密码：$stlspass  伪装域名：$stls_dest"
 echo "内嵌SS加密：2022-blake3-aes-256-gcm  SS密码：$ssintkey"
 echo
+sbstpt(){
+cat <<EOF
+    {
+      "type": "shadowtls",
+      "tag": "${sxname}shadowtls-$hostname",
+      "server": "$server_ip",
+      "server_port": $port_st,
+      "version": 3,
+      "password": "$stlspass",
+      "tls": {
+        "enabled": true,
+        "server_name": "$stls_dest",
+        "utls": { "enabled": true, "fingerprint": "chrome" }
+      },
+      "detour": "${sxname}ss-internal-$hostname"
+    },
+    {
+      "type": "shadowsocks",
+      "tag": "${sxname}ss-internal-$hostname",
+      "method": "2022-blake3-aes-256-gcm",
+      "password": "$ssintkey"
+    },
+EOF
+}
+sbstpt1(){
+echo "\"${sxname}shadowtls-$hostname\","
+}
 fi
 # C10 Naive
 if grep naive-in "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
@@ -2515,6 +2542,26 @@ nap_link="naive+https://${nap_user}:${uuid}@${server_ip}:${port_na}/#${sxname}na
 echo "$nap_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$nap_link"
 echo
+sbnapt(){
+cat <<EOF
+    {
+      "type": "naive",
+      "tag": "${sxname}naive-$hostname",
+      "server": "$server_ip",
+      "server_port": $port_na,
+      "username": "$nap_user",
+      "password": "$uuid",
+      "tls": {
+        "enabled": true,
+        "server_name": "$server_ip",
+        "insecure": true
+      }
+    },
+EOF
+}
+sbnapt1(){
+echo "\"${sxname}naive-$hostname\","
+}
 fi
 # C11 Trojan+Reality
 if grep trojan-reality "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
@@ -2524,6 +2571,50 @@ tr_link="trojan://${uuid}@${server_ip}:${port_tr}?security=reality&sni=${ym_vl_r
 echo "$tr_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$tr_link"
 echo
+sbtrpt(){
+cat <<EOF
+    {
+      "type": "trojan",
+      "tag": "${sxname}trojan-reality-$hostname",
+      "server": "$server_ip",
+      "server_port": $port_tr,
+      "password": "$uuid",
+      "tls": {
+        "enabled": true,
+        "server_name": "$ym_vl_re",
+        "reality": {
+          "enabled": true,
+          "public_key": "$public_key_x",
+          "short_id": "$short_id_x"
+        },
+        "utls": { "enabled": true, "fingerprint": "chrome" }
+      }
+    },
+EOF
+}
+sbtrpt1(){
+echo "\"${sxname}trojan-reality-$hostname\","
+}
+cltrpt(){
+cat <<EOF
+- name: ${sxname}trojan-reality-$hostname
+  type: trojan
+  server: $server_ip
+  port: $port_tr
+  password: $uuid
+  network: tcp
+  udp: true
+  tls: true
+  servername: $ym_vl_re
+  reality-opts:
+    public-key: $public_key_x
+    short-id: $short_id_x
+  client-fingerprint: chrome
+EOF
+}
+cltrpt1(){
+echo "- ${sxname}trojan-reality-$hostname"
+}
 fi
 # C12 VLESS+TLS+Vision
 if grep vless-tls-vision "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
@@ -2534,6 +2625,44 @@ vtv_link="vless://${uuid}@${_vtp_host}:${port_vtv}?encryption=none&security=tls&
 echo "$vtv_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vtv_link"
 echo
+sbvtpt(){
+cat <<EOF
+    {
+      "type": "vless",
+      "tag": "${sxname}vless-tls-vision-$hostname",
+      "server": "$_vtp_host",
+      "server_port": $port_vtv,
+      "uuid": "$uuid",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "$_vtp_host",
+        "utls": { "enabled": true, "fingerprint": "chrome" }
+      }
+    },
+EOF
+}
+sbvtpt1(){
+echo "\"${sxname}vless-tls-vision-$hostname\","
+}
+clvtpt(){
+cat <<EOF
+- name: ${sxname}vless-tls-vision-$hostname
+  type: vless
+  server: $_vtp_host
+  port: $port_vtv
+  uuid: $uuid
+  network: tcp
+  udp: true
+  tls: true
+  flow: xtls-rprx-vision
+  servername: $_vtp_host
+  client-fingerprint: chrome
+EOF
+}
+clvtpt1(){
+echo "- ${sxname}vless-tls-vision-$hostname"
+}
 fi
 # C13 Trojan+TLS
 if grep trojan-tls "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
@@ -2544,6 +2673,42 @@ tt_link="trojan://${uuid}@${_ttp_host}:${port_tt}?security=tls&sni=${_ttp_host}&
 echo "$tt_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$tt_link"
 echo
+sbttpt(){
+cat <<EOF
+    {
+      "type": "trojan",
+      "tag": "${sxname}trojan-tls-$hostname",
+      "server": "$_ttp_host",
+      "server_port": $port_tt,
+      "password": "$uuid",
+      "tls": {
+        "enabled": true,
+        "server_name": "$_ttp_host",
+        "utls": { "enabled": true, "fingerprint": "chrome" }
+      }
+    },
+EOF
+}
+sbttpt1(){
+echo "\"${sxname}trojan-tls-$hostname\","
+}
+clttpt(){
+cat <<EOF
+- name: ${sxname}trojan-tls-$hostname
+  type: trojan
+  server: $_ttp_host
+  port: $port_tt
+  password: $uuid
+  network: tcp
+  udp: true
+  tls: true
+  servername: $_ttp_host
+  client-fingerprint: chrome
+EOF
+}
+clttpt1(){
+echo "- ${sxname}trojan-tls-$hostname"
+}
 fi
 argodomain=$(cat "$HOME/agsbx/sbargoym.log" 2>/dev/null)
 [ -z "$argodomain" ] && argodomain=$(grep -a trycloudflare.com "$HOME/agsbx/argo.log" 2>/dev/null | awk 'NR==2{print}' | awk -F// '{print $2}' | awk '{print $1}')
@@ -2657,10 +2822,10 @@ out=$($f)
 [ -n "$out" ] && printf "%s\n" "$out"
 fi
 }
-sbxy="$(get_func sbvlpt; get_func sbsspt; get_func sbanpt; get_func sbarpt; get_func sbvmpt; get_func sbhypt; get_func sbtupt; get_func sbvmargopt)"
-clxy="$(get_func clvlpt; get_func clsspt; get_func clanpt; get_func clvmpt; get_func clhypt; get_func cltupt; get_func clvmargopt)"
-sbgz="$(get_func sbvlpt1; get_func sbsspt1; get_func sbanpt1; get_func sbarpt1; get_func sbvmpt1; get_func sbhypt1; get_func sbtupt1; get_func sbvmargopt1)"
-clgz="$({ get_func clvlpt1; get_func clsspt1; get_func clanpt1; get_func clvmpt1; get_func clhypt1; get_func cltupt1; get_func clvmargopt1; } | sed '2,$s/^/    /')"
+  sbxy="$(get_func sbvlpt; get_func sbsspt; get_func sbanpt; get_func sbarpt; get_func sbvmpt; get_func sbhypt; get_func sbtupt; get_func sbvmargopt; get_func sbstpt; get_func sbnapt; get_func sbtrpt; get_func sbvtpt; get_func sbttpt)"
+  clxy="$(get_func clvlpt; get_func clsspt; get_func clanpt; get_func clvmpt; get_func clhypt; get_func cltupt; get_func clvmargopt; get_func cltrpt; get_func clvtpt; get_func clttpt)"
+  sbgz="$(get_func sbvlpt1; get_func sbsspt1; get_func sbanpt1; get_func sbarpt1; get_func sbvmpt1; get_func sbhypt1; get_func sbtupt1; get_func sbvmargopt1; get_func sbstpt1; get_func sbnapt1; get_func sbtrpt1; get_func sbvtpt1; get_func sbttpt1)"
+  clgz="$({ get_func clvlpt1; get_func clsspt1; get_func clanpt1; get_func clvmpt1; get_func clhypt1; get_func cltupt1; get_func clvmargopt1; get_func cltrpt1; get_func clvtpt1; get_func clttpt1; } | sed '2,$s/^/    /')"
 sbgz=$(printf "%s\n" "$sbgz" | sed '$ s/,$//')
 cat > $HOME/agsbx/sbox.json <<EOF
 {
