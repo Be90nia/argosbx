@@ -546,13 +546,7 @@ mkdir -p "$HOME/agsbx/xrk"
 if [ ! -e "$HOME/agsbx/xray" ]; then
 upxray
 fi
-cat > "$HOME/agsbx/xr.json" <<EOF
-{
-  "log": {
-  "loglevel": "none"
-  },
-  "inbounds": [
-EOF
+tpl_fw xr header.json > "$HOME/agsbx/xr.json"
 insuuid
 if [ -n "$xhp" ] || [ -n "$vlp" ] || [ -n "$trp" ]; then
 if [ -z "$ym_vl_re" ]; then
@@ -784,15 +778,7 @@ echo "=========启用Sing-box内核========="
 if [ ! -e "$HOME/agsbx/sing-box" ]; then
 upsingbox
 fi
-cat > "$HOME/agsbx/sb.json" <<EOF
-{
-"log": {
-    "disabled": false,
-    "level": "info",
-    "timestamp": true
-  },
-  "inbounds": [
-EOF
+tpl_fw sb header.json > "$HOME/agsbx/sb.json"
 insuuid
 if [ ! -f "$HOME/agsbx/SHA256.txt" ]; then
 command -v openssl >/dev/null 2>&1 && openssl ecparam -genkey -name prime256v1 -out "$HOME/agsbx/private.key" >/dev/null 2>&1
@@ -920,67 +906,7 @@ sop=soptargo
 xrsbout(){
 if [ -e "$HOME/agsbx/xr.json" ]; then
 sed -i '${s/,\s*$//}' "$HOME/agsbx/xr.json"
-cat >> "$HOME/agsbx/xr.json" <<EOF
-  ],
-  "outbounds": [
-    {
-      "protocol": "freedom",
-      "tag": "direct",
-      "settings": {
-      "domainStrategy":"${xryx}"
-     }
-    },
-    {
-      "tag": "x-warp-out",
-      "protocol": "wireguard",
-      "settings": {
-        "secretKey": "${pvk}",
-        "address": [
-          "172.16.0.2/32",
-          "${wpv6}/128"
-        ],
-        "peers": [
-          {
-            "publicKey": "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=",
-            "allowedIPs": [
-              "0.0.0.0/0",
-              "::/0"
-            ],
-            "endpoint": "${xendip}:2408"
-          }
-        ],
-        "reserved": ${res}
-        }
-    },
-    {
-      "tag":"warp-out",
-      "protocol":"freedom",
-        "settings":{
-        "domainStrategy":"${wxryx}"
-       },
-       "proxySettings":{
-       "tag":"x-warp-out"
-     }
-}
-  ],
-  "routing": {
-    "domainStrategy": "IPOnDemand",
-    "rules": [
-      {
-        "type": "field",
-        "ip": [ ${xip} ],
-        "network": "tcp,udp",
-        "outboundTag": "${x1outtag}"
-      },
-      {
-        "type": "field",
-        "network": "tcp,udp",
-        "outboundTag": "${x2outtag}"
-      }
-    ]
-  }
-}
-EOF
+tpl_fw xr outbound.json >> "$HOME/agsbx/xr.json"
 if pidof systemd >/dev/null 2>&1 && [ "$EUID" -eq 0 ]; then
 cat > /etc/systemd/system/xr.service <<EOF
 [Unit]
@@ -1023,55 +949,7 @@ fi
 fi
 if [ -e "$HOME/agsbx/sb.json" ]; then
 sed -i '${s/,\s*$//}' "$HOME/agsbx/sb.json"
-cat >> "$HOME/agsbx/sb.json" <<EOF
-  ],
-  "outbounds": [
-    {
-      "type": "direct",
-      "tag": "direct"
-    }
-  ],
-  "endpoints": [
-    {
-      "type": "wireguard",
-      "tag": "warp-out",
-      "address": [
-        "172.16.0.2/32",
-        "${wpv6}/128"
-      ],
-      "private_key": "${pvk}",
-      "peers": [
-        {
-          "address": "${sendip}",
-          "port": 2408,
-          "public_key": "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=",
-          "allowed_ips": [
-            "0.0.0.0/0",
-            "::/0"
-          ],
-          "reserved": $res
-        }
-      ]
-    }
-  ],
-  "route": {
-    "rules": [
-       {
-          "action": "sniff"
-        },
-       {
-        "action": "resolve",
-         "strategy": "${sbyx}"
-       },
-      {
-        "ip_cidr": [ ${sip} ],         
-        "outbound": "${s1outtag}"
-      }
-    ],
-    "final": "${s2outtag}"
-  }
-}
-EOF
+tpl_fw sb outbound.json >> "$HOME/agsbx/sb.json"
 if pidof systemd >/dev/null 2>&1 && [ "$EUID" -eq 0 ]; then
 cat > /etc/systemd/system/sb.service <<EOF
 [Unit]
@@ -2491,257 +2369,9 @@ fi
   sbgz="$(get_func sbvlpt1; get_func sbsspt1; get_func sbanpt1; get_func sbarpt1; get_func sbvmpt1; get_func sbhypt1; get_func sbtupt1; get_func sbvmargopt1; get_func sbvwargopt1; get_func sbtwargopt1; get_func sbtuargopt1; get_func sbmuargopt1; get_func sbstpt1; get_func sbnapt1; get_func sbtrpt1; get_func sbvtpt1; get_func sbttpt1)"
   clgz="$({ get_func clvlpt1; get_func clsspt1; get_func clanpt1; get_func clvmpt1; get_func clhypt1; get_func cltupt1; get_func clvmargopt1; get_func clvwargopt1; get_func cltwargopt1; get_func cltuargopt1; get_func clmuargopt1; get_func clswargopt1; get_func cltrpt1; get_func clvtpt1; get_func clttpt1; } | sed '2,$s/^/    /')"
 sbgz=$(printf "%s\n" "$sbgz" | sed '$ s/,$//')
-  cat > $HOME/agsbx/sbox.json.tmp <<EOF
-{
-    "log": {
-        "disabled": false,
-        "level": "info",
-        "timestamp": true
-    },
-    "experimental": {
-        "cache_file": {
-            "enabled": true,
-            "path": "./cache.db",
-            "store_fakeip": true
-        },
-        "clash_api": {
-            "external_controller": "127.0.0.1:9090",
-            "external_ui": "ui",
-            "default_mode": "Rule"
-        }
-    },
-    "dns": {
-        "servers": [
-            {
-                "tag": "aliDns",
-                "type": "https",
-                "server": "dns.alidns.com",
-                "path": "/dns-query",
-                "domain_resolver": "local"
-            },
-            {
-                "tag": "local",
-                "type": "udp",
-                "server": "223.5.5.5"
-            },
-            {
-                "tag": "proxyDns",
-                "type": "https",
-                "server": "dns.google",
-                "path": "/dns-query",
-	              "domain_resolver": "aliDns",
-                "detour": "proxy"
-            },
-           {
-        "type": "fakeip",
-        "tag": "fakeip",
-        "inet4_range": "198.18.0.0/15",
-        "inet6_range": "fc00::/18"
-      }
-        ],
-        "rules": [
-            {
-                "rule_set": "geosite-cn",
-                "clash_mode": "Rule",
-                "server": "aliDns"
-            },
-            {
-                "clash_mode": "Direct",
-                "server": "local"
-            },
-            {
-                "clash_mode": "Global",
-                "server": "proxyDns"
-            },
-            {
-        "query_type": [
-          "A",
-          "AAAA"
-        ],
-        "server": "fakeip"
-      }
-        ],
-        "final": "proxyDns",
-        "strategy": "prefer_ipv4"
-    },
-    "inbounds": [
-        {
-            "type": "tun",
-            "tag": "tun-in",
-            "address": [
-                "172.19.0.1/30",
-                "fd00::1/126"
-            ],
-            "auto_route": true,
-            "strict_route": true
-        }
-    ],
-    "route": {
-        "rules": [
-            {
-	 "inbound": "tun-in",
-                "action": "sniff"
-            },
-            {
-                "type": "logical",
-                "mode": "or",
-                "rules": [
-                    {
-                        "port": 53
-                    },
-                    {
-                        "protocol": "dns"
-                    }
-                ],
-                "action": "hijack-dns"
-            },
-         {
-          "clash_mode": "Global",
-          "outbound": "proxy"
-         },
-        {
-        "rule_set": "geosite-cn",
-        "clash_mode": "Rule",
-        "outbound": "direct"
-       },
-     {
-    "rule_set": "geoip-cn",
-    "clash_mode": "Rule",
-    "outbound": "direct"
-      },
-     {
-    "ip_is_private": true,
-    "clash_mode": "Rule",
-    "outbound": "direct"
-    },
-     {
-      "clash_mode": "Direct",
-      "outbound": "direct"
-     }		
-        ],
-        "rule_set": [
-            {
-                "tag": "geosite-cn",
-                "type": "remote",
-                "format": "binary",
-                "url": "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/geolocation-cn.srs",
-                "download_detour": "direct"
-            },
-            {
-                "tag": "geoip-cn",
-                "type": "remote",
-                "format": "binary",
-                "url": "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/cn.srs",
-                "download_detour": "direct"
-            }
-        ],
-        "final": "proxy",
-        "auto_detect_interface": true,
-        "default_domain_resolver": {
-        "server": "aliDns"
-        }
-    },
-  "outbounds": [
-   $sbxy
-        {
-            "tag": "proxy",
-            "type": "selector",
-            "default": "auto",
-            "outbounds": [
-        "auto",
-        $sbgz
-            ]
-        },
-        {
-            "tag": "auto",
-            "type": "urltest",
-            "outbounds": [
-            $sbgz
-            ],
-            "url": "http://www.gstatic.com/generate_204",
-            "interval": "10m",
-            "tolerance": 50
-        },
-        {
-            "type": "direct",
-            "tag": "direct"
-        }
-    ]
-}
-EOF
-  mv "$HOME/agsbx/sbox.json.tmp" "$HOME/agsbx/sbox.json"
+  tpl_client sbox-client.json "$HOME/agsbx/sbox.json"
 
-cat > $HOME/agsbx/clmi.yaml.tmp <<EOF
-port: 7890
-allow-lan: true
-mode: rule
-log-level: info
-unified-delay: true
-dns:
-  enable: true 
-  listen: "0.0.0.0:1053"
-  ipv6: true
-  prefer-h3: false
-  respect-rules: true
-  use-system-hosts: false
-  cache-algorithm: "arc"
-  enhanced-mode: "fake-ip"
-  fake-ip-range: "198.18.0.1/16"
-  fake-ip-filter:
-    - "+.lan"
-    - "+.local"
-    - "+.msftconnecttest.com"
-    - "+.msftncsi.com"
-    - "localhost.ptlogin2.qq.com"
-    - "localhost.sec.qq.com"
-    - "+.in-addr.arpa"
-    - "+.ip6.arpa"
-    - "time.*.com"
-    - "time.*.gov"
-    - "pool.ntp.org"
-    - "localhost.work.weixin.qq.com"
-  default-nameserver: ["223.5.5.5", "119.29.29.29"]
-  nameserver:
-    - "https://1.1.1.1/dns-query"
-    - "https://8.8.8.8/dns-query"
-  proxy-server-nameserver:
-    - "https://223.5.5.5/dns-query"
-    - "https://doh.pub/dns-query"
-nameserver-policy:
-  "geosite:cn":
-     - "https://223.5.5.5/dns-query"
-     - "https://doh.pub/dns-query"
-proxies:
-$clxy
-
-proxy-groups:
-- name: 负载均衡
-  type: load-balance
-  url: https://www.gstatic.com/generate_204
-  interval: 300
-  strategy: round-robin
-  proxies:
-    $clgz
-- name: 自动选择
-  type: url-test
-  url: https://www.gstatic.com/generate_204
-  interval: 300
-  tolerance: 50
-  proxies:
-    $clgz 
-- name: 🌍选择代理节点
-  type: select
-  proxies:
-    - 负载均衡                                         
-    - 自动选择
-    - DIRECT
-    $clgz
-rules:
-  - GEOIP,LAN,DIRECT
-  - GEOIP,CN,DIRECT
-  - MATCH,🌍选择代理节点
-EOF
-mv "$HOME/agsbx/clmi.yaml.tmp" "$HOME/agsbx/clmi.yaml"
+tpl_client clmi-client.yaml "$HOME/agsbx/clmi.yaml"
 echo "---------------------------------------------------------"
 echo "$argoshow"
 echo
