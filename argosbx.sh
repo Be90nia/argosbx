@@ -348,10 +348,10 @@ certsign() {
   "$_acme" --set-default-ca --server letsencrypt 2>/dev/null
   export CF_Email="$cfemail"
   export CF_Key="$cfkey"
-  echo "签发证书: $_csdomain (含泛域名)..."
+  echo "签发证书: $_csdomain..."
   local _csretry=0
   while [ "$_csretry" -lt 3 ]; do
-    if "$_acme" --issue -d "$_csdomain" -d "*.$_csdomain" --dns dns_cf; then
+    if "$_acme" --issue -d "$_csdomain" --dns dns_cf; then
       break
     fi
     _csretry=$((_csretry + 1))
@@ -365,7 +365,7 @@ certsign() {
     unset CF_Email CF_Key
     return 1
   fi
-  "$_acme" --install-cert -d "$_csdomain" -d "*.$_csdomain" \
+  "$_acme" --install-cert -d "$_csdomain" \
     --key-file "$_cskey" \
     --fullchain-file "$_cscrt" \
     --reloadcmd "if command -v systemctl >/dev/null 2>&1; then systemctl restart xray 2>/dev/null || echo 'warn: xray restart failed'; systemctl restart sing-box 2>/dev/null || echo 'warn: sing-box restart failed'; elif command -v rc-service >/dev/null 2>&1; then rc-service xray restart 2>/dev/null || echo 'warn: xray restart failed'; rc-service sing-box restart 2>/dev/null || echo 'warn: sing-box restart failed'; fi"
