@@ -1,5 +1,5 @@
         {
-            "tag": "vmess-ws",
+            "tag":"vmess-ws",
             "listen": "::",
             "port": 2083,
             "protocol": "vmess",

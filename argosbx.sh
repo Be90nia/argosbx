@@ -1085,7 +1085,7 @@ xrsbout(){
 if [ -e "$HOME/agsbx/xr.json" ]; then
 sed -i '${s/,\s*$//}' "$HOME/agsbx/xr.json"
 tpl_fw xr outbound.json >> "$HOME/agsbx/xr.json"
-if pidof systemd >/dev/null 2>&1 && [ "$_euid" -eq 0 ]; then
+if [ "$(ps -p 1 -o comm= 2>/dev/null)" = "systemd" ] && [ "$_euid" -eq 0 ]; then
 cat > /etc/systemd/system/xr.service <<EOF
 [Unit]
 Description=xr service
@@ -1135,7 +1135,7 @@ fi
 if [ -e "$HOME/agsbx/sb.json" ]; then
 sed -i '${s/,\s*$//}' "$HOME/agsbx/sb.json"
 tpl_fw sb outbound.json >> "$HOME/agsbx/sb.json"
-if pidof systemd >/dev/null 2>&1 && [ "$_euid" -eq 0 ]; then
+if [ "$(ps -p 1 -o comm= 2>/dev/null)" = "systemd" ] && [ "$_euid" -eq 0 ]; then
 cat > /etc/systemd/system/sb.service <<EOF
 [Unit]
 Description=sb service
@@ -1224,7 +1224,7 @@ upcloudflared
 fi
 if [ -n "${ARGO_DOMAIN}" ] && [ -n "${ARGO_AUTH}" ]; then
 argoname='固定'
-if pidof systemd >/dev/null 2>&1 && [ "$_euid" -eq 0 ]; then
+if [ "$(ps -p 1 -o comm= 2>/dev/null)" = "systemd" ] && [ "$_euid" -eq 0 ]; then
 cat > /etc/systemd/system/argo.service <<EOF
 [Unit]
 Description=argo service
@@ -1307,7 +1307,7 @@ SCRIPT_PATH="$HOME/bin/agsbx"
 mkdir -p "$HOME/bin"
 (command -v curl >/dev/null 2>&1 && curl -sL "$agsbxurl" -o "$SCRIPT_PATH") || (command -v wget >/dev/null 2>&1 && wget -qO "$SCRIPT_PATH" "$agsbxurl")
 chmod +x "$SCRIPT_PATH"
-if ! pidof systemd >/dev/null 2>&1 && ! command -v rc-service >/dev/null 2>&1; then
+if ! [ "$(ps -p 1 -o comm= 2>/dev/null)" = "systemd" ] && ! command -v rc-service >/dev/null 2>&1; then
 echo "if ! find /proc/*/exe -type l 2>/dev/null | grep -E '/proc/[0-9]+/exe' | xargs -r readlink 2>/dev/null | grep -Eq 'agsbx/(s|x)' && ! pgrep -f 'agsbx/(s|x)' >/dev/null 2>&1; then echo '检测到系统可能中断过，或者变量格式错误？建议在SSH对话框输入 reboot 重启下服务器。现在自动执行Argosbx脚本的节点恢复操作，请稍等……'; sleep 6; export cfip=\"${cfip}\" hyjpt=\"${hyjpt}\" cdnym=\"${cdnym}\" name=\"${name}\" ippz=\"${ippz}\" argo=\"${argo}\" argopro=\"${argopro}\" uuid=\"${uuid}\" $wap=\"${warp}\" $xhp=\"${port_xh}\" $vxp=\"${port_vx}\" $ssp=\"${port_ss}\" $sop=\"${port_so}\" $anp=\"${port_an}\" $arp=\"${port_ar}\" $vlp=\"${port_vl_re}\" $vwp=\"${port_vw}\" $vmp=\"${port_vm_ws}\" $hyp=\"${port_hy2}\" $tup=\"${port_tu}\" $stp=\"${port_st}\" $nap=\"${port_na}\" $trp=\"${port_tr}\" $vtp=\"${port_vtv}\" $ttp=\"${port_tt}\" reym=\"${ym_vl_re}\" agn=\"${ARGO_DOMAIN}\" agk=\"${ARGO_AUTH}\"; bash "$HOME/bin/agsbx"; fi" >> ~/.bashrc
 fi
 sed -i '/export PATH="\$HOME\/bin:\$PATH"/d' ~/.bashrc
@@ -1315,7 +1315,7 @@ echo 'export PATH="$HOME/bin:$PATH"' >> "$HOME/.bashrc"
 grep -qxF 'source ~/.bashrc' ~/.bash_profile 2>/dev/null || echo 'source ~/.bashrc' >> ~/.bash_profile
 . ~/.bashrc 2>/dev/null
 crontab -l > /tmp/crontab.tmp 2>/dev/null
-if ! pidof systemd >/dev/null 2>&1 && ! command -v rc-service >/dev/null 2>&1; then
+if ! [ "$(ps -p 1 -o comm= 2>/dev/null)" = "systemd" ] && ! command -v rc-service >/dev/null 2>&1; then
 sed -i '/agsbx\/sing-box/d' /tmp/crontab.tmp
 sed -i '/agsbx\/xray/d' /tmp/crontab.tmp
 if find /proc/*/exe -type l 2>/dev/null | grep -E '/proc/[0-9]+/exe' | xargs -r readlink 2>/dev/null | grep -q 'agsbx/s' || pgrep -f 'agsbx/s' >/dev/null 2>&1 ; then
@@ -1328,7 +1328,7 @@ fi
 sed -i '/agsbx\/cloudflared/d' /tmp/crontab.tmp
 if [ -n "$argo_count" ] && [ "$argo_count" -gt 0 ]; then
 if [ -n "${ARGO_DOMAIN}" ] && [ -n "${ARGO_AUTH}" ]; then
-if ! pidof systemd >/dev/null 2>&1 && ! command -v rc-service >/dev/null 2>&1; then
+if ! [ "$(ps -p 1 -o comm= 2>/dev/null)" = "systemd" ] && ! command -v rc-service >/dev/null 2>&1; then
 echo '@reboot sleep 10 && /bin/sh -c "nohup $HOME/agsbx/cloudflared tunnel --no-autoupdate --edge-ip-version auto --protocol http2 run --token $(cat $HOME/agsbx/sbargotoken.log 2>/dev/null) >/dev/null 2>&1 &"' >> /tmp/crontab.tmp
 fi
 else
@@ -1347,10 +1347,9 @@ echo '@reboot sleep 10 && /bin/bash -c "nohup $HOME/agsbx/cloudflared tunnel --u
 fi
 fi
 fi
-# 证书过期监控(每日检测，<30天告警)
-if ! pidof systemd >/dev/null 2>&1 && ! command -v rc-service >/dev/null 2>&1; then
+# 证书过期监控(每日检测，<30天告警) — 与init系统无关，所有平台都启用
+sed -i '/cert_warn/d' /tmp/crontab.tmp 2>/dev/null
 echo '0 6 * * * for _c in /etc/argosbx/certs/*.crt; do [ -f "$_c" ] || continue; _e=$(openssl x509 -enddate -noout -in "$_c" 2>/dev/null | cut -d= -f2); _d=$(( ($(date -d "$_e" +%s 2>/dev/null || echo 0) - $(date +%s)) / 86400 )); [ "$_d" -lt 30 ] && echo "⚠️ 证书 $(basename "$_c") 剩余 ${_d} 天" >> "$HOME/agsbx/cert_warn.log"; done' >> /tmp/crontab.tmp
-fi
 crontab /tmp/crontab.tmp >/dev/null 2>&1
 rm /tmp/crontab.tmp
 echo "Argosbx脚本进程启动成功，安装完毕" && sleep 2
@@ -1484,7 +1483,7 @@ public_key_s=$(cat "$HOME/agsbx/sbk/public_key" 2>/dev/null)
 short_id_s=$(cat "$HOME/agsbx/sbk/short_id" 2>/dev/null)
 sskey=$(cat "$HOME/agsbx/sskey" 2>/dev/null)
 fi
-if grep "{\"tag\":\"xhttp-reality\"}" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+if grep "\"tag\":\"xhttp-reality\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 echo "💣【 Vless-xhttp-reality-enc 】支持ENC加密，节点信息如下："
 port_xh=$(cat "$HOME/agsbx/port_xh")
 vl_xh_link="vless://$uuid@$server_ip:$port_xh?encryption=$enkey&flow=xtls-rprx-vision&security=reality&sni=$ym_vl_re&fp=chrome&pbk=$public_key_x&sid=$short_id_x&type=xhttp&path=$uuid-xh&mode=auto#${sxname}vl-xhttp-reality-enc-$hostname"
@@ -1493,7 +1492,7 @@ echo "$vl_xh_link"
 echo
 fi
 basepath=$(cat "$HOME/agsbx/basepath" 2>/dev/null)
-if grep "{\"tag\":\"vless-xhttp\"}" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+if grep "\"tag\":\"vless-xhttp\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 echo "💣【 Vless-xhttp-enc 】支持ENC加密，节点信息如下："
 vl_vx_link="vless://$uuid@$server_ip:2053?encryption=$enkey&type=xhttp&path=/${basepath}-vx&mode=packet-up&security=tls&sni=$xvvmcdnym&fp=chrome#${sxname}vl-xhttp-enc-$hostname"
 echo "$vl_vx_link" >> "$HOME/agsbx/jhsub.txt"
@@ -1508,7 +1507,7 @@ echo "$vl_vx_cdn_link"
 echo
 fi
 fi
-if grep "{\"tag\":\"vless-ws\"}" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+if grep "\"tag\":\"vless-ws\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 echo "💣【 Vless-ws 】节点信息如下："
 vl_vw_link="vless://$uuid@$server_ip:443?encryption=none&type=ws&path=/${basepath}-vw&security=tls&sni=$xvvmcdnym&fp=chrome#${sxname}vl-ws-$hostname"
 echo "$vl_vw_link" >> "$HOME/agsbx/jhsub.txt"
@@ -1523,7 +1522,7 @@ echo "$vl_vw_cdn_link"
 echo
 fi
 fi
-if grep "{\"tag\":\"vless-httpupgrade\"}" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+if grep "\"tag\":\"vless-httpupgrade\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 echo "💣【 Vless-httpupgrade-enc 】支持ENC加密，节点信息如下："
 vl_vu_link="vless://$uuid@$server_ip:2087?encryption=$enkey&type=httpupgrade&path=/${basepath}-vu&security=tls&sni=$xvvmcdnym&fp=chrome#${sxname}vl-httpupgrade-enc-$hostname"
 echo "$vl_vu_link" >> "$HOME/agsbx/jhsub.txt"
@@ -1538,7 +1537,7 @@ echo "$vl_vu_cdn_link"
 echo
 fi
 fi
-if grep "{\"tag\":\"trojan-ws\"}" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+if grep "\"tag\":\"trojan-ws\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 echo "💣【 Trojan-ws 】节点信息如下："
 tr_tw_link="trojan://$uuid@$server_ip:2096?security=tls&type=ws&path=/${basepath}-tw&sni=$xvvmcdnym&fp=chrome#${sxname}tr-ws-$hostname"
 echo "$tr_tw_link" >> "$HOME/agsbx/jhsub.txt"
@@ -1553,7 +1552,7 @@ echo "$tr_tw_cdn_link"
 echo
 fi
 fi
-if grep "{\"tag\":\"trojan-httpupgrade\"}" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+if grep "\"tag\":\"trojan-httpupgrade\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 echo "💣【 Trojan-httpupgrade 】节点信息如下："
 tr_tuh_link="trojan://$uuid@$server_ip:8443?security=tls&type=httpupgrade&path=/${basepath}-tuh&sni=$xvvmcdnym&fp=chrome#${sxname}tr-httpupgrade-$hostname"
 echo "$tr_tuh_link" >> "$HOME/agsbx/jhsub.txt"
@@ -1568,7 +1567,7 @@ echo "$tr_tuh_cdn_link"
 echo
 fi
 fi
-if grep "{\"tag\":\"vless-grpc\"}" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+if grep "\"tag\":\"vless-grpc\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 if [ -f "$HOME/agsbx/cdnym" ]; then
 echo "💣【 Vless-grpc-enc-cdn 】支持ENC加密，gRPC走443 fallbacks，节点信息如下："
 echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定443端口+TLS"
@@ -1579,7 +1578,7 @@ echo "$vl_vg_cdn_link"
 echo
 fi
 fi
-if grep "{\"tag\":\"trojan-grpc\"}" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+if grep "\"tag\":\"trojan-grpc\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 if [ -f "$HOME/agsbx/cdnym" ]; then
 echo "💣【 Trojan-grpc-cdn 】gRPC走443 fallbacks，节点信息如下："
 echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定443端口+TLS"
@@ -1591,7 +1590,7 @@ echo
 fi
 fi
 echo "# ========== CDN Origin Rules(B组) ==========" >> "$HOME/agsbx/jhsub.txt"
-if grep "{\"tag\":\"vmess-httpupgrade\"}" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+if grep "\"tag\":\"vmess-httpupgrade\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 if [ -f "$HOME/agsbx/cdnym" ]; then
 echo "💣【 VMess-httpupgrade-cdn 】B组Origin Rules回源39000，节点信息如下："
 echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN走443端口+Origin Rules回源39000"
@@ -1602,7 +1601,7 @@ echo "$vm_mu_cdn_link"
 echo
 fi
 fi
-if grep "{\"tag\":\"trojan-xhttp\"}" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+if grep "\"tag\":\"trojan-xhttp\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 if [ -f "$HOME/agsbx/cdnym" ]; then
 echo "💣【 Trojan-xhttp-cdn 】B组Origin Rules回源39001，节点信息如下："
 echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN走443端口+Origin Rules回源39001"
@@ -1613,7 +1612,7 @@ echo "$tr_tx_cdn_link"
 echo
 fi
 fi
-if grep "{\"tag\":\"vmess-xhttp\"}" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+if grep "\"tag\":\"vmess-xhttp\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 if [ -f "$HOME/agsbx/cdnym" ]; then
 echo "💣【 VMess-xhttp-cdn 】B组Origin Rules回源39002，节点信息如下："
 echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN走443端口+Origin Rules回源39002"
@@ -1625,7 +1624,7 @@ echo "$vm_mx_cdn_link"
 echo
 fi
 fi
-if grep "{\"tag\":\"ss-ws\"}" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+if grep "\"tag\":\"ss-ws\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 if [ -f "$HOME/agsbx/cdnym" ]; then
 echo "💣【 Shadowsocks-ws-cdn 】B组Origin Rules回源39003，节点信息如下："
 echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN走443端口+Origin Rules回源39003"
@@ -1637,7 +1636,7 @@ echo "$ss_sw_cdn_link"
 echo
 fi
 fi
-if grep "{\"tag\":\"vless-ws-enc\"}" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+if grep "\"tag\":\"vless-ws-enc\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 if [ -f "$HOME/agsbx/cdnym" ]; then
 echo "💣【 Vless-ws-enc-cdn 】B组Origin Rules回源39004，支持ENC加密，节点信息如下："
 echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN走443端口+Origin Rules回源39004"
@@ -1649,7 +1648,7 @@ echo
 fi
 fi
 echo "# ========== 非CDN直连(C组) ==========" >> "$HOME/agsbx/jhsub.txt"
-if grep "{\"tag\":\"reality-vision\"}" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+if grep "\"tag\":\"reality-vision\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 echo "💣【 Vless-tcp-reality-vision 】节点信息如下："
 port_vl_re=$(cat "$HOME/agsbx/port_vl_re")
 vl_link="vless://$uuid@$server_ip:$port_vl_re?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$ym_vl_re&fp=chrome&pbk=$public_key_x&sid=$short_id_x&type=tcp&headerType=none#${sxname}vl-reality-vision-$hostname"
@@ -1706,7 +1705,7 @@ clvlpt1(){
 echo "- ${sxname}vless-reality-vision-$hostname"
 }
 fi
-if grep "{\"tag\":\"ss-2022\"}" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
+if grep "\"tag\":\"ss-2022\"" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
 echo "💣【 Shadowsocks-2022 】节点信息如下："
 port_ss=$(cat "$HOME/agsbx/port_ss")
 ss_link="ss://$(echo -n "2022-blake3-aes-128-gcm:$sskey@$server_ip:$port_ss" | base64 -w0)#${sxname}Shadowsocks-2022-$hostname"
@@ -1749,7 +1748,7 @@ clsspt1(){
 echo "- ${sxname}Shadowsocks-2022-$hostname"
 }
 fi
-if grep "{\"tag\":\"vmess-ws\"}" "$HOME/agsbx/xr.json" >/dev/null 2>&1 || grep "{\"tag\":\"vmess-sb\"}" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
+if grep "\"tag\":\"vmess-ws\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1 || grep "\"tag\":\"vmess-sb\"" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
 echo "💣【 Vmess-ws 】节点信息如下："
 vm_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-$hostname\", \"add\": \"$server_ip\", \"port\": \"2083\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$basepath-vm\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"fp\": \"chrome\"}" | base64 -w0)"
 echo "$vm_link" >> "$HOME/agsbx/jhsub.txt"
@@ -1819,7 +1818,7 @@ echo "$vm_cdn_link"
 echo
 fi
 fi
-if grep "{\"tag\":\"vmess-grpc\"}" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+if grep "\"tag\":\"vmess-grpc\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 if [ -f "$HOME/agsbx/cdnym" ]; then
 echo "💣【 Vmess-grpc-cdn 】gRPC走443 fallbacks，节点信息如下："
 echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定443端口+TLS"
@@ -1830,7 +1829,7 @@ echo "$vm_mg_cdn_link"
 echo
 fi
 fi
-if grep "{\"tag\":\"anytls-sb\"}" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
+if grep "\"tag\":\"anytls-sb\"" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
 echo "💣【 AnyTLS 】节点信息如下："
 port_an=$(cat "$HOME/agsbx/port_an")
 an_link="anytls://$uuid@${directnym:-$server_ip}:$port_an?sni=${directnym:-$server_ip}#${sxname}anytls-$hostname"
@@ -1878,7 +1877,7 @@ clanpt1(){
 echo "- ${sxname}anytls-$hostname"
 }
 fi
-if grep "{\"tag\":\"anyreality-sb\"}" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
+if grep "\"tag\":\"anyreality-sb\"" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
 echo "💣【 Any-Reality 】节点信息如下："
 port_ar=$(cat "$HOME/agsbx/port_ar")
 ar_link="vless://$uuid@$server_ip:$port_ar?security=reality&sni=$ym_vl_re&fp=chrome&pbk=$public_key_s&sid=$short_id_s&type=tcp&flow=xtls-rprx-vision#${sxname}any-reality-$hostname"
@@ -1914,7 +1913,7 @@ sbarpt1(){
 echo "\"${sxname}any-reality-$hostname\","
 }
 fi
-if grep "{\"tag\":\"hy2-sb\"}" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
+if grep "\"tag\":\"hy2-sb\"" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
 echo "💣【 Hysteria2 】节点信息如下："
 SHA256=$(cat "$HOME/agsbx/SHA256.txt")
 port_hy2=$(cat "$HOME/agsbx/port_hy2")
@@ -1979,7 +1978,7 @@ clhypt1(){
 echo "- ${sxname}hysteria2-$hostname"
 }
 fi
-if grep "{\"tag\":\"tuic5-sb\"}" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
+if grep "\"tag\":\"tuic5-sb\"" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
 echo "💣【 Tuic 】节点信息如下："
 port_tu=$(cat "$HOME/agsbx/port_tu")
 tuic5_link="tuic://$uuid:$uuid@${directnym:-$server_ip}:$port_tu/?sni=${directnym:-$server_ip}&congestion_control=cubic#${sxname}tuic-$hostname"
@@ -2036,7 +2035,7 @@ echo "- ${sxname}tuic5-$hostname"
 }
 fi
 # C9 ShadowTLS v3+SS (无官方URI，仅输出连接参数)
-if grep "{\"tag\":\"stls-in\"}" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
+if grep "\"tag\":\"stls-in\"" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
 echo "💣【 ShadowTLS v3+SS 】节点信息如下："
 port_st=$(cat "$HOME/agsbx/port_st")
 stlspass=$(cat "$HOME/agsbx/stlspass")
@@ -2076,7 +2075,7 @@ echo "\"${sxname}shadowtls-$hostname\","
 }
 fi
 # C10 Naive
-if grep "{\"tag\":\"naive-in\"}" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
+if grep "\"tag\":\"naive-in\"" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
 echo "💣【 Naive 】节点信息如下："
 port_na=$(cat "$HOME/agsbx/port_na")
 nap_user=$(cat "$HOME/agsbx/nap_user")
@@ -2106,7 +2105,7 @@ echo "\"${sxname}naive-$hostname\","
 }
 fi
 # C11 Trojan+Reality
-if grep "{\"tag\":\"trojan-reality\"}" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+if grep "\"tag\":\"trojan-reality\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 echo "💣【 Trojan+Reality 】节点信息如下："
 port_tr=$(cat "$HOME/agsbx/port_tr")
 tr_link="trojan://${uuid}@${server_ip}:${port_tr}?security=reality&sni=${ym_vl_re}&fp=chrome&pbk=${public_key_x}&sid=${short_id_x}&type=tcp#${sxname}trojan-reality-$hostname"
@@ -2159,7 +2158,7 @@ echo "- ${sxname}trojan-reality-$hostname"
 }
 fi
 # C12 VLESS+TLS+Vision
-if grep "{\"tag\":\"vless-tls-vision\"}" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+if grep "\"tag\":\"vless-tls-vision\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 echo "💣【 VLESS+TLS+Vision 】节点信息如下："
 port_vtv=$(cat "$HOME/agsbx/port_vtv")
 _vtp_host=${directnym:-$server_ip}
@@ -2207,7 +2206,7 @@ echo "- ${sxname}vless-tls-vision-$hostname"
 }
 fi
 # C13 Trojan+TLS
-if grep "{\"tag\":\"trojan-tls\"}" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
+if grep "\"tag\":\"trojan-tls\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 echo "💣【 Trojan+TLS 】节点信息如下："
 port_tt=$(cat "$HOME/agsbx/port_tt")
 _ttp_host=${directnym:-$server_ip}
@@ -2672,7 +2671,7 @@ sed -i '/websbx/d' /tmp/crontab.tmp
 crontab /tmp/crontab.tmp >/dev/null 2>&1
 rm /tmp/crontab.tmp
 rm -rf  "$HOME/bin/agsbx"
-if pidof systemd >/dev/null 2>&1; then
+if [ "$(ps -p 1 -o comm= 2>/dev/null)" = "systemd" ]; then
 for svc in xr sb argo; do
 systemctl stop "$svc" >/dev/null 2>&1
 systemctl disable "$svc" >/dev/null 2>&1
@@ -2692,7 +2691,7 @@ fi
 }
 xrestart(){
 kill -15 $(pgrep -f 'agsbx/x' 2>/dev/null) >/dev/null 2>&1
-if pidof systemd >/dev/null 2>&1; then
+if [ "$(ps -p 1 -o comm= 2>/dev/null)" = "systemd" ]; then
 systemctl restart xr >/dev/null 2>&1
 elif command -v rc-service >/dev/null 2>&1; then
 rc-service xray restart >/dev/null 2>&1
@@ -2702,7 +2701,7 @@ fi
 }
 sbrestart(){
 kill -15 $(pgrep -f 'agsbx/s' 2>/dev/null) >/dev/null 2>&1
-if pidof systemd >/dev/null 2>&1; then
+if [ "$(ps -p 1 -o comm= 2>/dev/null)" = "systemd" ]; then
 systemctl restart sb >/dev/null 2>&1
 elif command -v rc-service >/dev/null 2>&1; then
 rc-service sing-box restart >/dev/null 2>&1
@@ -3486,7 +3485,7 @@ for P in /proc/[0-9]*; do [ -L "$P/exe" ] || continue; TARGET=$(readlink -f "$P/
 kill -15 $(pgrep -f 'agsbx/c' 2>/dev/null) >/dev/null 2>&1
 upcloudflared && echo "Cloudflared内核更新完成" && sleep 2
 if [ -e "$HOME/agsbx/sbargotoken.log" ]; then
-if pidof systemd >/dev/null 2>&1; then
+if [ "$(ps -p 1 -o comm= 2>/dev/null)" = "systemd" ]; then
 systemctl restart argo >/dev/null 2>&1
 elif [ -f "/etc/init.d/argo" ]; then
 /etc/init.d/argo restart >/dev/null 2>&1
@@ -3511,7 +3510,7 @@ xrestart
 kill "$(basename "$P")" 2>/dev/null
 kill -15 $(pgrep -f 'agsbx/c' 2>/dev/null) >/dev/null 2>&1
 if [ -e "$HOME/agsbx/sbargotoken.log" ]; then
-if pidof systemd >/dev/null 2>&1; then
+if [ "$(ps -p 1 -o comm= 2>/dev/null)" = "systemd" ]; then
 systemctl restart argo >/dev/null 2>&1
 elif command -v rc-service >/dev/null 2>&1; then
 rc-service argo restart >/dev/null 2>&1
