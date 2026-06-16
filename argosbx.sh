@@ -333,12 +333,17 @@ certsign() {
   fi
   if [ ! -e "$_acme" ]; then
     echo "安装acme.sh..."
-    dl https://get.acme.sh "$HOME/agsbx/acme_install.sh" && sh "$HOME/agsbx/acme_install.sh" && rm -f "$HOME/agsbx/acme_install.sh"
+    curl -sL https://get.acme.sh | sh -s "email=${cfemail:-admin@$(hostname)}" 2>&1 | tail -3
+    if [ ! -e "$_acme" ]; then
+      dl https://get.acme.sh "$HOME/agsbx/acme_install.sh" 2>/dev/null && sh "$HOME/agsbx/acme_install.sh" "email=${cfemail:-admin@$(hostname)}" && rm -f "$HOME/agsbx/acme_install.sh"
+    fi
   fi
   if [ ! -e "$_acme" ]; then
     echo "⚠️ acme.sh安装失败，无法签发证书"
     return 1
   fi
+  # 设置默认CA为Let's Encrypt
+  "$_acme" --set-default-ca --server letsencrypt 2>/dev/null
   export CF_Email="$cfemail"
   export CF_Key="$cfkey"
   echo "签发证书: $_csdomain (含泛域名)..."
@@ -3754,6 +3759,18 @@ agsbx_backup "$@"
 exit
 elif [ "$1" = "restore" ]; then
 agsbx_restore "$@"
+exit
+elif [ "$1" = "cert" ]; then
+# 手动签发证书: bash argosbx.sh cert 域名 证书名
+# 需要设置 cfemail/cfkey 环境变量
+if [ -z "${cfemail:-}" ] || [ -z "${cfkey:-}" ]; then
+  echo "用法: cfemail=xxx cfkey=xxx bash argosbx.sh cert 域名 证书名"
+  echo "示例: cfemail=a@b.com cfkey=xxx bash argosbx.sh cert us.begonia92.top directnym"
+  exit 1
+fi
+certsign "$2" "$3"
+echo "=== crontab自动续期检查 ==="
+crontab -l 2>/dev/null | grep acme
 exit
 fi
 # 菜单返回后(_menu_returned=1)强制走安装流程,即使xray/sing-box已在运行
