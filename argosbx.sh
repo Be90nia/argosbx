@@ -2701,9 +2701,16 @@ sed -i '/agsbx\/sing-box/d' /tmp/crontab.tmp
 sed -i '/agsbx\/xray/d' /tmp/crontab.tmp
 sed -i '/agsbx\/cloudflared/d' /tmp/crontab.tmp
 sed -i '/websbx/d' /tmp/crontab.tmp
+sed -i '/acme\.sh/d' /tmp/crontab.tmp
+sed -i '/cert_warn/d' /tmp/crontab.tmp
 crontab /tmp/crontab.tmp >/dev/null 2>&1
 rm /tmp/crontab.tmp
 rm -rf  "$HOME/bin/agsbx"
+# 清理acme.sh + 证书
+if [ -e "$HOME/.acme.sh/acme.sh" ]; then
+"$HOME/.acme.sh/acme.sh" --uninstall 2>/dev/null
+fi
+rm -rf /etc/argosbx "$HOME/.acme.sh"
 if [ "$(ps -p 1 -o comm= 2>/dev/null)" = "systemd" ]; then
 for svc in xr sb argo; do
 systemctl stop "$svc" >/dev/null 2>&1
