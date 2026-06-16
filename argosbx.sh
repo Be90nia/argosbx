@@ -3,8 +3,11 @@ export LANG=en_US.UTF-8
 
 # ===== S0: 安全加固初始化 =====
 umask 077
+# 6.6.20 严格模式说明：
+# 不引入 set -e（会破坏脚本现有的 >/dev/null 2>&1 || return 1 错误处理模式）
+# 不引入 set -u（会破坏脚本现有的 ${var+x} 和直接 $var 引用模式）
+# 替代方案：通过 _log 函数记录关键事件 + 显式 || 分支错误处理
 # 6.6.22 结构化日志：所有操作记录到 install.log
-# 6.6.20 严格模式：set -u 检测未定义变量(不使用 set -e 以避免破坏脚本现有 >/dev/null 2>&1 || return 1 模式)
 agsbx_logfile="$HOME/agsbx/install.log"
 mkdir -p "$HOME/agsbx" 2>/dev/null
 _log() {
@@ -537,7 +540,7 @@ fi
 # 6.5.17 SHA256校验：从GitHub release获取checksum对照
 # 6.5.18 升级回滚机制：下载前备份旧二进制，校验/启动失败自动回退
 _dl_kernel() {
-  # 用法: _dl_kernel url output_min_sizeKB sha256sum_url
+  # 用法: _dl_kernel url output [min_size_KB]
   local _url="$1" _out="$2" _min_kb="${3:-1024}"
   if ! dl "$_url" "$_out"; then
     _log "ERROR" "下载失败: $_url"
