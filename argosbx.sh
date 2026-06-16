@@ -839,17 +839,17 @@ cat >> "$HOME/agsbx/xr.json" <<EOF
 EOF
 if [ -n "$vgp" ]; then
 cat >> "$HOME/agsbx/xr.json" <<EOF
-          {"alpn":"h2","path":"/${basepath}-vg","dest":"@vless-grpc","xver":0},
+          {"path":"/${basepath}-vg","dest":"@vless-grpc","xver":0},
 EOF
 fi
 if [ -n "$tgp" ]; then
 cat >> "$HOME/agsbx/xr.json" <<EOF
-          {"alpn":"h2","path":"/${basepath}-tg","dest":"@trojan-grpc","xver":0},
+          {"path":"/${basepath}-tg","dest":"@trojan-grpc","xver":0},
 EOF
 fi
 if [ -n "$mgp" ]; then
 cat >> "$HOME/agsbx/xr.json" <<EOF
-          {"alpn":"h2","path":"/${basepath}-mg","dest":"@vmess-grpc","xver":0},
+          {"path":"/${basepath}-mg","dest":"@vmess-grpc","xver":0},
 EOF
 fi
 cat >> "$HOME/agsbx/xr.json" <<EOF
