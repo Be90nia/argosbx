@@ -1601,6 +1601,8 @@ if [ -f "$HOME/agsbx/cdnym" ]; then
 echo "💣【 Shadowsocks-ws-cdn 】B组Origin Rules回源39003，节点信息如下："
 echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN走443端口+Origin Rules回源39003"
 echo "⚠️ 需在CF Dashboard → Rules → Origin Rules 添加规则：URI Path starts with \"/${basepath}-sw\" → Rewrite to Port 39003"
+echo "⚠️ 导入后请检查传输协议是否为ws, 若显示raw请手动改为WebSocket并填写以下参数:"
+echo "    传输: ws | Host: $xvvmcdnym | Path: /${basepath}-sw | TLS: 开启 | SNI: $xvvmcdnym"
 sskey=$(cat "$HOME/agsbx/sskey" 2>/dev/null)
  _ss_enc=$(printf '%s' "$sskey" | sed 's/+/%2B/g; s/=/%3D/g; s|/|%2F|g')
  ss_sw_cdn_link="ss://2022-blake3-aes-128-gcm:${_ss_enc}@yg$(cfipsj).ygkkk.dpdns.org:443/?type=ws&host=$xvvmcdnym&path=/${basepath}-sw&security=tls&sni=$xvvmcdnym#${sxname}ss-ws-cdn-$hostname"
