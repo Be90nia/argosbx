@@ -3,6 +3,20 @@ export LANG=en_US.UTF-8
 
 # ===== S0: 安全加固初始化 =====
 umask 077
+# 6.6.22 结构化日志：所有操作记录到 install.log
+# 6.6.20 严格模式：set -u 检测未定义变量(不使用 set -e 以避免破坏脚本现有 >/dev/null 2>&1 || return 1 模式)
+agsbx_logfile="$HOME/agsbx/install.log"
+mkdir -p "$HOME/agsbx" 2>/dev/null
+_log() {
+  # 用法: _log "level" "message"  或  _log "message"(默认INFO)
+  if [ $# -ge 2 ]; then
+    _lvl="$1"; shift; _msg="$*"
+  else
+    _lvl="INFO"; _msg="$1"
+  fi
+  printf '[%s] [%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || date)" "$_lvl" "$_msg" >> "$agsbx_logfile" 2>/dev/null
+}
+_log "INFO" "argosbx 启动，PID=$$"
 # 注意：bash 把 EUID 作为只读内置变量，POSIX sh 则允许赋值。
 # 统一改用 _euid 避免 bash 直接运行时报 "EUID: readonly variable"
 _euid=$(id -u 2>/dev/null || echo 0)
@@ -520,58 +534,161 @@ fi
 }
 
 # ===== S4: 内核下载 =====
+# 6.5.17 SHA256校验：从GitHub release获取checksum对照
+# 6.5.18 升级回滚机制：下载前备份旧二进制，校验/启动失败自动回退
+_dl_kernel() {
+  # 用法: _dl_kernel url output_min_sizeKB sha256sum_url
+  local _url="$1" _out="$2" _min_kb="${3:-1024}"
+  if ! dl "$_url" "$_out"; then
+    _log "ERROR" "下载失败: $_url"
+    return 1
+  fi
+  if [ "$(wc -c < "$_out" 2>/dev/null || echo 0)" -lt "$((_min_kb * 1024))" ]; then
+    _log "ERROR" "文件过小(<${_min_kb}KB)，可能不完整: $_out"
+    rm -f "$_out"
+    return 1
+  fi
+  return 0
+}
 upxray(){
 xrarch="64"
 [ "$cpu" = "arm64" ] && xrarch="arm64-v8a"
 xrcore=$(dl_s "https://data.jsdelivr.com/v1/package/gh/XTLS/Xray-core" | grep -Eo '"[0-9.]+"' | sed -n 1p | tr -d '",')
 echo "下载Xray官方最新正式版内核：$xrcore"
+_log "INFO" "开始升级xray-core到 v${xrcore}"
+# 6.5.18 升级前备份旧二进制
+if [ -f "$HOME/agsbx/xray" ]; then
+  cp -p "$HOME/agsbx/xray" "$HOME/agsbx/xray.bak"
+  _log "INFO" "已备份旧xray到 xray.bak"
+fi
 tmpdir=$(mktemp -d)
 url="https://github.com/XTLS/Xray-core/releases/download/v${xrcore}/Xray-linux-${xrarch}.zip"
 out="$tmpdir/xray.zip"
-dl "$url" "$out"
-if [ -f "$out" ] && [ "$(wc -c < "$out" 2>/dev/null || echo 0)" -gt 1048576 ]; then
-  command -v unzip >/dev/null 2>&1 || { command -v apk >/dev/null 2>&1 && apk add --no-cache unzip >/dev/null 2>&1; } || { command -v apt >/dev/null 2>&1 && apt install -y unzip >/dev/null 2>&1; }
-  unzip -o "$out" -d "$tmpdir/xray_extract" >/dev/null 2>&1
-  mv "$tmpdir/xray_extract/xray" "$HOME/agsbx/xray" 2>/dev/null
-  chmod +x "$HOME/agsbx/xray"
-  rm -rf "$tmpdir"
-else
-  echo "⚠️ Xray内核下载失败或文件不完整"
-  rm -rf "$tmpdir"
-  return 1
+# 6.5.17+6.5.18：下载+大小校验，失败自动回滚
+if ! _dl_kernel "$url" "$out" 1024; then
+  echo "⚠️ Xray内核下载失败"
+  if [ -f "$HOME/agsbx/xray.bak" ]; then mv "$HOME/agsbx/xray.bak" "$HOME/agsbx/xray"; _log "WARN" "已回滚到旧xray"; fi
+  rm -rf "$tmpdir"; return 1
 fi
+# 6.5.17 SHA256 校验(从release页面获取xray.zip的dgst文件)
+sha_url="https://github.com/XTLS/Xray-core/releases/download/v${xrcore}/Xray-linux-${xrarch}.zip.dgst"
+sha_expected=$(dl_s "$sha_url" 2>/dev/null | awk '/SHA256/ {print $NF; exit}' | tr -d '\r\n')
+if [ -n "$sha_expected" ]; then
+  sha_actual=$(sha256sum "$out" 2>/dev/null | awk '{print $1}')
+  if [ "$sha_actual" != "$sha_expected" ]; then
+    echo "⚠️ Xray内核SHA256校验失败(期望 ${sha_expected:0:16}... 实际 ${sha_actual:0:16}...)"
+    _log "ERROR" "xray SHA256 mismatch"
+    if [ -f "$HOME/agsbx/xray.bak" ]; then mv "$HOME/agsbx/xray.bak" "$HOME/agsbx/xray"; _log "WARN" "已回滚"; fi
+    rm -rf "$tmpdir"; return 1
+  fi
+  echo "✅ Xray内核SHA256校验通过"
+  _log "INFO" "xray SHA256 校验通过"
+else
+  echo "⚠️ 无法获取Xray SHA256参考值，跳过完整性校验"
+  _log "WARN" "xray SHA256 ref not available"
+fi
+command -v unzip >/dev/null 2>&1 || { command -v apk >/dev/null 2>&1 && apk add --no-cache unzip >/dev/null 2>&1; } || { command -v apt >/dev/null 2>&1 && apt install -y unzip >/dev/null 2>&1; }
+unzip -o "$out" -d "$tmpdir/xray_extract" >/dev/null 2>&1
+# 6.5.18 验证解压后的二进制可执行
+if [ ! -x "$tmpdir/xray_extract/xray" ]; then
+  echo "⚠️ Xray解压失败或二进制损坏"
+  if [ -f "$HOME/agsbx/xray.bak" ]; then mv "$HOME/agsbx/xray.bak" "$HOME/agsbx/xray"; _log "WARN" "已回滚"; fi
+  rm -rf "$tmpdir"; return 1
+fi
+mv "$tmpdir/xray_extract/xray" "$HOME/agsbx/xray" 2>/dev/null
+chmod +x "$HOME/agsbx/xray"
+# 启动测试：version命令成功才视为升级成功
+if ! "$HOME/agsbx/xray" version >/dev/null 2>&1; then
+  echo "⚠️ 新xray二进制无法运行，回滚"
+  if [ -f "$HOME/agsbx/xray.bak" ]; then mv "$HOME/agsbx/xray.bak" "$HOME/agsbx/xray"; _log "WARN" "xray 二进制无法执行，已回滚"; fi
+  rm -rf "$tmpdir"; return 1
+fi
+rm -f "$HOME/agsbx/xray.bak"
+rm -rf "$tmpdir"
 sbcore=$("$HOME/agsbx/xray" version 2>/dev/null | awk '/^Xray/{print $2}')
 echo "已安装Xray正式版内核：$sbcore"
+_log "INFO" "xray 升级完成: $sbcore"
 }
 upsingbox(){
 sbarch="$cpu"
 sbcore=$(dl_s "https://data.jsdelivr.com/v1/package/gh/SagerNet/sing-box" | grep -Eo '"[0-9.]+"' | sed -n 1p | tr -d '",')
 echo "下载Sing-box官方最新正式版内核：$sbcore"
+_log "INFO" "开始升级sing-box到 v${sbcore}"
+# 6.5.18 升级前备份旧二进制
+if [ -f "$HOME/agsbx/sing-box" ]; then
+  cp -p "$HOME/agsbx/sing-box" "$HOME/agsbx/sing-box.bak"
+  _log "INFO" "已备份旧sing-box到 sing-box.bak"
+fi
 tmpdir=$(mktemp -d)
 url="https://github.com/SagerNet/sing-box/releases/download/v${sbcore}/sing-box-${sbcore}-linux-${sbarch}.tar.gz"
 out="$tmpdir/sing-box.tar.gz"
-dl "$url" "$out"
-if [ -f "$out" ] && [ "$(wc -c < "$out" 2>/dev/null || echo 0)" -gt 1048576 ]; then
-  tar -xzf "$out" -C "$tmpdir" >/dev/null 2>&1
-  mv "$tmpdir/sing-box-${sbcore}-linux-${sbarch}/sing-box" "$HOME/agsbx/sing-box" 2>/dev/null
-  chmod +x "$HOME/agsbx/sing-box"
-  rm -rf "$tmpdir"
-else
-  echo "⚠️ Sing-box内核下载失败或文件不完整"
-  rm -rf "$tmpdir"
-  return 1
+if ! _dl_kernel "$url" "$out" 1024; then
+  echo "⚠️ Sing-box内核下载失败"
+  if [ -f "$HOME/agsbx/sing-box.bak" ]; then mv "$HOME/agsbx/sing-box.bak" "$HOME/agsbx/sing-box"; _log "WARN" "已回滚"; fi
+  rm -rf "$tmpdir"; return 1
 fi
+# 6.5.17 SHA256校验(sing-box 提供 checksums.txt)
+sha_url="https://github.com/SagerNet/sing-box/releases/download/v${sbcore}/sing-box-${sbcore}.checksums.txt"
+sha_expected=$(dl_s "$sha_url" 2>/dev/null | awk -v f="sing-box-${sbcore}-linux-${sbarch}.tar.gz" '$2==f {print $1; exit}')
+if [ -n "$sha_expected" ]; then
+  sha_actual=$(sha256sum "$out" 2>/dev/null | awk '{print $1}')
+  if [ "$sha_actual" != "$sha_expected" ]; then
+    echo "⚠️ Sing-box内核SHA256校验失败(期望 ${sha_expected:0:16}... 实际 ${sha_actual:0:16}...)"
+    _log "ERROR" "sing-box SHA256 mismatch"
+    if [ -f "$HOME/agsbx/sing-box.bak" ]; then mv "$HOME/agsbx/sing-box.bak" "$HOME/agsbx/sing-box"; _log "WARN" "已回滚"; fi
+    rm -rf "$tmpdir"; return 1
+  fi
+  echo "✅ Sing-box内核SHA256校验通过"
+  _log "INFO" "sing-box SHA256 校验通过"
+else
+  echo "⚠️ 无法获取Sing-box SHA256参考值，跳过完整性校验"
+  _log "WARN" "sing-box SHA256 ref not available"
+fi
+tar -xzf "$out" -C "$tmpdir" >/dev/null 2>&1
+if [ ! -x "$tmpdir/sing-box-${sbcore}-linux-${sbarch}/sing-box" ]; then
+  echo "⚠️ Sing-box解压失败或二进制损坏"
+  if [ -f "$HOME/agsbx/sing-box.bak" ]; then mv "$HOME/agsbx/sing-box.bak" "$HOME/agsbx/sing-box"; _log "WARN" "已回滚"; fi
+  rm -rf "$tmpdir"; return 1
+fi
+mv "$tmpdir/sing-box-${sbcore}-linux-${sbarch}/sing-box" "$HOME/agsbx/sing-box" 2>/dev/null
+chmod +x "$HOME/agsbx/sing-box"
+if ! "$HOME/agsbx/sing-box" version >/dev/null 2>&1; then
+  echo "⚠️ 新sing-box二进制无法运行，回滚"
+  if [ -f "$HOME/agsbx/sing-box.bak" ]; then mv "$HOME/agsbx/sing-box.bak" "$HOME/agsbx/sing-box"; _log "WARN" "sing-box 二进制无法执行，已回滚"; fi
+  rm -rf "$tmpdir"; return 1
+fi
+rm -f "$HOME/agsbx/sing-box.bak"
+rm -rf "$tmpdir"
 sbcore=$("$HOME/agsbx/sing-box" version 2>/dev/null | awk '/version/{print $NF}')
 echo "已安装Sing-box正式版内核：$sbcore"
+_log "INFO" "sing-box 升级完成: $sbcore"
 }
 upcloudflared(){
 argocore=$(dl_s "https://data.jsdelivr.com/v1/package/gh/cloudflare/cloudflared" | grep -Eo '"[0-9.]+"' | sed -n 1p | tr -d '",')
 echo "下载Cloudflared官方最新正式版内核：$argocore"
+_log "INFO" "开始升级cloudflared到 v${argocore}"
+# 6.5.18 升级前备份旧二进制
+if [ -f "$HOME/agsbx/cloudflared" ]; then
+  cp -p "$HOME/agsbx/cloudflared" "$HOME/agsbx/cloudflared.bak"
+  _log "INFO" "已备份旧cloudflared到 cloudflared.bak"
+fi
 url="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-$cpu"
 out="$HOME/agsbx/cloudflared"
-dl "$url" "$out"
+if ! _dl_kernel "$url" "$out" 512; then
+  echo "⚠️ Cloudflared内核下载失败"
+  if [ -f "$HOME/agsbx/cloudflared.bak" ]; then mv "$HOME/agsbx/cloudflared.bak" "$HOME/agsbx/cloudflared"; _log "WARN" "已回滚"; fi
+  return 1
+fi
 chmod +x "$HOME/agsbx/cloudflared"
+# 6.5.18 启动测试
+if ! "$HOME/agsbx/cloudflared" version >/dev/null 2>&1; then
+  echo "⚠️ 新cloudflared二进制无法运行，回滚"
+  if [ -f "$HOME/agsbx/cloudflared.bak" ]; then mv "$HOME/agsbx/cloudflared.bak" "$HOME/agsbx/cloudflared"; _log "WARN" "cloudflared 二进制无法执行，已回滚"; fi
+  return 1
+fi
+rm -f "$HOME/agsbx/cloudflared.bak"
 echo "已安装Cloudflared正式版内核：$argocore"
+_log "INFO" "cloudflared 升级完成: $argocore"
 }
 
 # ===== S5: 密钥生成与配置生成 =====
@@ -984,7 +1101,14 @@ WantedBy=multi-user.target
 EOF
 systemctl daemon-reload >/dev/null 2>&1
 systemctl enable xr >/dev/null 2>&1
-systemctl start xr >/dev/null 2>&1
+systemctl restart xr >/dev/null 2>&1
+# 6.2.9 服务启动失败处理：sleep 2 后 is-active 确认，失败则打印日志
+sleep 2
+if ! systemctl is-active --quiet xr 2>/dev/null; then
+  echo "⚠️ xr 服务启动失败，最近日志："
+  journalctl -u xr --no-pager -n 15 2>/dev/null
+  _log "ERROR" "xr 服务启动失败"
+fi
 elif command -v rc-service >/dev/null 2>&1 && [ "$_euid" -eq 0 ]; then
 cat > /etc/init.d/xray <<EOF
 #!/sbin/openrc-run
@@ -1027,7 +1151,14 @@ WantedBy=multi-user.target
 EOF
 systemctl daemon-reload >/dev/null 2>&1
 systemctl enable sb >/dev/null 2>&1
-systemctl start sb >/dev/null 2>&1
+systemctl restart sb >/dev/null 2>&1
+# 6.2.9 服务启动失败处理
+sleep 2
+if ! systemctl is-active --quiet sb 2>/dev/null; then
+  echo "⚠️ sb 服务启动失败，最近日志："
+  journalctl -u sb --no-pager -n 15 2>/dev/null
+  _log "ERROR" "sb 服务启动失败"
+fi
 elif command -v rc-service >/dev/null 2>&1 && [ "$_euid" -eq 0 ]; then
 cat > /etc/init.d/sing-box <<EOF
 #!/sbin/openrc-run
@@ -1107,7 +1238,14 @@ WantedBy=multi-user.target
 EOF
 systemctl daemon-reload >/dev/null 2>&1
 systemctl enable argo >/dev/null 2>&1
-systemctl start argo >/dev/null 2>&1
+systemctl restart argo >/dev/null 2>&1
+# 6.2.9 服务启动失败处理
+sleep 2
+if ! systemctl is-active --quiet argo 2>/dev/null; then
+  echo "⚠️ argo 服务启动失败，最近日志："
+  journalctl -u argo --no-pager -n 15 2>/dev/null
+  _log "ERROR" "argo 服务启动失败"
+fi
 elif command -v rc-service >/dev/null 2>&1 && [ "$_euid" -eq 0 ]; then
 cat > /etc/init.d/argo <<EOF
 #!/sbin/openrc-run
