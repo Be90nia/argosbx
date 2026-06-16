@@ -10,7 +10,6 @@
                 }
             ],
             "congestion_control": "cubic",
-            "max_idle_time": "15m",
             "zero_rtt_handshake": false,
             "tls":{
                 "enabled": true,

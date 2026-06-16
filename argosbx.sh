@@ -157,7 +157,9 @@ alloc_port() {
   local _apval
   eval _apval="\$$_apvar"
   local _apfile="$HOME/agsbx/$_apvar"
-  (
+  # 用{ }命令组(非子shell)，确保变量赋值在当前shell生效
+  # flock持有FD9锁直到}关闭，保证串行化
+  {
     flock 9
     if [ -z "$_apval" ] && [ ! -e "$_apfile" ]; then
       eval "$_apvar=\$(shuf -i 39017-40000 -n 1)"
@@ -166,7 +168,7 @@ alloc_port() {
       eval "echo \"\$$_apvar\" > \"$_apfile\""
     fi
     eval "$_apvar=\$(cat \"$_apfile\")"
-  ) 9>"$HOME/agsbx/.port.lock"
+  } 9>"$HOME/agsbx/.port.lock"
 }
 
 # gen_basepath — 生成或读取basepath(用户指定 or 随机16位hex，持久化)
@@ -311,6 +313,24 @@ certsign() {
     echo "证书已存在: $_cscrt"
     return 0
   fi
+  # 跨证书复用检测: 扫描已有证书,若SAN/CN覆盖目标域名则复用(避免泛域名证书重复签发)
+  if command -v openssl >/dev/null 2>&1; then
+    for _existing_crt in /etc/argosbx/certs/*.crt; do
+      [ -f "$_existing_crt" ] || continue
+      _existing_key="${_existing_crt%.crt}.key"
+      [ -f "$_existing_key" ] || continue
+      # 提取目标域名的上级根域(cdn_us.begonia92.top → begonia92.top)用于通配符匹配
+      _csroot=$(echo "$_csdomain" | awk -F. '{if(NF>=2){for(i=2;i<=NF;i++){printf "%s%s",$i,(i<NF?".":"")}}else{print}}')
+      # 检查证书SAN/CN是否包含目标域名或其泛域名(*.根域)
+      if openssl x509 -in "$_existing_crt" -noout -text 2>/dev/null | grep -A1 -E "Subject Alternative Name|Subject:" | grep -qE "\\*\\.$_csroot|[^a-zA-Z0-9.-]$_csdomain([^a-zA-Z0-9.-]|\\$)"; then
+        cp -f "$_existing_crt" "$_cscrt"
+        cp -f "$_existing_key" "$_cskey"
+        chmod 600 "$_cskey"
+        echo "✅ 复用已有证书: $_existing_crt → $_cscrt (覆盖 $_csdomain)"
+        return 0
+      fi
+    done
+  fi
   if [ ! -e "$_acme" ]; then
     echo "安装acme.sh..."
     dl https://get.acme.sh "$HOME/agsbx/acme_install.sh" && sh "$HOME/agsbx/acme_install.sh" && rm -f "$HOME/agsbx/acme_install.sh"
@@ -402,16 +422,21 @@ tpl_fw() {
   if [ ! -f "$_fwfile" ]; then
     dl "$tplbaseurl/$_fwsub/$_fwtpl" "$_fwfile" || { echo "⚠️ 框架模板下载失败: $_fwsub/$_fwtpl"; return 1; }
   fi
-  sed -e "s|__XRYX__|${xryx:-AsIs}|g" \
-      -e "s|__WXRYX__|${wxryx:-AsIs}|g" \
+  sed -e "s|__XRYX__|${xryx:-ForceIPv4v6}|g" \
+      -e "s|__WXRYX__|${wxryx:-ForceIPv6v4}|g" \
       -e "s|__SRYX__|${sbyx:-prefer_ipv6}|g" \
+      -e "s|__SBYX__|${sbyx:-prefer_ipv6}|g" \
       -e "s|__PVK__|${pvk:-}|g" \
       -e "s|__WPV6__|${wpv6:-}|g" \
       -e "s|__XENDIP__|${xendip:-engage.cloudflareclient.com}|g" \
+      -e "s|__SENDIP__|${sendip:-162.159.192.1}|g" \
       -e "s|__RES__|${res:-[]}|g" \
       -e "s|__XIP__|${xip:-}|g" \
+      -e "s|__SIP__|${sip:-}|g" \
       -e "s|__X1OUTTAG__|${x1outtag:-direct}|g" \
       -e "s|__X2OUTTAG__|${x2outtag:-direct}|g" \
+      -e "s|__S1OUTTAG__|${s1outtag:-direct}|g" \
+      -e "s|__S2OUTTAG__|${s2outtag:-direct}|g" \
       -e "s|__HOME__|${HOME}|g" \
       "$_fwfile"
 }
@@ -1052,7 +1077,7 @@ if [ -n "$stp" ]; then
 fi
 if [ -n "$nap" ]; then
   nap=napt
-  [ -z "$nap_user" ] && nap_user=$("$HOME/agsbx/sing-box" generate rand 8)
+  [ -z "$nap_user" ] && nap_user=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 8)
   echo "$nap_user" > "$HOME/agsbx/nap_user"
   alloc_port port_na
   echo "Naive端口：$port_na"
@@ -3451,6 +3476,7 @@ if [ -z "$1" ] && [ -t 0 ] 2>/dev/null; then
   if [ -z "${vlp:-}${vmp:-}${vwp:-}${hyp:-}${tup:-}${xhp:-}${vxp:-}${anp:-}${ssp:-}${arp:-}${sop:-}${vup:-}${twp:-}${tuhp:-}${vgp:-}${tgp:-}${mgp:-}${mup:-}${txp:-}${mxp:-}${swp:-}${vwep:-}${stp:-}${nap:-}${trp:-}${vtp:-}${ttp:-}" ]; then
     showmenu_main
     # 菜单返回后，变量已被export设置，继续走主安装流程(ins/cip等)
+    _menu_returned=1; export _menu_returned
   fi
 fi
 
@@ -3535,7 +3561,8 @@ elif [ "$1" = "restore" ]; then
 agsbx_restore "$@"
 exit
 fi
-if ! find /proc/*/exe -type l 2>/dev/null | grep -E '/proc/[0-9]+/exe' | xargs -r readlink 2>/dev/null | grep -Eq 'agsbx/(s|x)' && ! pgrep -f 'agsbx/(s|x)' >/dev/null 2>&1; then
+# 菜单返回后(_menu_returned=1)强制走安装流程,即使xray/sing-box已在运行
+if { ! find /proc/*/exe -type l 2>/dev/null | grep -E '/proc/[0-9]+/exe' | xargs -r readlink 2>/dev/null | grep -Eq 'agsbx/(s|x)' && ! pgrep -f 'agsbx/(s|x)' >/dev/null 2>&1; } || [ -n "${_menu_returned:-}" ]; then
 for P in /proc/[0-9]*; do if [ -L "$P/exe" ]; then TARGET=$(readlink -f "$P/exe" 2>/dev/null); if echo "$TARGET" | grep -qE '/agsbx/c|/agsbx/s|/agsbx/x'; then PID=$(basename "$P"); kill "$PID" 2>/dev/null && echo "Killed $PID ($TARGET)" || echo "Could not kill $PID ($TARGET)"; fi; fi; done
 kill -15 $(pgrep -f 'agsbx/s' 2>/dev/null) $(pgrep -f 'agsbx/c' 2>/dev/null) $(pgrep -f 'agsbx/x' 2>/dev/null) >/dev/null 2>&1
 if [ -z "$( (command -v curl >/dev/null 2>&1 && curl -s4m5 -k "$v46url" 2>/dev/null) || (command -v wget >/dev/null 2>&1 && timeout 3 wget -4 -qO- --tries=2 "$v46url" 2>/dev/null) )" ]; then

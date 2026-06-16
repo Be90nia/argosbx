@@ -13,6 +13,5 @@
                 "enabled": true,
                 "certificate_path": "/etc/argosbx/certs/directnym.crt",
                 "key_path": "/etc/argosbx/certs/directnym.key"
-            },
-            "network": "tcp,udp"
+            }
         }
