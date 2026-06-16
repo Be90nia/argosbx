@@ -1602,8 +1602,8 @@ echo "💣【 Shadowsocks-ws-cdn 】B组Origin Rules回源39003，节点信息�
 echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN走443端口+Origin Rules回源39003"
 echo "⚠️ 需在CF Dashboard → Rules → Origin Rules 添加规则：URI Path starts with \"/${basepath}-sw\" → Rewrite to Port 39003"
 sskey=$(cat "$HOME/agsbx/sskey" 2>/dev/null)
- _ss_userinfo=$(printf '%s' "2022-blake3-aes-128-gcm:${sskey}" | base64 -w0 | tr '+/' '-_' | tr -d '=')
- ss_sw_cdn_link="ss://${_ss_userinfo}@yg$(cfipsj).ygkkk.dpdns.org:443/?type=ws&host=$xvvmcdnym&path=/${basepath}-sw&security=tls&sni=$xvvmcdnym#${sxname}ss-ws-cdn-$hostname"
+ _ss_enc=$(printf '%s' "$sskey" | sed 's/+/%2B/g; s/=/%3D/g; s|/|%2F|g')
+ ss_sw_cdn_link="ss://2022-blake3-aes-128-gcm:${_ss_enc}@yg$(cfipsj).ygkkk.dpdns.org:443/?type=ws&host=$xvvmcdnym&path=/${basepath}-sw&security=tls&sni=$xvvmcdnym#${sxname}ss-ws-cdn-$hostname"
 echo "$ss_sw_cdn_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$ss_sw_cdn_link"
 echo
@@ -2258,9 +2258,9 @@ for _p in $argo_sel; do
       echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-xhttp-argo-$hostname-80\",\"add\":\"$cdnip2\",\"port\":\"80\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"xhttp\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-mx\",\"tls\":\"\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
       ;;
      sw)
-       _ss_argo_info=$(printf '%s' "2022-blake3-aes-128-gcm:${sskey}" | base64 -w0 | tr '+/' '-_' | tr -d '=')
-       echo "ss://${_ss_argo_info}@${cdnip1}:443/?type=ws&host=${argodomain}&path=/${basepath}-sw#${sxname}ss-ws-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
-       echo "ss://${_ss_argo_info}@${cdnip2}:80/?type=ws&host=${argodomain}&path=/${basepath}-sw#${sxname}ss-ws-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
+       _ss_enc_argo=$(printf '%s' "$sskey" | sed 's/+/%2B/g; s/=/%3D/g; s|/|%2F|g')
+       echo "ss://2022-blake3-aes-128-gcm:${_ss_enc_argo}@${cdnip1}:443/?type=ws&host=${argodomain}&path=/${basepath}-sw#${sxname}ss-ws-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
+       echo "ss://2022-blake3-aes-128-gcm:${_ss_enc_argo}@${cdnip2}:80/?type=ws&host=${argodomain}&path=/${basepath}-sw#${sxname}ss-ws-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
        ;;
   esac
 done
