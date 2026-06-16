@@ -2809,17 +2809,19 @@ agsbx_restore(){
 
 # ---- 菜单工具函数 ----
 
-# 带默认值的read，输出到stdout
-# 用法: val=$(_rd "提示语" "默认值")
+# 带默认值的read，结果存全局变量_rd_val
+# 用法: _rd "提示语" "默认值"  →  _rd_val
+# 不能用$()子shell：子shell中stdout被捕获，提示语不显示
 _rd() {
-  local _p="$1" _d="$2" _v
+  _rd_val=""
+  local _p="$1" _d="$2"
   if [ -n "$_d" ]; then
-    printf "%s [%s]: " "$_p" "$_d" >&2
+    printf "%s [%s]: " "$_p" "$_d"
   else
-    printf "%s: " "$_p" >&2
+    printf "%s: " "$_p"
   fi
-  read _v
-  echo "${_v:-$_d}"
+  read _rd_val || return 1
+  _rd_val="${_rd_val:-$_d}"
 }
 
 # Y/N确认，返回0=Y，1=N
@@ -2841,16 +2843,18 @@ _yn() {
   done
 }
 
-# 多选控件，stdout输出选中的编号列表(空格分隔)
+# 多选控件，结果存全局变量_chk_sel
 # 用法: _checklist "标题" "选项1
 # 选项2
-# 选项3" "默认选中(如:1 3 或空)"
+# 选项3" "默认选中(如:1 3 或空)"  →  _chk_sel
+# 不能用$()子shell：子shell中stdout被捕获，列表不显示
 _checklist() {
   local _title="$1"
   local _items="$2"
   local _dflt="${3:-}"
   local _count _sel _n _result _valid _i
 
+  _chk_sel=""
   _count=$(printf "%s\n" "$_items" | grep -c '')
 
   while :; do
@@ -2867,13 +2871,13 @@ _checklist() {
     echo
     echo "  a=全选  0=全不选  q=取消"
     echo "  输入编号(多个用空格或逗号分隔，例如: 1 3 5 或 1,3,5)"
-    printf "选择[%s]: " "${_dflt:-无}" >&2
+    printf "选择[%s]: " "${_dflt:-无}"
     read _sel
     case "$_sel" in
       [Qq]*) return 1 ;;
       "")
         if [ -n "$_dflt" ]; then
-          echo "$_dflt" | tr ',' ' '
+          _chk_sel=$(echo "$_dflt" | tr ',' ' ')
           return 0
         fi
         continue
@@ -2885,10 +2889,10 @@ _checklist() {
           _result="$_result$_i "
           _i=$((_i+1))
         done
-        echo "$_result"
+        _chk_sel="$_result"
         return 0
         ;;
-      "0"|"")
+      "0")
         continue
         ;;
     esac
@@ -2903,23 +2907,23 @@ _checklist() {
           if [ "$_n" -ge 1 ] && [ "$_n" -le "$_count" ]; then
             _result="$_result$_n "
           else
-            echo "无效编号: $_n" >&2
+            echo "无效编号: $_n"
             _valid=0
             break
           fi
           ;;
         *)
-          echo "无效输入: $_n" >&2
+          echo "无效输入: $_n"
           _valid=0
           break
           ;;
       esac
     done
     if [ "$_valid" = 1 ] && [ -n "$_result" ]; then
-      echo "$_result"
+      _chk_sel="$_result"
       return 0
     fi
-    echo "按回车重新选择..." >&2
+    printf "按回车重新选择..."
     read _
   done
 }
@@ -3006,7 +3010,8 @@ menu_cdn() {
 
   # [1/5] CDN域名
   local _cdnym
-  _cdnym=$(_rd "[1/5] 输入CDN域名(小云朵ON, 已托管CF)" "$_cdnym_def")
+  _rd "[1/5] 输入CDN域名(小云朵ON, 已托管CF)" "$_cdnym_def" || return 1
+  _cdnym="$_rd_val"
   if [ -z "$_cdnym" ]; then
     echo "❌ CDN域名必填"
     return 1
@@ -3018,7 +3023,8 @@ menu_cdn() {
   if [ -z "$_uuid_def" ]; then
     _uuid_def=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || uuidgen 2>/dev/null)
   fi
-  _uuid=$(_rd "[2/5] 输入UUID(回车自动生成)" "$_uuid_def")
+  _rd "[2/5] 输入UUID(回车自动生成)" "$_uuid_def" || _uuid="$_uuid_def"
+  _uuid="${_rd_val:-$_uuid_def}"
   _save_cfg uuid_xray "$_uuid"
 
   # [3/5] Path前缀
@@ -3027,15 +3033,19 @@ menu_cdn() {
     _basepath_def=$(head -c 8 /dev/urandom 2>/dev/null | od -An -tx1 | tr -d ' \n' | cut -c1-16)
     [ -z "$_basepath_def" ] && _basepath_def=$(date +%s | sha256sum | cut -c1-16)
   fi
-  _basepath=$(_rd "[3/5] 输入Path前缀(回车随机生成)" "$_basepath_def")
+  _rd "[3/5] 输入Path前缀(回车随机生成)" "$_basepath_def" || _basepath="$_basepath_def"
+  _basepath="${_rd_val:-$_basepath_def}"
   _save_cfg basepath "$_basepath"
 
   # [4/5] CF API Token + Zone ID (用于acme.sh签发证书)
   echo
   echo "[4/5] 证书签发需要CF API Token (DNS:Edit权限) 和 Zone ID"
   echo "      Dashboard → My Profile → API Tokens → Edit zone DNS"
-  _cfapi=$(_rd "  CF API Token" "$_cfapi_def")
-  _cfzone=$(_rd "  CF Zone ID" "$_cfzone_def")
+  local _cfapi _cfzone
+  _rd "  CF API Token" "$_cfapi_def" || _cfapi=""
+  _cfapi="${_rd_val:-}"
+  _rd "  CF Zone ID" "$_cfzone_def" || _cfzone=""
+  _cfzone="${_rd_val:-}"
   if [ -z "$_cfapi" ] || [ -z "$_cfzone" ]; then
     echo "⚠ 未提供CF凭证，证书将不会自动签发。"
     echo "  你可以稍后手动签发或选择手动证书模式"
@@ -3064,9 +3074,8 @@ VLESS+WS+ENC (B组·39004 Origin Rules·带ENC)"
   echo "[5/5] 选择CDN协议 (A组9个 + B组5个)"
   echo "  注意: gRPC协议(#7-9)需CF Dashboard→Network→开启gRPC"
   echo "        B组协议(#10-14)需CF Origin Rules(安装后自动输出指引)"
-  local _sel
-  _sel=$(_checklist "CDN协议多选" "$_cdn_items" "$_cdnsel_def")
-  [ $? -ne 0 ] && { echo "已取消"; return 1; }
+  _checklist "CDN协议多选" "$_cdn_items" "$_cdnsel_def" || { echo "已取消"; return 1; }
+  local _sel="$_chk_sel"
 
   # 确认
   echo
@@ -3142,7 +3151,8 @@ menu_noncdn() {
 
   # [1/5] 直连域名
   local _directnym
-  _directnym=$(_rd "[1/5] 输入直连域名(小云朵OFF, DNS only)" "$_directnym_def")
+  _rd "[1/5] 输入直连域名(小云朵OFF, DNS only)" "$_directnym_def" || _directnym=""
+  _directnym="${_rd_val:-}"
   if [ -n "$_directnym" ]; then
     _save_cfg directnym "$_directnym"
   fi
@@ -3152,7 +3162,8 @@ menu_noncdn() {
   if [ -z "$_uuid_sb_def" ]; then
     _uuid_sb_def=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || uuidgen 2>/dev/null)
   fi
-  _uuid_sb=$(_rd "[2/5] 输入sing-box UUID(回车自动生成)" "$_uuid_sb_def")
+  _rd "[2/5] 输入sing-box UUID(回车自动生成)" "$_uuid_sb_def" || _uuid_sb="$_uuid_sb_def"
+  _uuid_sb="${_rd_val:-$_uuid_sb_def}"
   _save_cfg uuid_singbox "$_uuid_sb"
 
   # [3/5] 证书方式(简化: 复用CDN的CF凭证,或跳过)
@@ -3161,7 +3172,8 @@ menu_noncdn() {
   echo "  1. 复用CF API Token签发directnym证书(推荐)"
   echo "  2. 跳过(只安装无TLS协议: SS-2022/ShadowTLS)"
   local _certmode
-  _certmode=$(_rd "  选择[1-2]" "1")
+  _rd "  选择[1-2]" "1" || _certmode="1"
+  _certmode="${_rd_val:-1}"
   case "$_certmode" in
     1)
       # 验证CF凭证已设置
@@ -3169,8 +3181,10 @@ menu_noncdn() {
       local _cfzone_chk=$(_load_cfg cfzone "")
       if [ -z "$_cfapi_chk" ] || [ -z "$_cfzone_chk" ]; then
         echo "⚠ 未找到CF凭证，请先在菜单1设置，或手动输入:"
-        _cfapi_chk=$(_rd "  CF API Token" "")
-        _cfzone_chk=$(_rd "  CF Zone ID" "")
+        _rd "  CF API Token" "" || _cfapi_chk=""
+        _cfapi_chk="${_rd_val:-}"
+        _rd "  CF Zone ID" "" || _cfzone_chk=""
+        _cfzone_chk="${_rd_val:-}"
         [ -n "$_cfapi_chk" ] && _save_cfg cfapi "$_cfapi_chk"
         [ -n "$_cfzone_chk" ] && _save_cfg cfzone "$_cfzone_chk"
       fi
@@ -3180,7 +3194,8 @@ menu_noncdn() {
 
   # [4/5] Reality目标
   local _reality
-  _reality=$(_rd "[4/5] Reality伪装目标网站(回车默认)" "$_reality_def")
+  _rd "[4/5] Reality伪装目标网站(回车默认)" "$_reality_def" || _reality="$_reality_def"
+  _reality="${_rd_val:-$_reality_def}"
   _save_cfg reality_dest "$_reality"
 
   # [5/5] 协议多选
@@ -3199,9 +3214,8 @@ Trojan+TCP+TLS (xray·TLS)"
 
   echo
   echo "[5/5] 选择非CDN协议"
-  local _sel
-  _sel=$(_checklist "非CDN协议多选" "$_noncdn_items" "$_noncdn_sel_def")
-  [ $? -ne 0 ] && { echo "已取消"; return 1; }
+  _checklist "非CDN协议多选" "$_noncdn_items" "$_noncdn_sel_def" || { echo "已取消"; return 1; }
+  local _sel="$_chk_sel"
 
   # 证书依赖检测
   local _need_cert=""
@@ -3284,14 +3298,16 @@ menu_argo() {
 
   # [1/4] 隧道域名(可选, 仅固定隧道需要)
   local _argo_domain
-  _argo_domain=$(_rd "[1/4] 输入Argo隧道域名(回车使用临时隧道trycloudflare)" "$_argo_domain_def")
+  _rd "[1/4] 输入Argo隧道域名(回车使用临时隧道trycloudflare)" "$_argo_domain_def" || _argo_domain=""
+  _argo_domain="${_rd_val:-}"
   [ -n "$_argo_domain" ] && _save_cfg argo_domain "$_argo_domain"
 
   # [2/4] CF Tunnel Token
   local _argo_token
   if [ -n "$_argo_domain" ]; then
     # 固定隧道必须token
-    _argo_token=$(_rd "[2/4] 输入CF Tunnel Token(必填)" "$_argo_token_def")
+    _rd "[2/4] 输入CF Tunnel Token(必填)" "$_argo_token_def" || _argo_token=""
+    _argo_token="${_rd_val:-}"
     if [ -z "$_argo_token" ]; then
       echo "❌ 固定隧道必须提供Token"
       return 1
@@ -3303,7 +3319,8 @@ menu_argo() {
 
   # [3/4] 端口起始
   local _argo_port
-  _argo_port=$(_rd "[3/4] Argo监听端口起始值(每协议1端口)" "$_argo_port_def")
+  _rd "[3/4] Argo监听端口起始值(每协议1端口)" "$_argo_port_def" || _argo_port="$_argo_port_def"
+  _argo_port="${_rd_val:-$_argo_port_def}"
   _save_cfg argo_port_start "$_argo_port"
 
   # [4/4] 协议多选
@@ -3320,9 +3337,8 @@ Shadowsocks+WS (sw)"
 
   echo
   echo "[4/4] 选择Argo代理协议"
-  local _sel
-  _sel=$(_checklist "Argo协议多选" "$_argo_items" "$_argo_sel_def")
-  [ $? -ne 0 ] && { echo "已取消"; return 1; }
+  _checklist "Argo协议多选" "$_argo_items" "$_argo_sel_def" || { echo "已取消"; return 1; }
+  local _sel="$_chk_sel"
 
   # 把编号映射为协议缩写
   local _argopro_list=""
@@ -3441,17 +3457,19 @@ showmenu_main() {
       echo "║  状态: ⚠ 未安装                         ║"
     fi
     echo "╠══════════════════════════════════════════╣"
-    echo "║  1. CDN协议设置 (A+B组13个)             ║"
+    echo "║  1. CDN协议设置 (A+B组14个)             ║"
     echo "║  2. 非CDN协议设置 (C组12个)             ║"
     echo "║  3. Argo隧道设置 (D组10变体)            ║"
     echo "║  4. 全部部署 (1→2→3依次执行)           ║"
     echo "║  5. 更新 xray-core                      ║"
     echo "║  6. 更新 sing-box                       ║"
     echo "║  7. 更新 cloudflared                    ║"
-    echo "║  8. 卸载                                ║"
-    echo "║  9. 退出                                ║"
+    echo "║  8. 查看订阅链接 (jhsub.txt)            ║"
+    echo "║  9. 查看路径配置 (summary.txt)          ║"
+    echo "║  D. 卸载                                ║"
+    echo "║  Q. 退出                                ║"
     echo "╚══════════════════════════════════════════╝"
-    printf "请选择 [1-9]: "
+    printf "请选择 [1-9/D/Q]: "
     local _choice
     read _choice
     case "$_choice" in
@@ -3462,11 +3480,51 @@ showmenu_main() {
       5) menu_upx ;;
       6) menu_ups ;;
       7) menu_upc ;;
-      8) menu_del ;;
-      9) echo "退出"; exit 0 ;;
+      8) menu_viewsub ;;
+      9) menu_viewpath ;;
+      [Dd]) menu_del ;;
+      [Qq]*) echo "退出"; exit 0 ;;
       *) echo "无效选择"; sleep 1 ;;
     esac
   done
+}
+
+# ---- 菜单8: 查看订阅链接 ----
+menu_viewsub() {
+  clear 2>/dev/null || true
+  echo "======================================"
+  echo "  订阅链接 (jhsub.txt)"
+  echo "======================================"
+  echo
+  if [ -f "$HOME/agsbx/jhsub.txt" ]; then
+    cat "$HOME/agsbx/jhsub.txt"
+  else
+    echo "❌ 未找到 jhsub.txt"
+    echo "   请先执行部署(菜单1-4)生成订阅链接"
+  fi
+  echo
+  echo "======================================"
+  printf "按回车返回主菜单..."
+  read _
+}
+
+# ---- 菜单9: 查看路径配置 ----
+menu_viewpath() {
+  clear 2>/dev/null || true
+  echo "======================================"
+  echo "  路径配置 (summary.txt)"
+  echo "======================================"
+  echo
+  if [ -f "$HOME/agsbx/summary.txt" ]; then
+    cat "$HOME/agsbx/summary.txt"
+  else
+    echo "❌ 未找到 summary.txt"
+    echo "   请先执行部署(菜单1-4)生成路径配置"
+  fi
+  echo
+  echo "======================================"
+  printf "按回车返回主菜单..."
+  read _
 }
 
 # ===== S8: 命令入口 =====
