@@ -3037,22 +3037,55 @@ menu_cdn() {
   _basepath="${_rd_val:-$_basepath_def}"
   _save_cfg basepath "$_basepath"
 
-  # [4/5] CF API Token + Zone ID (用于acme.sh签发证书)
+  # [4/5] 证书方式: 手动提供 / CF API申请 / 跳过
   echo
-  echo "[4/5] 证书签发需要CF API Token (DNS:Edit权限) 和 Zone ID"
-  echo "      Dashboard → My Profile → API Tokens → Edit zone DNS"
-  local _cfapi _cfzone
-  _rd "  CF API Token" "$_cfapi_def" || _cfapi=""
-  _cfapi="${_rd_val:-}"
-  _rd "  CF Zone ID" "$_cfzone_def" || _cfzone=""
-  _cfzone="${_rd_val:-}"
-  if [ -z "$_cfapi" ] || [ -z "$_cfzone" ]; then
-    echo "⚠ 未提供CF凭证，证书将不会自动签发。"
-    echo "  你可以稍后手动签发或选择手动证书模式"
-  else
-    _save_cfg cfapi "$_cfapi"
-    _save_cfg cfzone "$_cfzone"
-  fi
+  echo "[4/5] 证书方式"
+  echo "  1. 已有证书(提供crt/key文件路径)"
+  echo "  2. CF API自动申请(acme.sh dns_cf, 需Token+Zone ID)"
+  echo "  3. 跳过(只装无TLS协议时可选)"
+  local _certmode
+  _rd "  选择[1-3]" "1" || _certmode="1"
+  _certmode="${_rd_val:-1}"
+  _save_cfg cdn_certmode "$_certmode"
+  local _cfapi _cfzone _certcrt _certkey
+  case "$_certmode" in
+    1)
+      # 手动提供证书文件路径
+      local _certcrt_def=$(_load_cfg certcrt "/etc/argosbx/certs/cdnym.crt")
+      local _certkey_def=$(_load_cfg certkey "/etc/argosbx/certs/cdnym.key")
+      _rd "  证书文件路径(.crt/.pem)" "$_certcrt_def" || _certcrt="$_certcrt_def"
+      _certcrt="${_rd_val:-$_certcrt_def}"
+      _rd "  密钥文件路径(.key)" "$_certkey_def" || _certkey="$_certkey_def"
+      _certkey="${_rd_val:-$_certkey_def}"
+      if [ -f "$_certcrt" ] && [ -f "$_certkey" ]; then
+        mkdir -p /etc/argosbx/certs
+        cp -f "$_certcrt" /etc/argosbx/certs/cdnym.crt
+        cp -f "$_certkey" /etc/argosbx/certs/cdnym.key
+        chmod 600 /etc/argosbx/certs/cdnym.key
+        _save_cfg certcrt "$_certcrt"
+        _save_cfg certkey "$_certkey"
+        echo "  ✅ 证书已复制到 /etc/argosbx/certs/cdnym.crt+key"
+      else
+        echo "  ⚠ 文件不存在，稍后将自动申请"
+        _certmode="2"
+      fi
+      ;;
+    2)
+      # CF API自动申请
+      echo "  Dashboard → My Profile → API Tokens → Edit zone DNS"
+      _rd "  CF API Token" "$_cfapi_def" || _cfapi=""
+      _cfapi="${_rd_val:-}"
+      _rd "  CF Zone ID" "$_cfzone_def" || _cfzone=""
+      _cfzone="${_rd_val:-}"
+      if [ -z "$_cfapi" ] || [ -z "$_cfzone" ]; then
+        echo "  ⚠ 未提供CF凭证，证书不会自动签发"
+      else
+        _save_cfg cfapi "$_cfapi"
+        _save_cfg cfzone "$_cfzone"
+      fi
+      ;;
+    3) echo "  已选跳过证书" ;;
+  esac
 
   # [5/5] 协议多选
   local _cdn_items="VLESS+WS (A组·443固定)
@@ -3085,8 +3118,11 @@ VLESS+WS+ENC (B组·39004 Origin Rules·带ENC)"
   echo "  CDN域名:    $_cdnym"
   echo "  UUID:       $_uuid"
   echo "  Path前缀:   $_basepath"
-  echo "  CF API:     ${_cfapi:+已设置}${_cfapi:-未设置}"
-  echo "  CF Zone:    ${_cfzone:+已设置}${_cfzone:-未设置}"
+  case "$_certmode" in
+    1) echo "  证书方式:   手动提供($_certcrt)" ;;
+    2) echo "  证书方式:   CF API自动申请" ;;
+    3) echo "  证书方式:   跳过" ;;
+  esac
   echo "  已选协议编号: $_sel"
   echo "  (1=VLESS+WS 2=VLESS+XHTTP 3=VMess+WS 4=VLESS+HTTPUpgrade"
   echo "   5=Trojan+WS 6=Trojan+HTTPUpgrade 7=VLESS+gRPC 8=Trojan+gRPC 9=VMess+gRPC"
@@ -3166,17 +3202,39 @@ menu_noncdn() {
   _uuid_sb="${_rd_val:-$_uuid_sb_def}"
   _save_cfg uuid_singbox "$_uuid_sb"
 
-  # [3/5] 证书方式(简化: 复用CDN的CF凭证,或跳过)
+  # [3/5] 证书方式: 已有证书 / CF API申请 / 跳过
   echo
   echo "[3/5] 证书方式"
-  echo "  1. 复用CF API Token签发directnym证书(推荐)"
-  echo "  2. 跳过(只安装无TLS协议: SS-2022/ShadowTLS)"
+  echo "  1. 已有证书(提供crt/key文件路径)"
+  echo "  2. CF API自动申请(acme.sh dns_cf)"
+  echo "  3. 跳过(只装无TLS协议: SS-2022/ShadowTLS)"
   local _certmode
-  _rd "  选择[1-2]" "1" || _certmode="1"
+  _rd "  选择[1-3]" "1" || _certmode="1"
   _certmode="${_rd_val:-1}"
+  _save_cfg noncdn_certmode "$_certmode"
   case "$_certmode" in
     1)
-      # 验证CF凭证已设置
+      # 手动提供证书文件路径
+      local _certcrt_def=$(_load_cfg certcrt "/etc/argosbx/certs/directnym.crt")
+      local _certkey_def=$(_load_cfg certkey "/etc/argosbx/certs/directnym.key")
+      local _certcrt _certkey
+      _rd "  证书文件路径(.crt/.pem)" "$_certcrt_def" || _certcrt="$_certcrt_def"
+      _certcrt="${_rd_val:-$_certcrt_def}"
+      _rd "  密钥文件路径(.key)" "$_certkey_def" || _certkey="$_certkey_def"
+      _certkey="${_rd_val:-$_certkey_def}"
+      if [ -f "$_certcrt" ] && [ -f "$_certkey" ]; then
+        mkdir -p /etc/argosbx/certs
+        cp -f "$_certcrt" /etc/argosbx/certs/directnym.crt
+        cp -f "$_certkey" /etc/argosbx/certs/directnym.key
+        chmod 600 /etc/argosbx/certs/directnym.key
+        echo "  ✅ 证书已复制到 /etc/argosbx/certs/directnym.crt+key"
+      else
+        echo "  ⚠ 文件不存在，稍后将自动申请或跳过"
+        _certmode="3"
+      fi
+      ;;
+    2)
+      # CF API自动申请: 复用CDN菜单的CF凭证或手动输入
       local _cfapi_chk=$(_load_cfg cfapi "")
       local _cfzone_chk=$(_load_cfg cfzone "")
       if [ -z "$_cfapi_chk" ] || [ -z "$_cfzone_chk" ]; then
@@ -3189,7 +3247,7 @@ menu_noncdn() {
         [ -n "$_cfzone_chk" ] && _save_cfg cfzone "$_cfzone_chk"
       fi
       ;;
-    2) echo "  已选跳过证书签发" ;;
+    3) echo "  已选跳过证书签发" ;;
   esac
 
   # [4/5] Reality目标
