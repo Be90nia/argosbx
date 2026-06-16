@@ -2,13 +2,13 @@
   "outbounds": [
     {
       "type": "direct",
-      "tag": "direct"
+      "tag":"direct"
     }
   ],
   "endpoints": [
     {
       "type": "wireguard",
-      "tag": "warp-out",
+      "tag":"warp-out",
       "address": [
         "172.16.0.2/32",
         "__WPV6__/128"

@@ -1,6 +1,6 @@
 {
         "type": "vmess",
-        "tag": "vmess-sb",
+        "tag":"vmess-sb",
         "listen": "::",
         "listen_port": __PORT__,
         "users": [

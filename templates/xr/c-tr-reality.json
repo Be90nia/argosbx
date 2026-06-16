@@ -1,5 +1,5 @@
         {
-          "tag": "trojan-reality",
+          "tag":"trojan-reality",
           "listen": "::",
           "port": __PORT__,
           "protocol": "trojan",

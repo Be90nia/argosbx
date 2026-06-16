@@ -1,5 +1,5 @@
     {
-      "tag": "trojan-xhttp",
+      "tag":"trojan-xhttp",
       "listen": "::",
       "port": 39001,
       "protocol": "trojan",

@@ -1,6 +1,6 @@
         {
             "type": "naive",
-            "tag": "naive-in",
+            "tag":"naive-in",
             "listen": "::",
             "listen_port": __PORT__,
             "users": [

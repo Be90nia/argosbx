@@ -1,6 +1,6 @@
     {
         "type": "hysteria2",
-        "tag": "hy2-sb",
+        "tag":"hy2-sb",
         "listen": "::",
         "listen_port": __PORT__,
         "users": [

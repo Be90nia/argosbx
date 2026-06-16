@@ -1,5 +1,5 @@
         {
-          "tag": "trojan-tls",
+          "tag":"trojan-tls",
           "listen": "::",
           "port": __PORT__,
           "protocol": "trojan",

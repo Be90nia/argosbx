@@ -19,19 +19,19 @@
     "dns": {
         "servers": [
             {
-                "tag": "aliDns",
+                "tag":"aliDns",
                 "type": "https",
                 "server": "dns.alidns.com",
                 "path": "/dns-query",
                 "domain_resolver": "local"
             },
             {
-                "tag": "local",
+                "tag":"local",
                 "type": "udp",
                 "server": "223.5.5.5"
             },
             {
-                "tag": "proxyDns",
+                "tag":"proxyDns",
                 "type": "https",
                 "server": "dns.google",
                 "path": "/dns-query",
@@ -40,7 +40,7 @@
             },
            {
         "type": "fakeip",
-        "tag": "fakeip",
+        "tag":"fakeip",
         "inet4_range": "198.18.0.0/15",
         "inet6_range": "fc00::/18"
       }
@@ -73,7 +73,7 @@
     "inbounds": [
         {
             "type": "tun",
-            "tag": "tun-in",
+            "tag":"tun-in",
             "address": [
                 "172.19.0.1/30",
                 "fd00::1/126"
@@ -127,14 +127,14 @@
         ],
         "rule_set": [
             {
-                "tag": "geosite-cn",
+                "tag":"geosite-cn",
                 "type": "remote",
                 "format": "binary",
                 "url": "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite/geolocation-cn.srs",
                 "download_detour": "direct"
             },
             {
-                "tag": "geoip-cn",
+                "tag":"geoip-cn",
                 "type": "remote",
                 "format": "binary",
                 "url": "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip/cn.srs",
@@ -150,7 +150,7 @@
   "outbounds": [
 __SBXY__
         {
-            "tag": "proxy",
+            "tag":"proxy",
             "type": "selector",
             "default": "auto",
             "outbounds": [
@@ -159,7 +159,7 @@ __SBXY__
             ]
         },
         {
-            "tag": "auto",
+            "tag":"auto",
             "type": "urltest",
             "outbounds": [
             __SBGZ__
@@ -170,7 +170,7 @@ __SBXY__
         },
         {
             "type": "direct",
-            "tag": "direct"
+            "tag":"direct"
         }
     ]
 }

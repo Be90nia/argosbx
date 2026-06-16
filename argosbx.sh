@@ -905,12 +905,12 @@ mxp=mxpt
  echo "VMess-xhttp端口：39002 (B组Origin Rules回源端口)"
  tpl_xr b-mx-xhttp
 fi
-if [ -n "$swp" ]; then
-swp=swpt
- if [ ! -e "$HOME/agsbx/sskey" ]; then
- sskey=$("$HOME/agsbx/sing-box" generate rand 16 --base64)
- echo "$sskey" > "$HOME/agsbx/sskey"
- fi
+ if [ -n "$swp" ]; then
+ swp=swpt
+  if [ ! -e "$HOME/agsbx/sskey" ]; then
+  sskey=$(head -c 16 /dev/urandom | base64 | tr -d '\n')
+  echo "$sskey" > "$HOME/agsbx/sskey"
+  fi
  sskey=$(cat "$HOME/agsbx/sskey")
  echo "Shadowsocks-ws端口：39003 (B组Origin Rules回源端口)"
  tpl_xr b-sw-ws
@@ -1023,10 +1023,10 @@ fi
 if [ -n "$ssp" ]; then
 ssp=sspt
 if [ ! -e "$HOME/agsbx/sskey" ]; then
-sskey=$("$HOME/agsbx/sing-box" generate rand 16 --base64)
+sskey=$(head -c 32 /dev/urandom | base64 | tr -d '\n')
 echo "$sskey" > "$HOME/agsbx/sskey"
 fi
- alloc_port port_ss
+  alloc_port port_ss
   sskey=$(cat "$HOME/agsbx/sskey")
   echo "Shadowsocks-2022端口：$port_ss"
   tpl_sb c-ss "$port_ss"

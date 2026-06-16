@@ -2,13 +2,13 @@
   "outbounds": [
     {
       "protocol": "freedom",
-      "tag": "direct",
+      "tag":"direct",
       "settings": {
       "domainStrategy":"__XRYX__"
      }
     },
     {
-      "tag": "x-warp-out",
+      "tag":"x-warp-out",
       "protocol": "wireguard",
       "settings": {
         "secretKey": "__PVK__",

@@ -1,5 +1,5 @@
     {
-      "tag": "vless-ws-enc",
+      "tag":"vless-ws-enc",
       "listen": "::",
       "port": 39004,
       "protocol": "vless",

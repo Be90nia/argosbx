@@ -1,5 +1,5 @@
     {
-      "tag": "vmess-httpupgrade",
+      "tag":"vmess-httpupgrade",
       "listen": "::",
       "port": 39000,
       "protocol": "vmess",

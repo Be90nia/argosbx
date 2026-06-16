@@ -1,5 +1,5 @@
     {
-      "tag": "ss-ws",
+      "tag":"ss-ws",
       "listen": "::",
       "port": 39003,
       "protocol": "shadowsocks",
