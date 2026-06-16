@@ -2678,6 +2678,7 @@ fi
 echo
 echo "---------------------------------------------------------"
 echo "聚合节点信息，请进入 $HOME/agsbx/jhsub.txt 文件目录查看或者运行 cat $HOME/agsbx/jhsub.txt 查看"
+echo "Path/端口/CF配置汇总，请运行 cat $HOME/agsbx/summary.txt 查看"
 echo "========================================================="
 echo "相关快捷方式如下：(首次安装成功后需重连SSH，agsbx快捷方式才可生效；如未生效，请使用主脚本)"
 showmode
