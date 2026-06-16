@@ -8,13 +8,14 @@
                 "password": "__UUID__"
             }
         ],
-        "ignore_client_bandwidth":false,
+        "ignore_client_bandwidth": false,
         "tls": {
             "enabled": true,
             "alpn": [
                 "h3"
             ],
-            "certificate_path": "__HOME__/agsbx/cert.crt",
-            "key_path": "__HOME__/agsbx/private.key"
-        }
+            "certificate_path": "/etc/argosbx/certs/directnym.crt",
+            "key_path": "/etc/argosbx/certs/directnym.key"
+        },
+        "masquerade": "https://www.bing.com"
     }

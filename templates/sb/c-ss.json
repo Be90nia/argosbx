@@ -3,6 +3,6 @@
             "tag":"ss-2022",
             "listen": "::",
             "listen_port": __PORT__,
-            "method": "2022-blake3-aes-128-gcm",
+            "method": "2022-blake3-aes-256-gcm",
             "password": "__SSKEY__"
     }

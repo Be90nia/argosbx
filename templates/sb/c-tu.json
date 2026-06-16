@@ -1,7 +1,7 @@
         {
             "type":"tuic",
-            "tag": "tuic5-sb",
-            "listen": "::",
+            "tag":"tuic5-sb",
+            "listen":"::",
             "listen_port": __PORT__,
             "users": [
                 {
@@ -9,13 +9,15 @@
                     "password": "__UUID__"
                 }
             ],
-            "congestion_control": "bbr",
+            "congestion_control": "cubic",
+            "max_idle_time": "15m",
+            "zero_rtt_handshake": false,
             "tls":{
                 "enabled": true,
                 "alpn": [
                     "h3"
                 ],
-                "certificate_path": "__HOME__/agsbx/cert.crt",
-                "key_path": "__HOME__/agsbx/private.key"
+                "certificate_path": "/etc/argosbx/certs/directnym.crt",
+                "key_path": "/etc/argosbx/certs/directnym.key"
             }
         }

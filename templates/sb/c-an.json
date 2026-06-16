@@ -11,7 +11,7 @@
             "padding_scheme":[],
             "tls":{
                 "enabled": true,
-                "certificate_path": "__HOME__/agsbx/cert.crt",
-                "key_path": "__HOME__/agsbx/private.key"
+                "certificate_path": "/etc/argosbx/certs/directnym.crt",
+                "key_path": "/etc/argosbx/certs/directnym.key"
             }
         }

@@ -1,5 +1,5 @@
         {
-            "tag": "vmess-xr",
+            "tag": "vmess-ws",
             "listen": "::",
             "port": 2083,
             "protocol": "vmess",
@@ -14,7 +14,8 @@
                 "network": "ws",
                 "security": "tls",
                 "wsSettings": {
-                  "path": "/__BASEPATH__-vm"
+                  "path": "/__BASEPATH__-vm",
+                  "host": ""
                 },
                 "tlsSettings": {
                   "certificates": [{

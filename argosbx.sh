@@ -50,14 +50,14 @@ fi
 
 if find /proc/*/exe -type l 2>/dev/null | grep -E '/proc/[0-9]+/exe' | xargs -r readlink 2>/dev/null | grep -Eq 'agsbx/(s|x)' || pgrep -f 'agsbx/(s|x)' >/dev/null 2>&1; then
 if [ "$1" = "rep" ]; then
-[ "$vwp" = yes ] || [ "$sop" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || [ "$vup" = yes ] || [ "$twp" = yes ] || [ "$tuhp" = yes ] || [ "$vgp" = yes ] || [ "$tgp" = yes ] || [ "$mgp" = yes ] || [ "$mup" = yes ] || [ "$txp" = yes ] || [ "$mxp" = yes ] || [ "$swp" = yes ] || [ "$vwep" = yes ] || [ "$stp" = yes ] || [ "$nap" = yes ] || [ "$trp" = yes ] || [ "$vtp" = yes ] || [ "$ttp" = yes ] || { echo "提示：rep重置协议时，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
+[ "$vwp" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || [ "$vup" = yes ] || [ "$twp" = yes ] || [ "$tuhp" = yes ] || [ "$vgp" = yes ] || [ "$tgp" = yes ] || [ "$mgp" = yes ] || [ "$mup" = yes ] || [ "$txp" = yes ] || [ "$mxp" = yes ] || [ "$swp" = yes ] || [ "$vwep" = yes ] || [ "$stp" = yes ] || [ "$nap" = yes ] || [ "$trp" = yes ] || [ "$vtp" = yes ] || [ "$ttp" = yes ] || { echo "提示：rep重置协议时，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
 fi
 else
 # 未安装场景：如果是交互式TTY且无协议变量，跳过exit让S8菜单处理；否则保持原exit逻辑
 if [ -z "$1" ] && [ -t 0 ] 2>/dev/null && [ -z "${vlp:-}${vmp:-}${vwp:-}${hyp:-}${tup:-}${xhp:-}${vxp:-}${anp:-}${ssp:-}${arp:-}${sop:-}${vup:-}${twp:-}${tuhp:-}${vgp:-}${tgp:-}${mgp:-}${mup:-}${txp:-}${mxp:-}${swp:-}${vwep:-}${stp:-}${nap:-}${trp:-}${vtp:-}${ttp:-}" ]; then
   : # 进入交互菜单模式(在S8入口触发)，跳过协议变量exit检测
 else
-[ "$1" = "del" ] || [ "$vwp" = yes ] || [ "$sop" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || [ "$vup" = yes ] || [ "$twp" = yes ] || [ "$tuhp" = yes ] || [ "$vgp" = yes ] || [ "$tgp" = yes ] || [ "$mgp" = yes ] || [ "$mup" = yes ] || [ "$txp" = yes ] || [ "$mxp" = yes ] || [ "$swp" = yes ] || [ "$vwep" = yes ] || [ "$stp" = yes ] || [ "$nap" = yes ] || [ "$trp" = yes ] || [ "$vtp" = yes ] || [ "$ttp" = yes ] || { echo "提示：未安装argosbx脚本，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
+[ "$1" = "del" ] || [ "$vwp" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || [ "$vup" = yes ] || [ "$twp" = yes ] || [ "$tuhp" = yes ] || [ "$vgp" = yes ] || [ "$tgp" = yes ] || [ "$mgp" = yes ] || [ "$mup" = yes ] || [ "$txp" = yes ] || [ "$mxp" = yes ] || [ "$swp" = yes ] || [ "$vwep" = yes ] || [ "$stp" = yes ] || [ "$nap" = yes ] || [ "$trp" = yes ] || [ "$vtp" = yes ] || [ "$ttp" = yes ] || { echo "提示：未安装argosbx脚本，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
 fi
 fi
 export uuid=${uuid:-''}
@@ -143,7 +143,7 @@ alloc_port() {
   (
     flock 9
     if [ -z "$_apval" ] && [ ! -e "$_apfile" ]; then
-      eval "$_apvar=\$(shuf -i 10000-65535 -n 1)"
+      eval "$_apvar=\$(shuf -i 39017-40000 -n 1)"
       eval "echo \"\$$_apvar\" > \"$_apfile\""
     elif [ -n "$_apval" ]; then
       eval "echo \"\$$_apvar\" > \"$_apfile\""
@@ -209,55 +209,55 @@ argopro_setup() {
   argo_first_port=""
   argo_cf_rules=""
   argo_count=0
-  # vw: VLESS+WS (tag=vless-ws, port=port_vw动态)
+  # vw: VLESS+WS (tag=vless-ws, Argo端口39007)
   if [ -n "$argo_vw" ] && grep -q '"tag":"vless-ws"' "$_xrjson" 2>/dev/null; then
-    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-vw | HTTP | localhost:${port_vw}\\n"
-    [ -z "$argo_first_port" ] && argo_first_port="$port_vw"; argo_count=$((argo_count+1))
+    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-vw | HTTP | localhost:39007\\n"
+    [ -z "$argo_first_port" ] && argo_first_port=39007; argo_count=$((argo_count+1))
   fi
-  # vx: VLESS+XHTTP (tag=vless-xhttp, port=2053固定)
+  # vx: VLESS+XHTTP (tag=vless-xhttp, Argo端口39008)
   if [ -n "$argo_vx" ] && grep -q 'vless-xhttp' "$_xrjson" 2>/dev/null; then
-    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-vx | HTTP | localhost:2053\\n"
-    [ -z "$argo_first_port" ] && argo_first_port=2053; argo_count=$((argo_count+1))
+    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-vx | HTTP | localhost:39008\\n"
+    [ -z "$argo_first_port" ] && argo_first_port=39008; argo_count=$((argo_count+1))
   fi
-  # vm: VMess+WS (tag=vmess-xr, port=2083固定)
-  if [ -n "$argo_vm" ] && grep -q 'vmess-xr' "$_xrjson" 2>/dev/null; then
-    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-vm | HTTP | localhost:2083\\n"
-    [ -z "$argo_first_port" ] && argo_first_port=2083; argo_count=$((argo_count+1))
+  # vm: VMess+WS (tag=vmess-ws, Argo端口39009)
+  if [ -n "$argo_vm" ] && grep -q 'vmess-ws' "$_xrjson" 2>/dev/null; then
+    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-vm | HTTP | localhost:39009\\n"
+    [ -z "$argo_first_port" ] && argo_first_port=39009; argo_count=$((argo_count+1))
   fi
-  # vu: VLESS+HTTPUpgrade+ENC (tag=vless-httpupgrade, port=2087固定)
+  # vu: VLESS+HTTPUpgrade+ENC (tag=vless-httpupgrade, Argo端口39010)
   if [ -n "$argo_vu" ] && grep -q 'vless-httpupgrade' "$_xrjson" 2>/dev/null; then
-    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-vu | HTTP | localhost:2087\\n"
-    [ -z "$argo_first_port" ] && argo_first_port=2087; argo_count=$((argo_count+1))
+    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-vu | HTTP | localhost:39010\\n"
+    [ -z "$argo_first_port" ] && argo_first_port=39010; argo_count=$((argo_count+1))
   fi
-  # tw: Trojan+WS (tag=trojan-ws, port=2096固定)
+  # tw: Trojan+WS (tag=trojan-ws, Argo端口39011)
   if [ -n "$argo_tw" ] && grep -q 'trojan-ws' "$_xrjson" 2>/dev/null; then
-    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-tw | HTTP | localhost:2096\\n"
-    [ -z "$argo_first_port" ] && argo_first_port=2096; argo_count=$((argo_count+1))
+    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-tw | HTTP | localhost:39011\\n"
+    [ -z "$argo_first_port" ] && argo_first_port=39011; argo_count=$((argo_count+1))
   fi
-  # tu: Trojan+HTTPUpgrade (tag=trojan-httpupgrade, port=8443固定)
+  # tu: Trojan+HTTPUpgrade (tag=trojan-httpupgrade, Argo端口39012)
   if [ -n "$argo_tu" ] && grep -q 'trojan-httpupgrade' "$_xrjson" 2>/dev/null; then
-    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-tu | HTTP | localhost:8443\\n"
-    [ -z "$argo_first_port" ] && argo_first_port=8443; argo_count=$((argo_count+1))
+    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-tuh | HTTP | localhost:39012\\n"
+    [ -z "$argo_first_port" ] && argo_first_port=39012; argo_count=$((argo_count+1))
   fi
-  # mu: VMess+HTTPUpgrade (tag=vmess-httpupgrade, port=39000固定, B组)
+  # mu: VMess+HTTPUpgrade (tag=vmess-httpupgrade, Argo端口39013)
   if [ -n "$argo_mu" ] && grep -q 'vmess-httpupgrade' "$_xrjson" 2>/dev/null; then
-    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-mu | HTTP | localhost:39000\\n"
-    [ -z "$argo_first_port" ] && argo_first_port=39000; argo_count=$((argo_count+1))
+    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-mu | HTTP | localhost:39013\\n"
+    [ -z "$argo_first_port" ] && argo_first_port=39013; argo_count=$((argo_count+1))
   fi
-  # tx: Trojan+XHTTP (tag=trojan-xhttp, port=39001固定, B组)
+  # tx: Trojan+XHTTP (tag=trojan-xhttp, Argo端口39014)
   if [ -n "$argo_tx" ] && grep -q 'trojan-xhttp' "$_xrjson" 2>/dev/null; then
-    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-tx | HTTP | localhost:39001\\n"
-    [ -z "$argo_first_port" ] && argo_first_port=39001; argo_count=$((argo_count+1))
+    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-tx | HTTP | localhost:39014\\n"
+    [ -z "$argo_first_port" ] && argo_first_port=39014; argo_count=$((argo_count+1))
   fi
-  # mx: VMess+XHTTP (tag=vmess-xhttp, port=39002固定, B组)
+  # mx: VMess+XHTTP (tag=vmess-xhttp, Argo端口39015)
   if [ -n "$argo_mx" ] && grep -q 'vmess-xhttp' "$_xrjson" 2>/dev/null; then
-    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-mx | HTTP | localhost:39002\\n"
-    [ -z "$argo_first_port" ] && argo_first_port=39002; argo_count=$((argo_count+1))
+    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-mx | HTTP | localhost:39015\\n"
+    [ -z "$argo_first_port" ] && argo_first_port=39015; argo_count=$((argo_count+1))
   fi
-  # sw: SS+WS (tag=ss-ws, port=39003固定, B组)
+  # sw: SS+WS (tag=ss-ws, Argo端口39016)
   if [ -n "$argo_sw" ] && grep -q '"tag":"ss-ws"' "$_xrjson" 2>/dev/null; then
-    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-sw | HTTP | localhost:39003\\n"
-    [ -z "$argo_first_port" ] && argo_first_port=39003; argo_count=$((argo_count+1))
+    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-sw | HTTP | localhost:39016\\n"
+    [ -z "$argo_first_port" ] && argo_first_port=39016; argo_count=$((argo_count+1))
   fi
   echo "$argo_first_port" > "$HOME/agsbx/argoport.log"
   # 持久化选中Argo的已安装协议缩写列表(cip函数读取)
@@ -268,7 +268,7 @@ argopro_setup() {
       case $_p in
         vw) grep -q '"tag":"vless-ws"' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list vw" ;;
         vx) grep -q 'vless-xhttp' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list vx" ;;
-        vm) grep -q 'vmess-xr' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list vm" ;;
+        vm) grep -q 'vmess-ws' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list vm" ;;
         vu) grep -q 'vless-httpupgrade' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list vu" ;;
         tw) grep -q 'trojan-ws' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list tw" ;;
         tu) grep -q 'trojan-httpupgrade' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list tu" ;;
@@ -324,7 +324,7 @@ certsign() {
   "$_acme" --install-cert -d "$_csdomain" -d "*.$_csdomain" \
     --key-file "$_cskey" \
     --fullchain-file "$_cscrt" \
-    --reloadcmd "if command -v systemctl >/dev/null 2>&1; then systemctl restart xray 2>/dev/null; systemctl restart sing-box 2>/dev/null; elif command -v rc-service >/dev/null 2>&1; then rc-service xray restart 2>/dev/null; rc-service sing-box restart 2>/dev/null; fi"
+    --reloadcmd "if command -v systemctl >/dev/null 2>&1; then systemctl restart xray 2>/dev/null || echo 'warn: xray restart failed'; systemctl restart sing-box 2>/dev/null || echo 'warn: sing-box restart failed'; elif command -v rc-service >/dev/null 2>&1; then rc-service xray restart 2>/dev/null || echo 'warn: xray restart failed'; rc-service sing-box restart 2>/dev/null || echo 'warn: sing-box restart failed'; fi"
   unset CF_Token CF_Zone_ID
   echo "✅ 证书签发成功: $_csdomain → $_cscrt"
 }
@@ -592,6 +592,14 @@ echo "UUID密码：$uuid"
 installxray(){
 echo
 echo "=========启用xray内核========="
+# 端口冲突预检测(A组CF固定端口)
+for _cfport in 443 2053 2083 2087 2096 8443 39000 39001 39002 39003 39004; do
+  if ss -tln 2>/dev/null | grep -q ":$_cfport " || netstat -tln 2>/dev/null | grep -q ":$_cfport "; then
+    _conflict_proc=$(ss -tlnp 2>/dev/null | grep ":$_cfport " | head -1 || netstat -tlnp 2>/dev/null | grep ":$_cfport " | head -1)
+    echo "⚠️ 端口 $_cfport 已被占用: $_conflict_proc"
+    echo "   如占用的是xray/sing-box自身(重装场景)可忽略，否则请先释放该端口"
+  fi
+done
 mkdir -p "$HOME/agsbx/xrk"
 if [ ! -e "$HOME/agsbx/xray" ]; then
 upxray
@@ -1047,7 +1055,7 @@ if [ -n "$cdnym" ] && [ -n "$cfapi" ] && { [ -n "$vxp" ] || [ -n "$vwp" ] || [ -
   certsign "$cdnym" "cdnym" || echo "⚠️ CDN证书签发失败，CDN协议可能无法正常工作(CF Full Strict模式)"
 fi
 # 证书签发(直连TLS协议需要directnym证书)
-if [ -n "$directnym" ] && [ -n "$cfapi" ] && { [ -n "$vtp" ] || [ -n "$ttp" ]; }; then
+if [ -n "$directnym" ] && [ -n "$cfapi" ] && { [ -n "$vtp" ] || [ -n "$ttp" ] || [ -n "$hyp" ] || [ -n "$tup" ] || [ -n "$anp" ] || [ -n "$nap" ]; }; then
   certsign "$directnym" "directnym" || echo "⚠️ directnym证书签发失败，直连TLS协议可能无法正常工作"
 fi
 if [ "$hyp" != yes ] && [ "$tup" != yes ] && [ "$anp" != yes ] && [ "$arp" != yes ] && [ "$ssp" != yes ] && [ "$stp" != yes ] && [ "$nap" != yes ]; then
@@ -1308,6 +1316,7 @@ fi
 }
 ipchange
 rm -rf "$HOME/agsbx/jhsub.txt"
+echo "# ========== CDN直通(A组) ==========" >> "$HOME/agsbx/jhsub.txt"
 uuid=$(cat "$HOME/agsbx/uuid")
 server_ip=$(cat "$HOME/agsbx/server_ip.log")
 sxname=$(cat "$HOME/agsbx/name" 2>/dev/null)
@@ -1440,6 +1449,7 @@ echo "$tr_tg_cdn_link"
 echo
 fi
 fi
+echo "# ========== CDN Origin Rules(B组) ==========" >> "$HOME/agsbx/jhsub.txt"
 if grep "{\"tag\":\"vmess-httpupgrade\"}" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 if [ -f "$HOME/agsbx/cdnym" ]; then
 echo "💣【 VMess-httpupgrade-cdn 】B组Origin Rules回源39000，节点信息如下："
@@ -1497,6 +1507,7 @@ echo "$vl_vwe_cdn_link"
 echo
 fi
 fi
+echo "# ========== 非CDN直连(C组) ==========" >> "$HOME/agsbx/jhsub.txt"
 if grep "{\"tag\":\"reality-vision\"}" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 echo "💣【 Vless-tcp-reality-vision 】节点信息如下："
 port_vl_re=$(cat "$HOME/agsbx/port_vl_re")
@@ -1597,7 +1608,7 @@ clsspt1(){
 echo "- ${sxname}Shadowsocks-2022-$hostname"
 }
 fi
-if grep "{\"tag\":\"vmess-xr\"}" "$HOME/agsbx/xr.json" >/dev/null 2>&1 || grep "{\"tag\":\"vmess-sb\"}" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
+if grep "{\"tag\":\"vmess-ws\"}" "$HOME/agsbx/xr.json" >/dev/null 2>&1 || grep "{\"tag\":\"vmess-sb\"}" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
 echo "💣【 Vmess-ws 】节点信息如下："
 vm_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-$hostname\", \"add\": \"$server_ip\", \"port\": \"2083\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$basepath-vm\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"fp\": \"chrome\"}" | base64 -w0)"
 echo "$vm_link" >> "$HOME/agsbx/jhsub.txt"
@@ -1681,7 +1692,7 @@ fi
 if grep "{\"tag\":\"anytls-sb\"}" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
 echo "💣【 AnyTLS 】节点信息如下："
 port_an=$(cat "$HOME/agsbx/port_an")
-an_link="anytls://$uuid@$server_ip:$port_an?insecure=1&allowInsecure=1#${sxname}anytls-$hostname"
+an_link="anytls://$uuid@${directnym:-$server_ip}:$port_an?sni=${directnym:-$server_ip}#${sxname}anytls-$hostname"
 echo "$an_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$an_link"
 echo
@@ -1690,7 +1701,7 @@ cat <<EOF
          {
             "type": "anytls",
             "tag": "${sxname}anytls-$hostname",
-            "server": "$server_ip",
+            "server": "${directnym:-$server_ip}",
             "server_port": $port_an,
             "password": "$uuid",
             "idle_session_check_interval": "30s",
@@ -1729,21 +1740,19 @@ fi
 if grep "{\"tag\":\"anyreality-sb\"}" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
 echo "💣【 Any-Reality 】节点信息如下："
 port_ar=$(cat "$HOME/agsbx/port_ar")
-ar_link="anytls://$uuid@$server_ip:$port_ar?security=reality&sni=$ym_vl_re&fp=chrome&pbk=$public_key_s&sid=$short_id_s&type=tcp&headerType=none#${sxname}any-reality-$hostname"
+ar_link="vless://$uuid@$server_ip:$port_ar?security=reality&sni=$ym_vl_re&fp=chrome&pbk=$public_key_s&sid=$short_id_s&type=tcp&flow=xtls-rprx-vision#${sxname}any-reality-$hostname"
 echo "$ar_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$ar_link"
 echo
 sbarpt(){
 cat <<EOF
     {
-        "type": "anytls",
+        "type": "vless",
         "tag": "${sxname}any-reality-$hostname",
         "server": "$server_ip",
         "server_port": $port_ar,
-        "password": "$uuid",
-        "idle_session_check_interval": "30s",
-        "idle_session_timeout": "30s",
-        "min_idle_session": 5,
+        "uuid": "$uuid",
+        "flow": "xtls-rprx-vision",
         "tls": {
         "enabled": true,
         "server_name": "$ym_vl_re",
@@ -1783,7 +1792,7 @@ else
 hyps=
 fi
 #hy2_link="hysteria2://$uuid@$server_ip:$port_hy2?security=tls&alpn=h3&insecure=1&allowInsecure=1$hyps&sni=www.bing.com#${sxname}hy2-$hostname"
-hy2_link="hysteria2://$uuid@$server_ip:$port_hy2?security=tls&alpn=h3&insecure=0&allowInsecure=0$hyps&sni=www.bing.com&pinSHA256=$SHA256#${sxname}hy2-$hostname"
+hy2_link="hysteria2://$uuid@${directnym:-$server_ip}:$port_hy2/?sni=${directnym:-$server_ip}&insecure=0$hyps#${sxname}hy2-$hostname"
 echo "$hy2_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$hy2_link"
 echo
@@ -1792,7 +1801,7 @@ cat <<EOF
     {
         "type": "hysteria2",
         "tag": "${sxname}hy2-$hostname",
-        "server": "$server_ip",
+        "server": "${directnym:-$server_ip}",
         "server_port": $port_hy2,
 $(sbhy2ports 2>/dev/null)
         "password": "$uuid",
@@ -1832,7 +1841,7 @@ fi
 if grep "{\"tag\":\"tuic5-sb\"}" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
 echo "💣【 Tuic 】节点信息如下："
 port_tu=$(cat "$HOME/agsbx/port_tu")
-tuic5_link="tuic://$uuid:$uuid@$server_ip:$port_tu?congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=www.bing.com&insecure=1&allowInsecure=1&allow_insecure=1#${sxname}tuic-$hostname"
+tuic5_link="tuic://$uuid:$uuid@${directnym:-$server_ip}:$port_tu/?sni=${directnym:-$server_ip}&congestion_control=cubic#${sxname}tuic-$hostname"
 echo "$tuic5_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$tuic5_link"
 echo
@@ -1841,7 +1850,7 @@ cat <<EOF
         {
             "type":"tuic",
             "tag": "${sxname}tuic5-$hostname",
-            "server": "$server_ip",
+            "server": "${directnym:-$server_ip}",
             "server_port": $port_tu,
             "uuid": "$uuid",
             "password": "$uuid",
@@ -1930,7 +1939,7 @@ if grep "{\"tag\":\"naive-in\"}" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
 echo "💣【 Naive 】节点信息如下："
 port_na=$(cat "$HOME/agsbx/port_na")
 nap_user=$(cat "$HOME/agsbx/nap_user")
-nap_link="naive+https://${nap_user}:${uuid}@${server_ip}:${port_na}/#${sxname}naive-$hostname"
+nap_link="naive+https://${nap_user}:${uuid}@${directnym:-$server_ip}:${port_na}/#${sxname}naive-$hostname"
 echo "$nap_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$nap_link"
 echo
@@ -1939,7 +1948,7 @@ cat <<EOF
     {
       "type": "naive",
       "tag": "${sxname}naive-$hostname",
-      "server": "$server_ip",
+      "server": "${directnym:-$server_ip}",
       "server_port": $port_na,
       "username": "$nap_user",
       "password": "$uuid",
@@ -2106,6 +2115,7 @@ argodomain=$(cat "$HOME/agsbx/sbargoym.log" 2>/dev/null)
 [ -z "$argodomain" ] && argodomain=$(grep -a trycloudflare.com "$HOME/agsbx/argo.log" 2>/dev/null | awk 'NR==2{print}' | awk -F// '{print $2}' | awk '{print $1}')
 argo_sel=$(cat "$HOME/agsbx/argopro_sel.log" 2>/dev/null)
 if [ -n "$argodomain" ] && [ -n "$argo_sel" ]; then
+echo "# ========== Argo隧道(D组) ==========" >> "$HOME/agsbx/jhsub.txt"
 # 为每个选中Argo的协议生成分享链接(443+TLS, 80+无TLS)
 for _p in $argo_sel; do
   case $_p in
@@ -2422,6 +2432,68 @@ sbgz=$(printf "%s\n" "$sbgz" | sed '$ s/,$//')
   tpl_client sbox-client.json "$HOME/agsbx/sbox.json"
 
 tpl_client clmi-client.yaml "$HOME/agsbx/clmi.yaml"
+
+# 生成summary.txt (Path/端口/协议汇总表，方便CF配置)
+{
+echo "=== argosbx Path/端口/协议汇总 ==="
+echo "生成时间: $(date '+%Y-%m-%d %H:%M:%S')"
+echo
+echo "--- A组: CDN直通 (小云朵ON, 服务端监听CF HTTPS端口) ---"
+echo "协议              | 端口  | Path/ServiceName    | 客户端地址"
+grep -q '"tag":"vless-ws"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VLESS+WS           | 443   | /$basepath-vw       | ${xvvmcdnym:-cdnym}:443"
+grep -q '"tag":"vless-xhttp"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VLESS+XHTTP+ENC    | 2053  | /$basepath-vx       | ${xvvmcdnym:-cdnym}:2053"
+grep -q '"tag":"vmess-ws"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VMess+WS           | 2083  | /$basepath-vm       | ${xvvmcdnym:-cdnym}:2083"
+grep -q '"tag":"vless-httpupgrade"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VLESS+HTTPUpgrade  | 2087  | /$basepath-vu       | ${xvvmcdnym:-cdnym}:2087"
+grep -q '"tag":"trojan-ws"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "Trojan+WS          | 2096  | /$basepath-tw       | ${xvvmcdnym:-cdnym}:2096"
+grep -q '"tag":"trojan-httpupgrade"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "Trojan+HTTPUpgrade | 8443  | /$basepath-tuh      | ${xvvmcdnym:-cdnym}:8443"
+grep -q '"tag":"vless-grpc"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VLESS+gRPC+ENC     | 443   | $basepath-vg(serviceName) | ${xvvmcdnym:-cdnym}:443"
+grep -q '"tag":"trojan-grpc"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "Trojan+gRPC        | 443   | $basepath-tg(serviceName) | ${xvvmcdnym:-cdnym}:443"
+grep -q '"tag":"vmess-grpc"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VMess+gRPC         | 443   | $basepath-mg(serviceName) | ${xvvmcdnym:-cdnym}:443"
+echo
+echo "--- B组: CDN Origin Rules (客户端443, CF按path回源) ---"
+echo "协议              | 服务端端口 | Path          | Origin Rule"
+grep -q '"tag":"vmess-httpupgrade"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VMess+HTTPUpgrade | 39000      | /$basepath-mu | ${xvvmcdnym:-cdnym}/$basepath-mu → 39000"
+grep -q '"tag":"trojan-xhttp"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "Trojan+XHTTP      | 39001      | /$basepath-tx | ${xvvmcdnym:-cdnym}/$basepath-tx → 39001"
+grep -q '"tag":"vmess-xhttp"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VMess+XHTTP       | 39002      | /$basepath-mx | ${xvvmcdnym:-cdnym}/$basepath-mx → 39002"
+grep -q '"tag":"ss-ws"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "SS+WS             | 39003      | /$basepath-sw | ${xvvmcdnym:-cdnym}/$basepath-sw → 39003"
+grep -q '"tag":"vless-ws-enc"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VLESS+WS+ENC      | 39004      | /$basepath-vwe| ${xvvmcdnym:-cdnym}/$basepath-vwe → 39004"
+echo
+echo "--- C组: 非CDN直连 (小云朵OFF或VPS_IP) ---"
+echo "协议              | 端口  | 域名/SNI            | 证书"
+grep -q '"tag":"xhttp-reality"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VLESS-XHTTP-Reality | $(cat $HOME/agsbx/port_xh 2>/dev/null)   | $ym_vl_re | 无(Reality)"
+grep -q '"tag":"reality-vision"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VLESS-Reality-Vision| $(cat $HOME/agsbx/port_vl_re 2>/dev/null)   | $ym_vl_re | 无(Reality)"
+grep -q '"tag":"hy2-sb"' "$HOME/agsbx/sb.json" 2>/dev/null && echo "Hysteria2          | $(cat $HOME/agsbx/port_hy2 2>/dev/null)   | ${directnym:-$server_ip} | directnym"
+grep -q '"tag":"tuic5-sb"' "$HOME/agsbx/sb.json" 2>/dev/null && echo "TUIC               | $(cat $HOME/agsbx/port_tu 2>/dev/null)   | ${directnym:-$server_ip} | directnym"
+grep -q '"tag":"anytls-sb"' "$HOME/agsbx/sb.json" 2>/dev/null && echo "AnyTLS             | $(cat $HOME/agsbx/port_an 2>/dev/null)   | ${directnym:-$server_ip} | directnym"
+grep -q '"tag":"anyreality-sb"' "$HOME/agsbx/sb.json" 2>/dev/null && echo "Any-Reality        | $(cat $HOME/agsbx/port_ar 2>/dev/null)   | $ym_vl_re | 无(Reality)"
+grep -q '"tag":"ss-2022"' "$HOME/agsbx/sb.json" 2>/dev/null && echo "SS-2022直连        | $(cat $HOME/agsbx/port_ss 2>/dev/null)   | 无 | 无(自身加密)"
+grep -q '"tag":"stls-in"' "$HOME/agsbx/sb.json" 2>/dev/null && echo "ShadowTLS v3+SS    | $(cat $HOME/agsbx/port_st 2>/dev/null)   | ${stls_dest:-www.microsoft.com} | 无(外层TLS伪装)"
+grep -q '"tag":"naive-in"' "$HOME/agsbx/sb.json" 2>/dev/null && echo "Naive              | $(cat $HOME/agsbx/port_na 2>/dev/null)   | ${directnym:-$server_ip} | directnym"
+grep -q '"tag":"trojan-reality"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "Trojan+Reality     | $(cat $HOME/agsbx/port_tr 2>/dev/null)   | $ym_vl_re | 无(Reality)"
+grep -q '"tag":"vless-tls-vision"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VLESS+TLS+Vision   | $(cat $HOME/agsbx/port_vtv 2>/dev/null)   | ${directnym:-$server_ip} | directnym"
+grep -q '"tag":"trojan-tls"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "Trojan+TLS         | $(cat $HOME/agsbx/port_tt 2>/dev/null)   | ${directnym:-$server_ip} | directnym"
+echo
+_argosel=$(cat "$HOME/agsbx/argopro_sel.log" 2>/dev/null)
+if [ -n "$argodomain" ] && [ -n "$_argosel" ]; then
+echo "--- D组: Argo隧道 (CF Tunnel) ---"
+echo "协议              | Path              | 端口   | CF Public Hostname"
+for _ap in $_argosel; do
+  case $_ap in
+    vw) echo "VLESS+WS           | /$basepath-vw     | 39007  | $argodomain ^/$basepath-vw → localhost:39007" ;;
+    vx) echo "VLESS+XHTTP        | /$basepath-vx     | 39008  | $argodomain ^/$basepath-vx → localhost:39008" ;;
+    vm) echo "VMess+WS           | /$basepath-vm     | 39009  | $argodomain ^/$basepath-vm → localhost:39009" ;;
+    vu) echo "VLESS+HTTPUpgrade  | /$basepath-vu     | 39010  | $argodomain ^/$basepath-vu → localhost:39010" ;;
+    tw) echo "Trojan+WS          | /$basepath-tw     | 39011  | $argodomain ^/$basepath-tw → localhost:39011" ;;
+    tu) echo "Trojan+HTTPUpgrade | /$basepath-tuh    | 39012  | $argodomain ^/$basepath-tuh → localhost:39012" ;;
+    mu) echo "VMess+HTTPUpgrade  | /$basepath-mu     | 39013  | $argodomain ^/$basepath-mu → localhost:39013" ;;
+    tx) echo "Trojan+XHTTP       | /$basepath-tx     | 39014  | $argodomain ^/$basepath-tx → localhost:39014" ;;
+    mx) echo "VMess+XHTTP        | /$basepath-mx     | 39015  | $argodomain ^/$basepath-mx → localhost:39015" ;;
+    sw) echo "SS+WS              | /$basepath-sw     | 39016  | $argodomain ^/$basepath-sw → localhost:39016" ;;
+  esac
+done
+fi
+} > "$HOME/agsbx/summary.txt"
+
 echo "---------------------------------------------------------"
 echo "$argoshow"
 echo
@@ -2754,7 +2826,7 @@ _load_cfg() {
 menu_cdn() {
   clear 2>/dev/null || true
   echo "======================================"
-  echo "  菜单1: CDN协议设置 (A+B组共13个)"
+  echo "  菜单1: CDN协议设置 (A+B组共14个)"
   echo "======================================"
   echo
 
@@ -2870,13 +2942,19 @@ VLESS+WS+ENC (B组·39004 Origin Rules·带ENC)"
       7) export vgp=yes ;;
       8) export tgp=yes ;;
       9) export mgp=yes ;;
-      10) export mup=yes ;;
-      11) export txp=yes ;;
-      12) export mxp=yes ;;
-      13) export swp=yes ;;
+      10) export mup=yes; export vmag=yes ;;
+      11) export txp=yes; export vmag=yes ;;
+      12) export mxp=yes; export vmag=yes ;;
+      13) export swp=yes; export vmag=yes ;;
       14) export vwep=yes ;;
     esac
   done
+
+  # gRPC依赖检查: gRPC走443 vless-ws的fallbacks，如果选了gRPC没选VLESS+WS则自动启用
+  if [ -n "${vgp:-}${tgp:-}${mgp:-}" ] && [ -z "${vwp:-}" ]; then
+    echo "⚠️ gRPC协议依赖VLESS+WS(443端口fallbacks)，已自动启用VLESS+WS"
+    export vwp=yes; export vmag=yes
+  fi
 
   echo
   echo "✅ CDN协议配置完成，准备执行安装..."
@@ -2993,7 +3071,9 @@ Trojan+TCP+TLS (xray·TLS)"
 
   # 导出环境变量
   export directnym="${_directnym:-}"
-  export uuid="${_uuid_sb}"  # 注: 这里覆盖CDN的uuid，sing-box用独立uuid
+  # uuid: 不覆盖已有值(如果menu_cdn已设xray uuid则保留)，sing-box用同一uuid
+  [ -z "${uuid:-}" ] && export uuid="${_uuid_sb}"
+  _save_cfg uuid_singbox "$_uuid_sb"
   export ym_vl_re="${_reality}"
 
   # 设置协议开关
