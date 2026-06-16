@@ -50,9 +50,6 @@ fi
 [ -z "${vupt+x}" ] || { vup=yes; vmag=yes; }
 [ -z "${twpt+x}" ] || { twp=yes; vmag=yes; }
 [ -z "${tuhpt+x}" ] || { tuhp=yes; vmag=yes; }
-[ -z "${vgpt+x}" ] || vgp=yes
-[ -z "${tgpt+x}" ] || tgp=yes
-[ -z "${mgpt+x}" ] || mgp=yes
 [ -z "${mupt+x}" ] || mup=yes
 [ -z "${txpt+x}" ] || txp=yes
 [ -z "${mxpt+x}" ] || mxp=yes
@@ -67,16 +64,16 @@ fi
 
 if find /proc/*/exe -type l 2>/dev/null | grep -E '/proc/[0-9]+/exe' | xargs -r readlink 2>/dev/null | grep -Eq 'agsbx/(s|x)' || pgrep -f 'agsbx/(s|x)' >/dev/null 2>&1; then
 if [ "$1" = "rep" ]; then
-[ "$vwp" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || [ "$vup" = yes ] || [ "$twp" = yes ] || [ "$tuhp" = yes ] || [ "$vgp" = yes ] || [ "$tgp" = yes ] || [ "$mgp" = yes ] || [ "$mup" = yes ] || [ "$txp" = yes ] || [ "$mxp" = yes ] || [ "$swp" = yes ] || [ "$vwep" = yes ] || [ "$stp" = yes ] || [ "$nap" = yes ] || [ "$trp" = yes ] || [ "$vtp" = yes ] || [ "$ttp" = yes ] || { echo "提示：rep重置协议时，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
+[ "$vwp" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || [ "$vup" = yes ] || [ "$twp" = yes ] || [ "$tuhp" = yes ] || [ "$mup" = yes ] || [ "$txp" = yes ] || [ "$mxp" = yes ] || [ "$swp" = yes ] || [ "$vwep" = yes ] || [ "$stp" = yes ] || [ "$nap" = yes ] || [ "$trp" = yes ] || [ "$vtp" = yes ] || [ "$ttp" = yes ] || { echo "提示：rep重置协议时，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
 fi
 else
 # 未安装场景：如果是交互式TTY且无协议变量，跳过exit让S8菜单处理；否则保持原exit逻辑
-if [ -z "$1" ] && [ -t 0 ] 2>/dev/null && [ -z "${vlp:-}${vmp:-}${vwp:-}${hyp:-}${tup:-}${xhp:-}${vxp:-}${anp:-}${ssp:-}${arp:-}${sop:-}${vup:-}${twp:-}${tuhp:-}${vgp:-}${tgp:-}${mgp:-}${mup:-}${txp:-}${mxp:-}${swp:-}${vwep:-}${stp:-}${nap:-}${trp:-}${vtp:-}${ttp:-}" ]; then
+if [ -z "$1" ] && [ -t 0 ] 2>/dev/null && [ -z "${vlp:-}${vmp:-}${vwp:-}${hyp:-}${tup:-}${xhp:-}${vxp:-}${anp:-}${ssp:-}${arp:-}${sop:-}${vup:-}${twp:-}${tuhp:-}${mup:-}${txp:-}${mxp:-}${swp:-}${vwep:-}${stp:-}${nap:-}${trp:-}${vtp:-}${ttp:-}" ]; then
   : # 进入交互菜单模式(在S8入口触发)，跳过协议变量exit检测
 elif [ -n "$1" ]; then
   : # 有子命令(cert/doctor/backup/restore/list等)，跳过协议变量检测
 else
-[ "$1" = "del" ] || [ "$vwp" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || [ "$vup" = yes ] || [ "$twp" = yes ] || [ "$tuhp" = yes ] || [ "$vgp" = yes ] || [ "$tgp" = yes ] || [ "$mgp" = yes ] || [ "$mup" = yes ] || [ "$txp" = yes ] || [ "$mxp" = yes ] || [ "$swp" = yes ] || [ "$vwep" = yes ] || [ "$stp" = yes ] || [ "$nap" = yes ] || [ "$trp" = yes ] || [ "$vtp" = yes ] || [ "$ttp" = yes ] || { echo "提示：未安装argosbx脚本，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
+[ "$1" = "del" ] || [ "$vwp" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || [ "$vup" = yes ] || [ "$twp" = yes ] || [ "$tuhp" = yes ] || [ "$mup" = yes ] || [ "$txp" = yes ] || [ "$mxp" = yes ] || [ "$swp" = yes ] || [ "$vwep" = yes ] || [ "$stp" = yes ] || [ "$nap" = yes ] || [ "$trp" = yes ] || [ "$vtp" = yes ] || [ "$ttp" = yes ] || { echo "提示：未安装argosbx脚本，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
 fi
 fi
 export uuid=${uuid:-''}
@@ -778,7 +775,7 @@ private_key_x=$(cat "$HOME/agsbx/xrk/private_key")
 public_key_x=$(cat "$HOME/agsbx/xrk/public_key")
 short_id_x=$(cat "$HOME/agsbx/xrk/short_id")
 fi
-if [ -n "$xhp" ] || [ -n "$vxp" ] || [ -n "$vwp" ] || [ -n "$vup" ] || [ -n "$vgp" ] || [ -n "$vwep" ]; then
+if [ -n "$xhp" ] || [ -n "$vxp" ] || [ -n "$vwp" ] || [ -n "$vup" ] || [ -n "$vwep" ]; then
 if [ ! -e "$HOME/agsbx/xrk/dekey" ]; then
 vlkey=$("$HOME/agsbx/xray" vlessenc)
 dekey=$(echo "$vlkey" | grep '"decryption":' | sed -n '2p' | cut -d' ' -f2- | tr -d '"')
@@ -790,8 +787,8 @@ fi
   enkey=$(cat "$HOME/agsbx/xrk/enkey")
 fi
 
-# basepath生成(CDN协议path和gRPC serviceName需要)
-if [ -n "$vxp" ] || [ -n "$vwp" ] || [ -n "$vup" ] || [ -n "$twp" ] || [ -n "$tuhp" ] || [ -n "$vgp" ] || [ -n "$tgp" ] || [ -n "$mgp" ] || [ -n "$mup" ] || [ -n "$txp" ] || [ -n "$mxp" ] || [ -n "$swp" ] || [ -n "$vwep" ]; then
+# basepath生成(CDN协议path需要)
+if [ -n "$vxp" ] || [ -n "$vwp" ] || [ -n "$vup" ] || [ -n "$twp" ] || [ -n "$tuhp" ] || [ -n "$mup" ] || [ -n "$txp" ] || [ -n "$mxp" ] || [ -n "$swp" ] || [ -n "$vwep" ]; then
   gen_basepath
   echo "Basepath: $basepath"
 fi
@@ -821,7 +818,7 @@ vxp=vxptargo
 fi
 if [ -n "$vwp" ]; then
 vwp=vwpt
- echo "Vless-ws端口：443 (CF HTTPS主端口, 含gRPC fallbacks)"
+ echo "Vless-ws端口：443 (CF HTTPS主端口)"
 cat >> "$HOME/agsbx/xr.json" <<EOF
     {
       "tag":"vless-ws",
@@ -837,21 +834,6 @@ cat >> "$HOME/agsbx/xr.json" <<EOF
         "decryption": "none",
         "fallbacks": [
 EOF
-if [ -n "$vgp" ]; then
-cat >> "$HOME/agsbx/xr.json" <<EOF
-          {"path":"/${basepath}-vg","dest":"@vless-grpc","xver":0},
-EOF
-fi
-if [ -n "$tgp" ]; then
-cat >> "$HOME/agsbx/xr.json" <<EOF
-          {"path":"/${basepath}-tg","dest":"@trojan-grpc","xver":0},
-EOF
-fi
-if [ -n "$mgp" ]; then
-cat >> "$HOME/agsbx/xr.json" <<EOF
-          {"path":"/${basepath}-mg","dest":"@vmess-grpc","xver":0},
-EOF
-fi
 cat >> "$HOME/agsbx/xr.json" <<EOF
           {"dest":444}
         ]
@@ -898,30 +880,9 @@ fi
 if [ -n "$tuhp" ]; then
 tuhp=tuhpt
  echo "Trojan-httpupgrade端口：8443 (CF HTTPS固定端口)"
-tpl_xr a-tu-httpupgrade
+ tpl_xr a-tu-httpupgrade
 else
 tuhp=tuhptargo
-fi
-if [ -n "$vgp" ]; then
-vgp=vgpt
- echo "Vless-grpc-enc：443 fallbacks转发 (Unix socket @vless-grpc, TLS在443终止)"
-tpl_xr a-vg-grpc
-else
-vgp=vgptargo
-fi
-if [ -n "$tgp" ]; then
-tgp=tgpt
- echo "Trojan-grpc：443 fallbacks转发 (Unix socket @trojan-grpc, TLS在443终止)"
-tpl_xr a-tg-grpc
-else
-tgp=tgptargo
-fi
-if [ -n "$mgp" ]; then
-mgp=mgpt
- echo "Vmess-grpc：443 fallbacks转发 (Unix socket @vmess-grpc, TLS在443终止)"
-tpl_xr a-mg-grpc
-else
-mgp=mgptargo
 fi
 if [ -n "$mup" ]; then
 mup=mupt
@@ -1232,13 +1193,13 @@ xrsbso
 warpsx
 xrsbout
 hyp="hyptargo"; tup="tuptargo"; anp="anptargo"; arp="arptargo"; ssp="ssptargo"; stp="stptargo"; nap="naptargo"
-elif [ "$xhp" != yes ] && [ "$vlp" != yes ] && [ "$vxp" != yes ] && [ "$vwp" != yes ] && [ "$vup" != yes ] && [ "$twp" != yes ] && [ "$tuhp" != yes ] && [ "$vgp" != yes ] && [ "$tgp" != yes ] && [ "$mgp" != yes ] && [ "$mup" != yes ] && [ "$txp" != yes ] && [ "$mxp" != yes ] && [ "$swp" != yes ] && [ "$vwep" != yes ] && [ "$trp" != yes ] && [ "$vtp" != yes ] && [ "$ttp" != yes ]; then
+elif [ "$xhp" != yes ] && [ "$vlp" != yes ] && [ "$vxp" != yes ] && [ "$vwp" != yes ] && [ "$vup" != yes ] && [ "$twp" != yes ] && [ "$tuhp" != yes ] && [ "$mup" != yes ] && [ "$txp" != yes ] && [ "$mxp" != yes ] && [ "$swp" != yes ] && [ "$vwep" != yes ] && [ "$trp" != yes ] && [ "$vtp" != yes ] && [ "$ttp" != yes ]; then
 installsb
 xrsbvm
 xrsbso
 warpsx
 xrsbout
-xhp="xhptargo"; vlp="vlptargo"; vxp="vxptargo"; vwp="vwptargo"; vup="vuptargo"; twp="twptargo"; tuhp="tuhptargo"; vgp="vgptargo"; tgp="tgptargo"; mgp="mgptargo"; mup="muptargo"; txp="txptargo"; mxp="mxptargo"; swp="swptargo"; vwep="vweptargo"; trp="trptargo"; vtp="vtptargo"; ttp="ttptargo"
+xhp="xhptargo"; vlp="vlptargo"; vxp="vxptargo"; vwp="vwptargo"; vup="vuptargo"; twp="twptargo"; tuhp="tuhptargo"; mup="muptargo"; txp="txptargo"; mxp="mxptargo"; swp="swptargo"; vwep="vweptargo"; trp="trptargo"; vtp="vtptargo"; ttp="ttptargo"
 else
 installsb
 installxray
@@ -1600,28 +1561,6 @@ echo "$tr_tuh_cdn_link"
 echo
 fi
 fi
-if grep "\"tag\":\"vless-grpc\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
-if [ -f "$HOME/agsbx/cdnym" ]; then
-echo "💣【 Vless-grpc-enc-cdn 】支持ENC加密，gRPC走443 fallbacks，节点信息如下："
-echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定443端口+TLS"
-echo "⚠️ gRPC需在CF Dashboard → Network → 开启gRPC开关"
-vl_vg_cdn_link="vless://$uuid@yg$(cfipsj).ygkkk.dpdns.org:443?encryption=$enkey&type=grpc&serviceName=${basepath}-vg&authority=$xvvmcdnym&mode=gun&security=tls&sni=$xvvmcdnym&fp=chrome#${sxname}vl-grpc-enc-cdn-$hostname"
-echo "$vl_vg_cdn_link" >> "$HOME/agsbx/jhsub.txt"
-echo "$vl_vg_cdn_link"
-echo
-fi
-fi
-if grep "\"tag\":\"trojan-grpc\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
-if [ -f "$HOME/agsbx/cdnym" ]; then
-echo "💣【 Trojan-grpc-cdn 】gRPC走443 fallbacks，节点信息如下："
-echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定443端口+TLS"
-echo "⚠️ gRPC需在CF Dashboard → Network → 开启gRPC开关"
-tr_tg_cdn_link="trojan://$uuid@yg$(cfipsj).ygkkk.dpdns.org:443?security=tls&type=grpc&serviceName=${basepath}-tg&authority=$xvvmcdnym&mode=gun&sni=$xvvmcdnym&fp=chrome#${sxname}tr-grpc-cdn-$hostname"
-echo "$tr_tg_cdn_link" >> "$HOME/agsbx/jhsub.txt"
-echo "$tr_tg_cdn_link"
-echo
-fi
-fi
 echo "# ========== CDN Origin Rules(B组) ==========" >> "$HOME/agsbx/jhsub.txt"
 if grep "\"tag\":\"vmess-httpupgrade\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 if [ -f "$HOME/agsbx/cdnym" ]; then
@@ -1848,17 +1787,6 @@ if [ -f "$HOME/agsbx/cdnym" ]; then
   vm_cdn_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-cdn-$hostname\", \"add\": \"yg$(cfipsj).ygkkk.dpdns.org\", \"port\": \"2083\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$basepath-vm\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)"
 echo "$vm_cdn_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vm_cdn_link"
-echo
-fi
-fi
-if grep "\"tag\":\"vmess-grpc\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
-if [ -f "$HOME/agsbx/cdnym" ]; then
-echo "💣【 Vmess-grpc-cdn 】gRPC走443 fallbacks，节点信息如下："
-echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定443端口+TLS"
-echo "⚠️ gRPC需在CF Dashboard → Network → 开启gRPC开关"
-vm_mg_cdn_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-grpc-cdn-$hostname\", \"add\": \"yg$(cfipsj).ygkkk.dpdns.org\", \"port\": \"443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"grpc\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"$basepath-mg\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"fp\": \"chrome\"}" | base64 -w0)"
-echo "$vm_mg_cdn_link" >> "$HOME/agsbx/jhsub.txt"
-echo "$vm_mg_cdn_link"
 echo
 fi
 fi
@@ -2619,9 +2547,6 @@ grep -q '"tag":"vmess-ws"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VMess+WS  
 grep -q '"tag":"vless-httpupgrade"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VLESS+HTTPUpgrade  | 2087  | /$basepath-vu       | ${xvvmcdnym:-cdnym}:2087"
 grep -q '"tag":"trojan-ws"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "Trojan+WS          | 2096  | /$basepath-tw       | ${xvvmcdnym:-cdnym}:2096"
 grep -q '"tag":"trojan-httpupgrade"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "Trojan+HTTPUpgrade | 8443  | /$basepath-tuh      | ${xvvmcdnym:-cdnym}:8443"
-grep -q '"tag":"vless-grpc"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VLESS+gRPC+ENC     | 443   | $basepath-vg(serviceName) | ${xvvmcdnym:-cdnym}:443"
-grep -q '"tag":"trojan-grpc"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "Trojan+gRPC        | 443   | $basepath-tg(serviceName) | ${xvvmcdnym:-cdnym}:443"
-grep -q '"tag":"vmess-grpc"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VMess+gRPC         | 443   | $basepath-mg(serviceName) | ${xvvmcdnym:-cdnym}:443"
 echo
 echo "--- B组: CDN Origin Rules (客户端443, CF按path回源) ---"
 echo "协议              | 服务端端口 | Path          | Origin Rule"
@@ -3030,7 +2955,7 @@ _load_cfg() {
 menu_cdn() {
   clear 2>/dev/null || true
   echo "======================================"
-  echo "  菜单1: CDN协议设置 (A+B组共14个)"
+  echo "  菜单1: CDN协议设置 (A+B组共11个)"
   echo "======================================"
   echo
 
@@ -3158,9 +3083,6 @@ VMess+WS (A组·2083固定)
 VLESS+HTTPUpgrade (A组·2087固定)
 Trojan+WS (A组·2096固定)
 Trojan+HTTPUpgrade (A组·8443固定)
-VLESS+gRPC (A组·443 fallbacks)
-Trojan+gRPC (A组·443 fallbacks)
-VMess+gRPC (A组·443 fallbacks)
 VMess+HTTPUpgrade (B组·39000 Origin Rules)
 Trojan+XHTTP (B组·39001 Origin Rules·mode=packet-up)
 VMess+XHTTP (B组·39002 Origin Rules·mode=packet-up)
@@ -3168,9 +3090,8 @@ Shadowsocks+WS (B组·39003 Origin Rules·SIP002)
 VLESS+WS+ENC (B组·39004 Origin Rules·带ENC)"
 
   echo
-  echo "[5/5] 选择CDN协议 (A组9个 + B组5个)"
-  echo "  注意: gRPC协议(#7-9)需CF Dashboard→Network→开启gRPC"
-  echo "        B组协议(#10-14)需CF Origin Rules(安装后自动输出指引)"
+  echo "[5/5] 选择CDN协议 (A组6个 + B组5个)"
+  echo "  注意: B组协议(#7-11)需CF Origin Rules(安装后自动输出指引)"
   _checklist "CDN协议多选" "$_cdn_items" "$_cdnsel_def" || { echo "已取消"; return 1; }
   local _sel="$_chk_sel"
 
@@ -3189,8 +3110,8 @@ VLESS+WS+ENC (B组·39004 Origin Rules·带ENC)"
   esac
   echo "  已选协议编号: $_sel"
   echo "  (1=VLESS+WS 2=VLESS+XHTTP 3=VMess+WS 4=VLESS+HTTPUpgrade"
-  echo "   5=Trojan+WS 6=Trojan+HTTPUpgrade 7=VLESS+gRPC 8=Trojan+gRPC 9=VMess+gRPC"
-  echo "   10=VMess+HTTPUpgrade 11=Trojan+XHTTP 12=VMess+XHTTP 13=SS+WS 14=VLESS+WS+ENC)"
+  echo "   5=Trojan+WS 6=Trojan+HTTPUpgrade"
+  echo "   7=VMess+HTTPUpgrade 8=Trojan+XHTTP 9=VMess+XHTTP 10=SS+WS 11=VLESS+WS+ENC)"
   echo "======================================"
   if ! _yn "确认开始部署?" y; then
     echo "已取消，返回主菜单"
@@ -3214,22 +3135,13 @@ VLESS+WS+ENC (B组·39004 Origin Rules·带ENC)"
       4) export vup=yes; export vmag=yes ;;
       5) export twp=yes; export vmag=yes ;;
       6) export tuhp=yes; export vmag=yes ;;
-      7) export vgp=yes ;;
-      8) export tgp=yes ;;
-      9) export mgp=yes ;;
-      10) export mup=yes; export vmag=yes ;;
-      11) export txp=yes; export vmag=yes ;;
-      12) export mxp=yes; export vmag=yes ;;
-      13) export swp=yes; export vmag=yes ;;
-      14) export vwep=yes ;;
+      7) export mup=yes; export vmag=yes ;;
+      8) export txp=yes; export vmag=yes ;;
+      9) export mxp=yes; export vmag=yes ;;
+      10) export swp=yes; export vmag=yes ;;
+      11) export vwep=yes ;;
     esac
   done
-
-  # gRPC依赖检查: gRPC走443 vless-ws的fallbacks，如果选了gRPC没选VLESS+WS则自动启用
-  if [ -n "${vgp:-}${tgp:-}${mgp:-}" ] && [ -z "${vwp:-}" ]; then
-    echo "⚠️ gRPC协议依赖VLESS+WS(443端口fallbacks)，已自动启用VLESS+WS"
-    export vwp=yes; export vmag=yes
-  fi
 
   echo
   echo "✅ CDN协议配置完成，准备执行安装..."
@@ -3605,7 +3517,7 @@ showmenu_main() {
       echo "║  状态: ⚠ 未安装                         ║"
     fi
     echo "╠══════════════════════════════════════════╣"
-    echo "║  1. CDN协议设置 (A+B组14个)             ║"
+    echo "║  1. CDN协议设置 (A+B组11个)             ║"
     echo "║  2. 非CDN协议设置 (C组12个)             ║"
     echo "║  3. Argo隧道设置 (D组10变体)            ║"
     echo "║  4. 全部部署 (1→2→3依次执行)           ║"
@@ -3680,7 +3592,7 @@ menu_viewpath() {
 # --- 交互式菜单入口 (V2.9.1 第十四章) ---
 # 此时所有函数已定义。无子命令 + 是TTY + 未设置任何协议变量 → 进入交互菜单
 if [ -z "$1" ] && [ -t 0 ] 2>/dev/null; then
-  if [ -z "${vlp:-}${vmp:-}${vwp:-}${hyp:-}${tup:-}${xhp:-}${vxp:-}${anp:-}${ssp:-}${arp:-}${sop:-}${vup:-}${twp:-}${tuhp:-}${vgp:-}${tgp:-}${mgp:-}${mup:-}${txp:-}${mxp:-}${swp:-}${vwep:-}${stp:-}${nap:-}${trp:-}${vtp:-}${ttp:-}" ]; then
+  if [ -z "${vlp:-}${vmp:-}${vwp:-}${hyp:-}${tup:-}${xhp:-}${vxp:-}${anp:-}${ssp:-}${arp:-}${sop:-}${vup:-}${twp:-}${tuhp:-}${mup:-}${txp:-}${mxp:-}${swp:-}${vwep:-}${stp:-}${nap:-}${trp:-}${vtp:-}${ttp:-}" ]; then
     showmenu_main
     # 菜单返回后，变量已被export设置，继续走主安装流程(ins/cip等)
     _menu_returned=1; export _menu_returned
@@ -3903,8 +3815,6 @@ fi
 echo
 echo "注意1: 使用\"starts with\"而非\"contains\"，避免子串误匹配"
 echo "注意2: CF Free计划限10条规则，B组最多5条Origin Rules"
-echo "注意3: gRPC协议(VLESS/Trojan/VMess gRPC)走A组443 fallbacks，不走Origin Rules"
-echo "注意4: 使用gRPC前需在CF Dashboard → Network → 开启gRPC开关"
 echo
 fi
 else
