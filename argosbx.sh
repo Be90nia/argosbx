@@ -73,6 +73,8 @@ else
 # 未安装场景：如果是交互式TTY且无协议变量，跳过exit让S8菜单处理；否则保持原exit逻辑
 if [ -z "$1" ] && [ -t 0 ] 2>/dev/null && [ -z "${vlp:-}${vmp:-}${vwp:-}${hyp:-}${tup:-}${xhp:-}${vxp:-}${anp:-}${ssp:-}${arp:-}${sop:-}${vup:-}${twp:-}${tuhp:-}${vgp:-}${tgp:-}${mgp:-}${mup:-}${txp:-}${mxp:-}${swp:-}${vwep:-}${stp:-}${nap:-}${trp:-}${vtp:-}${ttp:-}" ]; then
   : # 进入交互菜单模式(在S8入口触发)，跳过协议变量exit检测
+elif [ -n "$1" ]; then
+  : # 有子命令(cert/doctor/backup/restore/list等)，跳过协议变量检测
 else
 [ "$1" = "del" ] || [ "$vwp" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || [ "$vup" = yes ] || [ "$twp" = yes ] || [ "$tuhp" = yes ] || [ "$vgp" = yes ] || [ "$tgp" = yes ] || [ "$mgp" = yes ] || [ "$mup" = yes ] || [ "$txp" = yes ] || [ "$mxp" = yes ] || [ "$swp" = yes ] || [ "$vwep" = yes ] || [ "$stp" = yes ] || [ "$nap" = yes ] || [ "$trp" = yes ] || [ "$vtp" = yes ] || [ "$ttp" = yes ] || { echo "提示：未安装argosbx脚本，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
 fi
