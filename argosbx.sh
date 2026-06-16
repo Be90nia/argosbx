@@ -488,8 +488,9 @@ if command -v apk >/dev/null 2>&1; then
 apk update >/dev/null 2>&1 && apk add --no-cache bash busybox-extras gcompat libc6-compat iptables >/dev/null 2>&1
 elif command -v apt >/dev/null 2>&1; then
 export DEBIAN_FRONTEND=noninteractive
-printf 'iptables-persistent iptables-persistent/autosave_v4 boolean true\niptables-persistent iptables-persistent/autosave_v6 boolean true\n' | debconf-set-selections
-apt update >/dev/null 2>&1 && apt install -y busybox coreutils util-linux iptables iptables-persistent cron >/dev/null 2>&1
+# 不安装iptables-persistent(会冲突卸载ufw), 不用debconf-set-selections(会覆盖防火墙规则)
+apt update >/dev/null 2>&1 && apt install -y busybox coreutils util-linux cron >/dev/null 2>&1
+command -v iptables >/dev/null 2>&1 || apt install -y iptables >/dev/null 2>&1
 fi
 touch sbx_update
 fi
@@ -2723,10 +2724,7 @@ rc-service "$svc" stop >/dev/null 2>&1
 rc-update del "$svc" default >/dev/null 2>&1
 done
 rm -rf /etc/init.d/{sing-box,xray,argo} /etc/local.d/alpineargosbx.start /etc/local.d/alpinesubsbx.start
-iptables -t nat -F PREROUTING >/dev/null 2>&1
-netfilter-persistent save >/dev/null 2>&1
-rc-service iptables save >/dev/null 2>&1
-rc-service ip6tables save >/dev/null 2>&1
+# 不动iptables(避免清空已有防火墙规则)
 fi
 }
 xrestart(){
@@ -3801,13 +3799,7 @@ echo "CPU架构：$cpu"
 echo "Argosbx脚本未安装，开始安装…………" && sleep 1
 if [ -n "$oap" ]; then
 setenforce 0 >/dev/null 2>&1
-iptables -P INPUT ACCEPT >/dev/null 2>&1
-iptables -P FORWARD ACCEPT >/dev/null 2>&1
-iptables -P OUTPUT ACCEPT >/dev/null 2>&1
-iptables -F >/dev/null 2>&1
-netfilter-persistent save >/dev/null 2>&1
-echo
-echo "iptables执行开放所有端口"
+echo "已跳过iptables操作(避免清空已有防火墙规则)"
 fi
 ins
 if [ -n "$sub" ]; then
@@ -3865,20 +3857,15 @@ fi
 if [ -n "$hyjpt" ] && [ -n "$hyp" ]; then
 echo
 echo "设置Hysteria2协议的跳跃端口：$hyjpt"
-iptables -t nat -F PREROUTING >/dev/null 2>&1
-ip6tables -t nat -F PREROUTING >/dev/null 2>&1
+# 不清空整个PREROUTING链(避免删除已有防火墙规则), 先删除自己之前添加的DNAT规则
 hyport=$(cat "$HOME/agsbx/port_hy2")
 for port in $hyjpt; do
-iptables -t nat -A PREROUTING -p udp --dport "$port" -j DNAT --to-destination :$hyport
-ip6tables -t nat -A PREROUTING -p udp --dport "$port" -j DNAT --to-destination :$hyport
+iptables -t nat -D PREROUTING -p udp --dport "$port" -j DNAT --to-destination :"$hyport" 2>/dev/null
+ip6tables -t nat -D PREROUTING -p udp --dport "$port" -j DNAT --to-destination :"$hyport" 2>/dev/null
+iptables -t nat -A PREROUTING -p udp --dport "$port" -j DNAT --to-destination :"$hyport"
+ip6tables -t nat -A PREROUTING -p udp --dport "$port" -j DNAT --to-destination :"$hyport"
 done
-netfilter-persistent save >/dev/null 2>&1
-if command -v rc-service >/dev/null 2>&1 && command -v rc-update >/dev/null 2>&1; then
-rc-update show default 2>/dev/null | grep -q 'iptables' || rc-update add iptables >/dev/null 2>&1
-rc-update show default 2>/dev/null | grep -q 'ip6tables' || rc-update add ip6tables >/dev/null 2>&1
-rc-service iptables save >/dev/null 2>&1
-rc-service ip6tables save >/dev/null 2>&1
-fi
+# 不调用netfilter-persistent save(避免覆盖已有防火墙持久化规则)
 fi
 cip
 echo
