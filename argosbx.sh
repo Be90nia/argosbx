@@ -1534,7 +1534,7 @@ echo
 if [ -f "$HOME/agsbx/cdnym" ]; then
  echo "💣【 Vless-xhttp-enc-cdn 】支持ENC加密，节点信息如下："
  echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定2053端口+TLS"
- vl_vx_cdn_link="vless://$uuid@yg$(cfipsj).ygkkk.dpdns.org:443?encryption=$enkey&type=xhttp&host=$xvvmcdnym&path=/${basepath}-vx&mode=packet-up&security=tls&sni=$xvvmcdnym&fp=chrome#${sxname}vl-xhttp-enc-cdn-$hostname"
+ vl_vx_cdn_link="vless://$uuid@yg$(cfipsj).ygkkk.dpdns.org:2053?encryption=$enkey&type=xhttp&host=$xvvmcdnym&path=/${basepath}-vx&mode=packet-up&security=tls&sni=$xvvmcdnym&fp=chrome#${sxname}vl-xhttp-enc-cdn-$hostname"
 echo "$vl_vx_cdn_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vl_vx_cdn_link"
 echo
@@ -1563,8 +1563,8 @@ echo "$vl_vu_link"
 echo
 if [ -f "$HOME/agsbx/cdnym" ]; then
  echo "💣【 Vless-httpupgrade-enc-cdn 】支持ENC加密，节点信息如下："
- echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定443端口+TLS"
- vl_vu_cdn_link="vless://$uuid@yg$(cfipsj).ygkkk.dpdns.org:443?encryption=$enkey&type=httpupgrade&host=$xvvmcdnym&path=/${basepath}-vu&security=tls&sni=$xvvmcdnym&fp=chrome#${sxname}vl-httpupgrade-enc-cdn-$hostname"
+  echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定2087端口+TLS"
+  vl_vu_cdn_link="vless://$uuid@yg$(cfipsj).ygkkk.dpdns.org:2087?encryption=$enkey&type=httpupgrade&host=$xvvmcdnym&path=/${basepath}-vu&security=tls&sni=$xvvmcdnym&fp=chrome#${sxname}vl-httpupgrade-enc-cdn-$hostname"
 echo "$vl_vu_cdn_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vl_vu_cdn_link"
 echo
@@ -1578,8 +1578,8 @@ echo "$tr_tw_link"
 echo
 if [ -f "$HOME/agsbx/cdnym" ]; then
  echo "💣【 Trojan-ws-cdn 】节点信息如下："
- echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定443端口+TLS"
- tr_tw_cdn_link="trojan://$uuid@yg$(cfipsj).ygkkk.dpdns.org:443?security=tls&type=ws&host=$xvvmcdnym&path=/${basepath}-tw&sni=$xvvmcdnym&fp=chrome#${sxname}tr-ws-cdn-$hostname"
+  echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定2096端口+TLS"
+  tr_tw_cdn_link="trojan://$uuid@yg$(cfipsj).ygkkk.dpdns.org:2096?security=tls&type=ws&host=$xvvmcdnym&path=/${basepath}-tw&sni=$xvvmcdnym&fp=chrome#${sxname}tr-ws-cdn-$hostname"
 echo "$tr_tw_cdn_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$tr_tw_cdn_link"
 echo
@@ -1593,8 +1593,8 @@ echo "$tr_tuh_link"
 echo
 if [ -f "$HOME/agsbx/cdnym" ]; then
  echo "💣【 Trojan-httpupgrade-cdn 】节点信息如下："
- echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定443端口+TLS"
- tr_tuh_cdn_link="trojan://$uuid@yg$(cfipsj).ygkkk.dpdns.org:443?security=tls&type=httpupgrade&host=$xvvmcdnym&path=/${basepath}-tuh&sni=$xvvmcdnym&fp=chrome#${sxname}tr-httpupgrade-cdn-$hostname"
+  echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定8443端口+TLS"
+  tr_tuh_cdn_link="trojan://$uuid@yg$(cfipsj).ygkkk.dpdns.org:8443?security=tls&type=httpupgrade&host=$xvvmcdnym&path=/${basepath}-tuh&sni=$xvvmcdnym&fp=chrome#${sxname}tr-httpupgrade-cdn-$hostname"
 echo "$tr_tuh_cdn_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$tr_tuh_cdn_link"
 echo
@@ -1844,8 +1844,8 @@ echo "- ${sxname}vmess-ws-$hostname"
 }
 if [ -f "$HOME/agsbx/cdnym" ]; then
  echo "💣【 Vmess-ws-cdn 】节点信息如下："
- echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定443端口+TLS"
- vm_cdn_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-cdn-$hostname\", \"add\": \"yg$(cfipsj).ygkkk.dpdns.org\", \"port\": \"443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$basepath-vm\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)"
+  echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定2083端口+TLS"
+  vm_cdn_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-cdn-$hostname\", \"add\": \"yg$(cfipsj).ygkkk.dpdns.org\", \"port\": \"2083\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$basepath-vm\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)"
 echo "$vm_cdn_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vm_cdn_link"
 echo
