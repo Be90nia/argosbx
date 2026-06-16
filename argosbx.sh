@@ -100,8 +100,8 @@ export ym_vl_re=${reym:-''}
 export cdnym=${cdnym:-''}
 export directnym=${directnym:-''}
 export basepath=${basepath:-''}
-export cfapi=${cfapi:-''}
-export cfzone=${cfzone:-''}
+export cfemail=${cfemail:-''}
+export cfkey=${cfkey:-''}
 export argo=${argo:-''}
 export argopro=${argopro:-''}
 export ARGO_DOMAIN=${agn:-''}
@@ -339,8 +339,8 @@ certsign() {
     echo "⚠️ acme.sh安装失败，无法签发证书"
     return 1
   fi
-  export CF_Token="$cfapi"
-  export CF_Zone_ID="$cfzone"
+  export CF_Email="$cfemail"
+  export CF_Key="$cfkey"
   echo "签发证书: $_csdomain (含泛域名)..."
   local _csretry=0
   while [ "$_csretry" -lt 3 ]; do
@@ -355,14 +355,14 @@ certsign() {
   done
   if [ "$_csretry" -ge 3 ]; then
     echo "⚠️ 证书签发失败: $_csdomain（已重试3次）"
-    unset CF_Token CF_Zone_ID
+    unset CF_Email CF_Key
     return 1
   fi
   "$_acme" --install-cert -d "$_csdomain" -d "*.$_csdomain" \
     --key-file "$_cskey" \
     --fullchain-file "$_cscrt" \
     --reloadcmd "if command -v systemctl >/dev/null 2>&1; then systemctl restart xray 2>/dev/null || echo 'warn: xray restart failed'; systemctl restart sing-box 2>/dev/null || echo 'warn: sing-box restart failed'; elif command -v rc-service >/dev/null 2>&1; then rc-service xray restart 2>/dev/null || echo 'warn: xray restart failed'; rc-service sing-box restart 2>/dev/null || echo 'warn: sing-box restart failed'; fi"
-  unset CF_Token CF_Zone_ID
+  unset CF_Email CF_Key
   echo "✅ 证书签发成功: $_csdomain → $_cscrt"
 }
 
@@ -1210,11 +1210,11 @@ fi
 }
 ins(){
 # 证书签发(CDN协议需要cdnym证书, acme.sh + CF DNS API)
-if [ -n "$cdnym" ] && [ -n "$cfapi" ] && { [ -n "$vxp" ] || [ -n "$vwp" ] || [ -n "$vup" ] || [ -n "$twp" ] || [ -n "$tuhp" ] || [ -n "$vmp" ] || [ -n "$mup" ] || [ -n "$txp" ] || [ -n "$mxp" ] || [ -n "$swp" ] || [ -n "$vwep" ]; }; then
+if [ -n "$cdnym" ] && [ -n "$cfkey" ] && { [ -n "$vxp" ] || [ -n "$vwp" ] || [ -n "$vup" ] || [ -n "$twp" ] || [ -n "$tuhp" ] || [ -n "$vmp" ] || [ -n "$mup" ] || [ -n "$txp" ] || [ -n "$mxp" ] || [ -n "$swp" ] || [ -n "$vwep" ]; }; then
   certsign "$cdnym" "cdnym" || echo "⚠️ CDN证书签发失败，CDN协议可能无法正常工作(CF Full Strict模式)"
 fi
 # 证书签发(直连TLS协议需要directnym证书)
-if [ -n "$directnym" ] && [ -n "$cfapi" ] && { [ -n "$vtp" ] || [ -n "$ttp" ] || [ -n "$hyp" ] || [ -n "$tup" ] || [ -n "$anp" ] || [ -n "$nap" ]; }; then
+if [ -n "$directnym" ] && [ -n "$cfkey" ] && { [ -n "$vtp" ] || [ -n "$ttp" ] || [ -n "$hyp" ] || [ -n "$tup" ] || [ -n "$anp" ] || [ -n "$nap" ]; }; then
   certsign "$directnym" "directnym" || echo "⚠️ directnym证书签发失败，直连TLS协议可能无法正常工作"
 fi
 if [ "$hyp" != yes ] && [ "$tup" != yes ] && [ "$anp" != yes ] && [ "$arp" != yes ] && [ "$ssp" != yes ] && [ "$stp" != yes ] && [ "$nap" != yes ]; then
@@ -3026,8 +3026,8 @@ menu_cdn() {
   local _cdnym_def=$(_load_cfg cdnym "${cdnym:-}")
   local _uuid_def=$(_load_cfg uuid_xray "")
   local _basepath_def=$(_load_cfg basepath "${basepath:-}")
-  local _cfapi_def=$(_load_cfg cfapi "${cfapi:-}")
-  local _cfzone_def=$(_load_cfg cfzone "${cfzone:-}")
+  local _cfemail_def=$(_load_cfg cfemail "${cfemail:-}")
+  local _cfkey_def=$(_load_cfg cfkey "${cfkey:-}")
   local _cdnsel_def=$(_load_cfg cdn_selected "")
 
   # [1/5] CDN域名
@@ -3062,7 +3062,7 @@ menu_cdn() {
   # [4/5] 证书: 先检测已有证书, 有效且>30天直接复用; 快过期/不存在才选方式
   echo
   local _certmode=""
-  local _cfapi _cfzone
+  local _cfemail _cfkey
   # 检测标准位置已有证书是否覆盖当前域名
   for _cf in /etc/argosbx/certs/cdnym.crt /etc/argosbx/certs/directnym.crt; do
     if _check_cert "$_cf" "$_cdnym"; then
@@ -3123,16 +3123,16 @@ menu_cdn() {
         fi
         ;;
       2)
-        echo "  Dashboard → My Profile → API Tokens → Edit zone DNS"
-        _rd "  CF API Token" "$_cfapi_def" || _cfapi=""
-        _cfapi="${_rd_val:-}"
-        _rd "  CF Zone ID" "$_cfzone_def" || _cfzone=""
-        _cfzone="${_rd_val:-}"
-        if [ -z "$_cfapi" ] || [ -z "$_cfzone" ]; then
+        echo "  Dashboard → My Profile → API Tokens → Get Global API Key"
+        _rd "  CF 邮箱" "$_cfemail_def" || _cfemail=""
+        _cfemail="${_rd_val:-}"
+        _rd "  CF Global API Key" "$_cfkey_def" || _cfkey=""
+        _cfkey="${_rd_val:-}"
+        if [ -z "$_cfemail" ] || [ -z "$_cfkey" ]; then
           echo "  ⚠ 未提供CF凭证，证书不会自动签发"
         else
-          _save_cfg cfapi "$_cfapi"
-          _save_cfg cfzone "$_cfzone"
+          _save_cfg cfemail "$_cfemail"
+          _save_cfg cfkey "$_cfkey"
         fi
         ;;
       3) echo "  已选跳过证书" ;;
@@ -3190,8 +3190,8 @@ VLESS+WS+ENC (B组·39004 Origin Rules·带ENC)"
   export cdnym="$_cdnym"
   export uuid="$_uuid"
   export basepath="$_basepath"
-  export cfapi="${_cfapi:-}"
-  export cfzone="${_cfzone:-}"
+  export cfemail="${_cfemail:-}"
+  export cfkey="${_cfkey:-}"
 
   # 设置协议开关(覆盖到全局变量)
   for _n in $_sel; do
@@ -3312,16 +3312,16 @@ menu_noncdn() {
         fi
         ;;
       2)
-        local _cfapi_chk=$(_load_cfg cfapi "")
-        local _cfzone_chk=$(_load_cfg cfzone "")
-        if [ -z "$_cfapi_chk" ] || [ -z "$_cfzone_chk" ]; then
+        local _cfemail_chk=$(_load_cfg cfemail "")
+        local _cfkey_chk=$(_load_cfg cfkey "")
+        if [ -z "$_cfemail_chk" ] || [ -z "$_cfkey_chk" ]; then
           echo "⚠ 未找到CF凭证，请先在菜单1设置，或手动输入:"
-          _rd "  CF API Token" "" || _cfapi_chk=""
-          _cfapi_chk="${_rd_val:-}"
-          _rd "  CF Zone ID" "" || _cfzone_chk=""
-          _cfzone_chk="${_rd_val:-}"
-          [ -n "$_cfapi_chk" ] && _save_cfg cfapi "$_cfapi_chk"
-          [ -n "$_cfzone_chk" ] && _save_cfg cfzone "$_cfzone_chk"
+          _rd "  CF 邮箱" "" || _cfemail_chk=""
+          _cfemail_chk="${_rd_val:-}"
+          _rd "  CF Global API Key" "" || _cfkey_chk=""
+          _cfkey_chk="${_rd_val:-}"
+          [ -n "$_cfemail_chk" ] && _save_cfg cfemail "$_cfemail_chk"
+          [ -n "$_cfkey_chk" ] && _save_cfg cfkey "$_cfkey_chk"
         fi
         ;;
       3) echo "  已选跳过证书签发" ;;
