@@ -1,0 +1,16 @@
+        {
+            "tag":"d-vl-ws",
+            "listen":"127.0.0.1",
+            "port":39007,
+            "protocol":"vless",
+            "settings":{
+                "clients":[{"id":"__UUID__"}],
+                "decryption":"none"
+            },
+            "streamSettings":{
+                "network":"ws",
+                "wsSettings":{
+                    "path":"/__BASEPATH__-a-vw"
+                }
+            }
+        }

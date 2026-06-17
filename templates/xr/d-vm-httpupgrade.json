@@ -1,0 +1,15 @@
+        {
+            "tag":"d-vm-httpupgrade",
+            "listen":"127.0.0.1",
+            "port":39013,
+            "protocol":"vmess",
+            "settings":{
+                "clients":[{"id":"__UUID__"}]
+            },
+            "streamSettings":{
+                "network":"httpupgrade",
+                "httpupgradeSettings":{
+                    "path":"/__BASEPATH__-a-mu"
+                }
+            }
+        }

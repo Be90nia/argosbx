@@ -1,0 +1,17 @@
+        {
+            "tag":"d-vl-xhttp",
+            "listen":"127.0.0.1",
+            "port":39008,
+            "protocol":"vless",
+            "settings":{
+                "clients":[{"id":"__UUID__"}],
+                "decryption":"__DEKEY__"
+            },
+            "streamSettings":{
+                "network":"xhttp",
+                "xhttpSettings":{
+                    "mode":"packet-up",
+                    "path":"/__BASEPATH__-a-vx"
+                }
+            }
+        }

@@ -1,0 +1,15 @@
+        {
+            "tag":"d-tr-ws",
+            "listen":"127.0.0.1",
+            "port":39011,
+            "protocol":"trojan",
+            "settings":{
+                "clients":[{"password":"__UUID__"}]
+            },
+            "streamSettings":{
+                "network":"ws",
+                "wsSettings":{
+                    "path":"/__BASEPATH__-a-tw"
+                }
+            }
+        }

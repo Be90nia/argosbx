@@ -1,0 +1,16 @@
+        {
+            "tag":"d-vm-xhttp",
+            "listen":"127.0.0.1",
+            "port":39015,
+            "protocol":"vmess",
+            "settings":{
+                "clients":[{"id":"__UUID__"}]
+            },
+            "streamSettings":{
+                "network":"xhttp",
+                "xhttpSettings":{
+                    "mode":"packet-up",
+                    "path":"/__BASEPATH__-a-mx"
+                }
+            }
+        }

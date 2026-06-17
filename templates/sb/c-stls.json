@@ -4,10 +4,17 @@
             "listen": "::",
             "listen_port": __PORT__,
             "version": 3,
-            "password": "__STLSPASS__",
-            "tls": {
-                "server_name": "__STLS_DEST__"
+            "users": [
+                {
+                    "name": "user1",
+                    "password": "__STLSPASS__"
+                }
+            ],
+            "handshake": {
+                "server": "__STLS_DEST__",
+                "server_port": 443
             },
+            "strict_mode": true,
             "detour": "ss-internal-in"
         },
         {

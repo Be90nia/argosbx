@@ -1,0 +1,16 @@
+        {
+            "tag":"d-vl-httpupgrade",
+            "listen":"127.0.0.1",
+            "port":39010,
+            "protocol":"vless",
+            "settings":{
+                "clients":[{"id":"__UUID__"}],
+                "decryption":"__DEKEY__"
+            },
+            "streamSettings":{
+                "network":"httpupgrade",
+                "httpupgradeSettings":{
+                    "path":"/__BASEPATH__-a-vu"
+                }
+            }
+        }

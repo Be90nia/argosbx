@@ -1,0 +1,16 @@
+        {
+            "tag":"d-tr-xhttp",
+            "listen":"127.0.0.1",
+            "port":39014,
+            "protocol":"trojan",
+            "settings":{
+                "clients":[{"password":"__UUID__"}]
+            },
+            "streamSettings":{
+                "network":"xhttp",
+                "xhttpSettings":{
+                    "mode":"packet-up",
+                    "path":"/__BASEPATH__-a-tx"
+                }
+            }
+        }

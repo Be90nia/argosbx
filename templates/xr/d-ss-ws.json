@@ -1,0 +1,17 @@
+        {
+            "tag":"d-ss-ws",
+            "listen":"127.0.0.1",
+            "port":39016,
+            "protocol":"shadowsocks",
+            "settings":{
+                "method":"2022-blake3-aes-128-gcm",
+                "password":"__SSKEY__",
+                "network":"tcp"
+            },
+            "streamSettings":{
+                "network":"ws",
+                "wsSettings":{
+                    "path":"/__BASEPATH__-a-sw"
+                }
+            }
+        }

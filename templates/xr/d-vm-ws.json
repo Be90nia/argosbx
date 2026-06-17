@@ -1,0 +1,15 @@
+        {
+            "tag":"d-vm-ws",
+            "listen":"127.0.0.1",
+            "port":39009,
+            "protocol":"vmess",
+            "settings":{
+                "clients":[{"id":"__UUID__"}]
+            },
+            "streamSettings":{
+                "network":"ws",
+                "wsSettings":{
+                    "path":"/__BASEPATH__-a-vm"
+                }
+            }
+        }

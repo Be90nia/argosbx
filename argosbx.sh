@@ -221,83 +221,54 @@ parse_argopro() {
   fi
 }
 
-# argopro_setup — 构建Argo选中协议的端口映射，设置argoport.log(临时隧道首协议)和argo_cf_rules(CF Dashboard配置指引)
+# argopro_setup — 构建D组Argo独立inbound的path/端口映射表,生成CF Dashboard Public Hostname配置指引
+# D组: 独立端口39007-39016, 独立path(加-a-前缀, 和A/B组隔离), 无TLS(cloudflared已终止TLS)
 argopro_setup() {
-  _xrjson="$HOME/agsbx/xr.json"
   argo_first_port=""
   argo_cf_rules=""
   argo_count=0
-  # vw: VLESS+WS (tag=vless-ws, Argo端口39007)
-  if [ -n "$argo_vw" ] && grep -q '"tag":"vless-ws"' "$_xrjson" 2>/dev/null; then
-    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-vw | HTTP | localhost:39007\\n"
-    [ -z "$argo_first_port" ] && argo_first_port=39007; argo_count=$((argo_count+1))
-  fi
-  # vx: VLESS+XHTTP (tag=vless-xhttp, Argo端口39008)
-  if [ -n "$argo_vx" ] && grep -q 'vless-xhttp' "$_xrjson" 2>/dev/null; then
-    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-vx | HTTP | localhost:39008\\n"
-    [ -z "$argo_first_port" ] && argo_first_port=39008; argo_count=$((argo_count+1))
-  fi
-  # vm: VMess+WS (tag=vmess-ws, Argo端口39009)
-  if [ -n "$argo_vm" ] && grep -q 'vmess-ws' "$_xrjson" 2>/dev/null; then
-    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-vm | HTTP | localhost:39009\\n"
-    [ -z "$argo_first_port" ] && argo_first_port=39009; argo_count=$((argo_count+1))
-  fi
-  # vu: VLESS+HTTPUpgrade+ENC (tag=vless-httpupgrade, Argo端口39010)
-  if [ -n "$argo_vu" ] && grep -q 'vless-httpupgrade' "$_xrjson" 2>/dev/null; then
-    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-vu | HTTP | localhost:39010\\n"
-    [ -z "$argo_first_port" ] && argo_first_port=39010; argo_count=$((argo_count+1))
-  fi
-  # tw: Trojan+WS (tag=trojan-ws, Argo端口39011)
-  if [ -n "$argo_tw" ] && grep -q 'trojan-ws' "$_xrjson" 2>/dev/null; then
-    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-tw | HTTP | localhost:39011\\n"
-    [ -z "$argo_first_port" ] && argo_first_port=39011; argo_count=$((argo_count+1))
-  fi
-  # tu: Trojan+HTTPUpgrade (tag=trojan-httpupgrade, Argo端口39012)
-  if [ -n "$argo_tu" ] && grep -q 'trojan-httpupgrade' "$_xrjson" 2>/dev/null; then
-    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-tuh | HTTP | localhost:39012\\n"
-    [ -z "$argo_first_port" ] && argo_first_port=39012; argo_count=$((argo_count+1))
-  fi
-  # mu: VMess+HTTPUpgrade (tag=vmess-httpupgrade, Argo端口39013)
-  if [ -n "$argo_mu" ] && grep -q 'vmess-httpupgrade' "$_xrjson" 2>/dev/null; then
-    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-mu | HTTP | localhost:39013\\n"
-    [ -z "$argo_first_port" ] && argo_first_port=39013; argo_count=$((argo_count+1))
-  fi
-  # tx: Trojan+XHTTP (tag=trojan-xhttp, Argo端口39014)
-  if [ -n "$argo_tx" ] && grep -q 'trojan-xhttp' "$_xrjson" 2>/dev/null; then
-    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-tx | HTTP | localhost:39014\\n"
-    [ -z "$argo_first_port" ] && argo_first_port=39014; argo_count=$((argo_count+1))
-  fi
-  # mx: VMess+XHTTP (tag=vmess-xhttp, Argo端口39015)
-  if [ -n "$argo_mx" ] && grep -q 'vmess-xhttp' "$_xrjson" 2>/dev/null; then
-    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-mx | HTTP | localhost:39015\\n"
-    [ -z "$argo_first_port" ] && argo_first_port=39015; argo_count=$((argo_count+1))
-  fi
-  # sw: SS+WS (tag=ss-ws, Argo端口39016)
-  if [ -n "$argo_sw" ] && grep -q '"tag":"ss-ws"' "$_xrjson" 2>/dev/null; then
-    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN} | ^/${basepath}-sw | HTTP | localhost:39016\\n"
-    [ -z "$argo_first_port" ] && argo_first_port=39016; argo_count=$((argo_count+1))
-  fi
-  echo "$argo_first_port" > "$HOME/agsbx/argoport.log"
-  # 持久化选中Argo的已安装协议缩写列表(cip函数读取)
   argo_sel_list=""
+  # D组path/端口映射表: 缩写|本地端口|path后缀|协议描述
   for _p in vw vx vm vu tw tu mu tx mx sw; do
     eval "_flag=\$argo_$_p"
-    if [ -n "$_flag" ]; then
-      case $_p in
-        vw) grep -q '"tag":"vless-ws"' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list vw" ;;
-        vx) grep -q 'vless-xhttp' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list vx" ;;
-        vm) grep -q 'vmess-ws' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list vm" ;;
-        vu) grep -q 'vless-httpupgrade' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list vu" ;;
-        tw) grep -q 'trojan-ws' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list tw" ;;
-        tu) grep -q 'trojan-httpupgrade' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list tu" ;;
-        mu) grep -q 'vmess-httpupgrade' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list mu" ;;
-        tx) grep -q 'trojan-xhttp' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list tx" ;;
-        mx) grep -q 'vmess-xhttp' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list mx" ;;
-        sw) grep -q '"tag":"ss-ws"' "$_xrjson" 2>/dev/null && argo_sel_list="$argo_sel_list sw" ;;
-      esac
-    fi
+    [ -n "$_flag" ] || continue
+    case $_p in
+      vw) _port=39007; _desc="VLESS+WS" ;;
+      vx) _port=39008; _desc="VLESS+XHTTP" ;;
+      vm) _port=39009; _desc="VMess+WS" ;;
+      vu) _port=39010; _desc="VLESS+HTTPUpgrade" ;;
+      tw) _port=39011; _desc="Trojan+WS" ;;
+      tu) _port=39012; _desc="Trojan+HTTPUpgrade" ;;
+      mu) _port=39013; _desc="VMess+HTTPUpgrade" ;;
+      tx) _port=39014; _desc="Trojan+XHTTP" ;;
+      mx) _port=39015; _desc="VMess+XHTTP" ;;
+      sw) _port=39016; _desc="SS+WS" ;;
+    esac
+    _apath="/${basepath}-a-${_p}"
+    argo_cf_rules="${argo_cf_rules}  ${ARGO_DOMAIN:-argodomain} | Path: ${_apath} | HTTP localhost:${_port} (${_desc})\\n"
+    [ -z "$argo_first_port" ] && argo_first_port=$_port
+    argo_count=$((argo_count+1))
+    argo_sel_list="$argo_sel_list $_p"
   done
+  echo "$argo_first_port" > "$HOME/agsbx/argoport.log"
   echo "$argo_sel_list" > "$HOME/agsbx/argopro_sel.log"
+}
+
+# installxray_argo — 安装D组Argo独立inbound到xr.json(无TLS, listen 127.0.0.1, 独立端口39007-39016)
+# 必须在xrsbout之前调用(xr.json还未关闭),argo_xxx标志由parse_argopro设置
+installxray_argo() {
+  [ -z "${argo_vw}${argo_vx}${argo_vm}${argo_vu}${argo_tw}${argo_tu}${argo_mu}${argo_tx}${argo_mx}${argo_sw}" ] && return 0
+  echo "安装D组Argo独立inbound(39007-39016, 无TLS)..."
+  [ -n "$argo_vw" ] && tpl_xr d-vl-ws
+  [ -n "$argo_vx" ] && tpl_xr d-vl-xhttp
+  [ -n "$argo_vm" ] && tpl_xr d-vm-ws
+  [ -n "$argo_vu" ] && tpl_xr d-vl-httpupgrade
+  [ -n "$argo_tw" ] && tpl_xr d-tr-ws
+  [ -n "$argo_tu" ] && tpl_xr d-tr-httpupgrade
+  [ -n "$argo_mu" ] && tpl_xr d-vm-httpupgrade
+  [ -n "$argo_tx" ] && tpl_xr d-tr-xhttp
+  [ -n "$argo_mx" ] && tpl_xr d-vm-xhttp
+  [ -n "$argo_sw" ] && tpl_xr d-ss-ws
 }
 
 # certsign 域名 证书名 — 使用acme.sh + CF DNS API签发TLS证书(含泛域名)
@@ -404,6 +375,7 @@ tpl_sb() {
   fi
   sed -e "s|__UUID__|${uuid}|g" \
       -e "s|__PORT__|${_tplport}|g" \
+      -e "s|__SSKEY__|${sskey}|g" \
       -e "s|__STLSPASS__|${stlspass}|g" \
       -e "s|__SSINTKEY__|${ssintkey}|g" \
       -e "s|__STLS_DEST__|${stls_dest}|g" \
@@ -775,7 +747,7 @@ private_key_x=$(cat "$HOME/agsbx/xrk/private_key")
 public_key_x=$(cat "$HOME/agsbx/xrk/public_key")
 short_id_x=$(cat "$HOME/agsbx/xrk/short_id")
 fi
-if [ -n "$xhp" ] || [ -n "$vxp" ] || [ -n "$vwp" ] || [ -n "$vup" ] || [ -n "$vwep" ]; then
+if [ -n "$xhp" ] || [ -n "$vxp" ] || [ -n "$vwp" ] || [ -n "$vup" ] || [ -n "$vwep" ] || [ -n "$argo_vx" ] || [ -n "$argo_vu" ]; then
 if [ ! -e "$HOME/agsbx/xrk/dekey" ]; then
 vlkey=$("$HOME/agsbx/xray" vlessenc)
 dekey=$(echo "$vlkey" | grep '"decryption":' | sed -n '2p' | cut -d' ' -f2- | tr -d '"')
@@ -899,13 +871,15 @@ mxp=mxpt
  echo "VMess-xhttp端口：39002 (B组Origin Rules回源端口)"
  tpl_xr b-mx-xhttp
 fi
- if [ -n "$swp" ]; then
- swp=swpt
+ if [ -n "$swp" ] || [ -n "$argo_sw" ]; then
   if [ ! -e "$HOME/agsbx/sskey" ]; then
   sskey=$(head -c 16 /dev/urandom | base64 | tr -d '\n')
   echo "$sskey" > "$HOME/agsbx/sskey"
   fi
  sskey=$(cat "$HOME/agsbx/sskey")
+ fi
+ if [ -n "$swp" ]; then
+ swp=swpt
  echo "Shadowsocks-ws端口：39003 (B组Origin Rules回源端口)"
  tpl_xr b-sw-ws
 fi
@@ -1186,8 +1160,11 @@ fi
 if [ -n "$directnym" ] && [ -n "$cfkey" ] && { [ -n "$vtp" ] || [ -n "$ttp" ] || [ -n "$hyp" ] || [ -n "$tup" ] || [ -n "$anp" ] || [ -n "$nap" ]; }; then
   certsign "$directnym" "directnym" || echo "⚠️ directnym证书签发失败，直连TLS协议可能无法正常工作"
 fi
+# 解析Argo协议选择(必须在installxray之前,因为installxray_argo需要argo_xxx标志)
+parse_argopro
 if [ "$hyp" != yes ] && [ "$tup" != yes ] && [ "$anp" != yes ] && [ "$arp" != yes ] && [ "$ssp" != yes ] && [ "$stp" != yes ] && [ "$nap" != yes ]; then
 installxray
+installxray_argo
 xrsbvm
 xrsbso
 warpsx
@@ -1203,12 +1180,12 @@ xhp="xhptargo"; vlp="vlptargo"; vxp="vxptargo"; vwp="vwptargo"; vup="vuptargo"; 
 else
 installsb
 installxray
+installxray_argo
 xrsbvm
 xrsbso
 warpsx
 xrsbout
 fi
-parse_argopro
 argopro_setup
 if [ -n "$vmag" ] && [ "$argo_count" -gt 0 ]; then
 echo
@@ -2224,45 +2201,45 @@ echo "# ========== Argo隧道(D组) ==========" >> "$HOME/agsbx/jhsub.txt"
 for _p in $argo_sel; do
   case $_p in
     vw)
-      echo "vless://${uuid}@${cdnip1}:443?encryption=none&security=tls&sni=${argodomain}&fp=chrome&type=ws&host=${argodomain}&path=/${basepath}-vw#${sxname}vless-ws-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
-      echo "vless://${uuid}@${cdnip2}:80?encryption=none&type=ws&host=${argodomain}&path=/${basepath}-vw#${sxname}vless-ws-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
+      echo "vless://${uuid}@${cdnip1}:443?encryption=none&security=tls&sni=${argodomain}&fp=chrome&type=ws&host=${argodomain}&path=/${basepath}-a-vw#${sxname}vless-ws-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
+      echo "vless://${uuid}@${cdnip2}:80?encryption=none&type=ws&host=${argodomain}&path=/${basepath}-a-vw#${sxname}vless-ws-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
       ;;
     vx)
-      echo "vless://${uuid}@${cdnip1}:443?encryption=none&security=tls&sni=${argodomain}&fp=chrome&type=xhttp&host=${argodomain}&path=/${basepath}-vx&mode=packet-up#${sxname}vless-xhttp-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
-      echo "vless://${uuid}@${cdnip2}:80?encryption=none&type=xhttp&host=${argodomain}&path=/${basepath}-vx&mode=packet-up#${sxname}vless-xhttp-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
+      echo "vless://${uuid}@${cdnip1}:443?encryption=none&security=tls&sni=${argodomain}&fp=chrome&type=xhttp&host=${argodomain}&path=/${basepath}-a-vx&mode=packet-up#${sxname}vless-xhttp-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
+      echo "vless://${uuid}@${cdnip2}:80?encryption=none&type=xhttp&host=${argodomain}&path=/${basepath}-a-vx&mode=packet-up#${sxname}vless-xhttp-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
       ;;
     vm)
-      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-ws-tls-argo-$hostname-443\",\"add\":\"$cdnip1\",\"port\":\"443\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"ws\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-vm\",\"tls\":\"tls\",\"sni\":\"$argodomain\",\"alpn\":\"\",\"fp\":\"chrome\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
-      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-ws-argo-$hostname-80\",\"add\":\"$cdnip2\",\"port\":\"80\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"ws\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-vm\",\"tls\":\"\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
+      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-ws-tls-argo-$hostname-443\",\"add\":\"$cdnip1\",\"port\":\"443\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"ws\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-a-vm\",\"tls\":\"tls\",\"sni\":\"$argodomain\",\"alpn\":\"\",\"fp\":\"chrome\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
+      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-ws-argo-$hostname-80\",\"add\":\"$cdnip2\",\"port\":\"80\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"ws\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-a-vm\",\"tls\":\"\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
       ;;
     vu)
-      echo "vless://${uuid}@${cdnip1}:443?encryption=${enkey}&security=tls&sni=${argodomain}&fp=chrome&type=httpupgrade&host=${argodomain}&path=/${basepath}-vu#${sxname}vless-httpupgrade-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
-      echo "vless://${uuid}@${cdnip2}:80?encryption=${enkey}&type=httpupgrade&host=${argodomain}&path=/${basepath}-vu#${sxname}vless-httpupgrade-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
+      echo "vless://${uuid}@${cdnip1}:443?encryption=${enkey}&security=tls&sni=${argodomain}&fp=chrome&type=httpupgrade&host=${argodomain}&path=/${basepath}-a-vu#${sxname}vless-httpupgrade-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
+      echo "vless://${uuid}@${cdnip2}:80?encryption=${enkey}&type=httpupgrade&host=${argodomain}&path=/${basepath}-a-vu#${sxname}vless-httpupgrade-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
       ;;
     tw)
-      echo "trojan://${uuid}@${cdnip1}:443?security=tls&sni=${argodomain}&fp=chrome&type=ws&host=${argodomain}&path=/${basepath}-tw#${sxname}trojan-ws-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
-      echo "trojan://${uuid}@${cdnip2}:80?type=ws&host=${argodomain}&path=/${basepath}-tw#${sxname}trojan-ws-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
+      echo "trojan://${uuid}@${cdnip1}:443?security=tls&sni=${argodomain}&fp=chrome&type=ws&host=${argodomain}&path=/${basepath}-a-tw#${sxname}trojan-ws-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
+      echo "trojan://${uuid}@${cdnip2}:80?type=ws&host=${argodomain}&path=/${basepath}-a-tw#${sxname}trojan-ws-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
       ;;
     tu)
-      echo "trojan://${uuid}@${cdnip1}:443?security=tls&sni=${argodomain}&fp=chrome&type=httpupgrade&host=${argodomain}&path=/${basepath}-tu#${sxname}trojan-httpupgrade-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
-      echo "trojan://${uuid}@${cdnip2}:80?type=httpupgrade&host=${argodomain}&path=/${basepath}-tu#${sxname}trojan-httpupgrade-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
+      echo "trojan://${uuid}@${cdnip1}:443?security=tls&sni=${argodomain}&fp=chrome&type=httpupgrade&host=${argodomain}&path=/${basepath}-a-tu#${sxname}trojan-httpupgrade-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
+      echo "trojan://${uuid}@${cdnip2}:80?type=httpupgrade&host=${argodomain}&path=/${basepath}-a-tu#${sxname}trojan-httpupgrade-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
       ;;
     mu)
-      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-httpupgrade-tls-argo-$hostname-443\",\"add\":\"$cdnip1\",\"port\":\"443\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"httpupgrade\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-mu\",\"tls\":\"tls\",\"sni\":\"$argodomain\",\"alpn\":\"\",\"fp\":\"chrome\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
-      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-httpupgrade-argo-$hostname-80\",\"add\":\"$cdnip2\",\"port\":\"80\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"httpupgrade\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-mu\",\"tls\":\"\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
+      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-httpupgrade-tls-argo-$hostname-443\",\"add\":\"$cdnip1\",\"port\":\"443\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"httpupgrade\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-a-mu\",\"tls\":\"tls\",\"sni\":\"$argodomain\",\"alpn\":\"\",\"fp\":\"chrome\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
+      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-httpupgrade-argo-$hostname-80\",\"add\":\"$cdnip2\",\"port\":\"80\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"httpupgrade\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-a-mu\",\"tls\":\"\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
       ;;
     tx)
-      echo "trojan://${uuid}@${cdnip1}:443?security=tls&sni=${argodomain}&fp=chrome&type=xhttp&host=${argodomain}&path=/${basepath}-tx&mode=packet-up#${sxname}trojan-xhttp-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
-      echo "trojan://${uuid}@${cdnip2}:80?type=xhttp&host=${argodomain}&path=/${basepath}-tx&mode=packet-up#${sxname}trojan-xhttp-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
+      echo "trojan://${uuid}@${cdnip1}:443?security=tls&sni=${argodomain}&fp=chrome&type=xhttp&host=${argodomain}&path=/${basepath}-a-tx&mode=packet-up#${sxname}trojan-xhttp-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
+      echo "trojan://${uuid}@${cdnip2}:80?type=xhttp&host=${argodomain}&path=/${basepath}-a-tx&mode=packet-up#${sxname}trojan-xhttp-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
       ;;
     mx)
-      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-xhttp-tls-argo-$hostname-443\",\"add\":\"$cdnip1\",\"port\":\"443\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"xhttp\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-mx\",\"tls\":\"tls\",\"sni\":\"$argodomain\",\"alpn\":\"\",\"fp\":\"chrome\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
-      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-xhttp-argo-$hostname-80\",\"add\":\"$cdnip2\",\"port\":\"80\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"xhttp\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-mx\",\"tls\":\"\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
+      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-xhttp-tls-argo-$hostname-443\",\"add\":\"$cdnip1\",\"port\":\"443\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"xhttp\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-a-mx\",\"tls\":\"tls\",\"sni\":\"$argodomain\",\"alpn\":\"\",\"fp\":\"chrome\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
+      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-xhttp-argo-$hostname-80\",\"add\":\"$cdnip2\",\"port\":\"80\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"xhttp\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-a-mx\",\"tls\":\"\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
       ;;
      sw)
        _ss_enc_argo=$(printf '%s' "$sskey" | sed 's/+/%2B/g; s/=/%3D/g; s|/|%2F|g')
-       echo "ss://2022-blake3-aes-128-gcm:${_ss_enc_argo}@${cdnip1}:443/?type=ws&host=${argodomain}&path=/${basepath}-sw#${sxname}ss-ws-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
-       echo "ss://2022-blake3-aes-128-gcm:${_ss_enc_argo}@${cdnip2}:80/?type=ws&host=${argodomain}&path=/${basepath}-sw#${sxname}ss-ws-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
+       echo "ss://2022-blake3-aes-128-gcm:${_ss_enc_argo}@${cdnip1}:443/?type=ws&host=${argodomain}&path=/${basepath}-a-sw#${sxname}ss-ws-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
+       echo "ss://2022-blake3-aes-128-gcm:${_ss_enc_argo}@${cdnip2}:80/?type=ws&host=${argodomain}&path=/${basepath}-a-sw#${sxname}ss-ws-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
        ;;
   esac
 done
@@ -2275,7 +2252,7 @@ cat <<EOF
     "tag": "${sxname}vmess-ws-tls-argo-$hostname-443",
     "tls": { "enabled": true, "server_name": "$argodomain", "insecure": false, "utls": { "enabled": true, "fingerprint": "chrome" } },
     "packet_encoding": "packetaddr",
-    "transport": { "headers": { "Host": ["$argodomain"] }, "path": "/$basepath-vm", "type": "ws" },
+    "transport": { "headers": { "Host": ["$argodomain"] }, "path": "/$basepath-a-vm", "type": "ws" },
     "type": "vmess", "security": "auto", "uuid": "$uuid"
 },
 EOF
@@ -2298,7 +2275,7 @@ cat <<EOF
   network: ws
   servername: $argodomain
   ws-opts:
-    path: "/$basepath-vm"
+    path: "/$basepath-a-vm"
     headers:
       Host: $argodomain
 EOF
@@ -2315,7 +2292,7 @@ cat <<EOF
     "server_port": 443,
     "tag": "${sxname}vless-ws-tls-argo-$hostname-443",
     "tls": { "enabled": true, "server_name": "$argodomain", "insecure": false, "utls": { "enabled": true, "fingerprint": "chrome" } },
-    "transport": { "headers": { "Host": ["$argodomain"] }, "path": "/$basepath-vw", "type": "ws" },
+    "transport": { "headers": { "Host": ["$argodomain"] }, "path": "/$basepath-a-vw", "type": "ws" },
     "type": "vless", "uuid": "$uuid"
 },
 EOF
@@ -2338,7 +2315,7 @@ cat <<EOF
   servername: $argodomain
   client-fingerprint: chrome
   ws-opts:
-    path: "/$basepath-vw"
+    path: "/$basepath-a-vw"
     headers:
       Host: $argodomain
 EOF
@@ -2355,7 +2332,7 @@ cat <<EOF
     "server_port": 443,
     "tag": "${sxname}trojan-ws-tls-argo-$hostname-443",
     "tls": { "enabled": true, "server_name": "$argodomain", "insecure": false, "utls": { "enabled": true, "fingerprint": "chrome" } },
-    "transport": { "headers": { "Host": ["$argodomain"] }, "path": "/$basepath-tw", "type": "ws" },
+    "transport": { "headers": { "Host": ["$argodomain"] }, "path": "/$basepath-a-tw", "type": "ws" },
     "type": "trojan", "password": "$uuid"
 },
 EOF
@@ -2378,7 +2355,7 @@ cat <<EOF
   sni: $argodomain
   client-fingerprint: chrome
   ws-opts:
-    path: "/$basepath-tw"
+    path: "/$basepath-a-tw"
     headers:
       Host: $argodomain
 EOF
@@ -2395,7 +2372,7 @@ cat <<EOF
     "server_port": 443,
     "tag": "${sxname}trojan-httpupgrade-tls-argo-$hostname-443",
     "tls": { "enabled": true, "server_name": "$argodomain", "insecure": false, "utls": { "enabled": true, "fingerprint": "chrome" } },
-    "transport": { "headers": { "Host": ["$argodomain"] }, "path": "/$basepath-tu", "type": "httpupgrade" },
+    "transport": { "headers": { "Host": ["$argodomain"] }, "path": "/$basepath-a-tu", "type": "httpupgrade" },
     "type": "trojan", "password": "$uuid"
 },
 EOF
@@ -2418,7 +2395,7 @@ cat <<EOF
   sni: $argodomain
   client-fingerprint: chrome
   httpupgrade-opts:
-    path: "/$basepath-tu"
+    path: "/$basepath-a-tu"
     headers:
       Host: $argodomain
 EOF
@@ -2435,7 +2412,7 @@ cat <<EOF
     "server_port": 443,
     "tag": "${sxname}vmess-httpupgrade-tls-argo-$hostname-443",
     "tls": { "enabled": true, "server_name": "$argodomain", "insecure": false, "utls": { "enabled": true, "fingerprint": "chrome" } },
-    "transport": { "headers": { "Host": ["$argodomain"] }, "path": "/$basepath-mu", "type": "httpupgrade" },
+    "transport": { "headers": { "Host": ["$argodomain"] }, "path": "/$basepath-a-mu", "type": "httpupgrade" },
     "type": "vmess", "security": "auto", "uuid": "$uuid"
 },
 EOF
@@ -2458,7 +2435,7 @@ cat <<EOF
   network: httpupgrade
   servername: $argodomain
   httpupgrade-opts:
-    path: "/$basepath-mu"
+    path: "/$basepath-a-mu"
     headers:
       Host: $argodomain
 EOF
@@ -2482,7 +2459,7 @@ cat <<EOF
     mode: websocket
     tls: true
     host: $argodomain
-    path: "/$basepath-sw"
+    path: "/$basepath-a-sw"
 EOF
 ;; esac
 }
@@ -2581,16 +2558,16 @@ echo "--- D组: Argo隧道 (CF Tunnel) ---"
 echo "协议              | Path              | 端口   | CF Public Hostname"
 for _ap in $_argosel; do
   case $_ap in
-    vw) echo "VLESS+WS           | /$basepath-vw     | 39007  | $argodomain ^/$basepath-vw → localhost:39007" ;;
-    vx) echo "VLESS+XHTTP        | /$basepath-vx     | 39008  | $argodomain ^/$basepath-vx → localhost:39008" ;;
-    vm) echo "VMess+WS           | /$basepath-vm     | 39009  | $argodomain ^/$basepath-vm → localhost:39009" ;;
-    vu) echo "VLESS+HTTPUpgrade  | /$basepath-vu     | 39010  | $argodomain ^/$basepath-vu → localhost:39010" ;;
-    tw) echo "Trojan+WS          | /$basepath-tw     | 39011  | $argodomain ^/$basepath-tw → localhost:39011" ;;
-    tu) echo "Trojan+HTTPUpgrade | /$basepath-tuh    | 39012  | $argodomain ^/$basepath-tuh → localhost:39012" ;;
-    mu) echo "VMess+HTTPUpgrade  | /$basepath-mu     | 39013  | $argodomain ^/$basepath-mu → localhost:39013" ;;
-    tx) echo "Trojan+XHTTP       | /$basepath-tx     | 39014  | $argodomain ^/$basepath-tx → localhost:39014" ;;
-    mx) echo "VMess+XHTTP        | /$basepath-mx     | 39015  | $argodomain ^/$basepath-mx → localhost:39015" ;;
-    sw) echo "SS+WS              | /$basepath-sw     | 39016  | $argodomain ^/$basepath-sw → localhost:39016" ;;
+    vw) echo "VLESS+WS           | /$basepath-a-vw     | 39007  | $argodomain ^/$basepath-a-vw → localhost:39007" ;;
+    vx) echo "VLESS+XHTTP        | /$basepath-a-vx     | 39008  | $argodomain ^/$basepath-a-vx → localhost:39008" ;;
+    vm) echo "VMess+WS           | /$basepath-a-vm     | 39009  | $argodomain ^/$basepath-a-vm → localhost:39009" ;;
+    vu) echo "VLESS+HTTPUpgrade  | /$basepath-a-vu     | 39010  | $argodomain ^/$basepath-a-vu → localhost:39010" ;;
+    tw) echo "Trojan+WS          | /$basepath-a-tw     | 39011  | $argodomain ^/$basepath-a-tw → localhost:39011" ;;
+    tu) echo "Trojan+HTTPUpgrade | /$basepath-a-tu     | 39012  | $argodomain ^/$basepath-a-tu → localhost:39012" ;;
+    mu) echo "VMess+HTTPUpgrade  | /$basepath-a-mu     | 39013  | $argodomain ^/$basepath-a-mu → localhost:39013" ;;
+    tx) echo "Trojan+XHTTP       | /$basepath-a-tx     | 39014  | $argodomain ^/$basepath-a-tx → localhost:39014" ;;
+    mx) echo "VMess+XHTTP        | /$basepath-a-mx     | 39015  | $argodomain ^/$basepath-a-mx → localhost:39015" ;;
+    sw) echo "SS+WS              | /$basepath-a-sw     | 39016  | $argodomain ^/$basepath-a-sw → localhost:39016" ;;
   esac
 done
 fi
