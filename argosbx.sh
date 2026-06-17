@@ -3121,13 +3121,18 @@ menu_noncdn() {
     _save_cfg directnym "$_directnym"
   fi
 
-  # [2/5] sing-box UUID
+  # [2/5] sing-box UUID (如果菜单1已生成uuid则复用,不再重复输入)
   local _uuid_sb
-  if [ -z "$_uuid_sb_def" ]; then
-    _uuid_sb_def=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || uuidgen 2>/dev/null)
+  if [ -n "${uuid:-}" ]; then
+    _uuid_sb="$uuid"
+    echo "✅ 复用已有UUID: $_uuid_sb"
+  else
+    if [ -z "$_uuid_sb_def" ]; then
+      _uuid_sb_def=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || uuidgen 2>/dev/null)
+    fi
+    _rd "[2/5] 输入sing-box UUID(回车自动生成)" "$_uuid_sb_def" || _uuid_sb="$_uuid_sb_def"
+    _uuid_sb="${_rd_val:-$_uuid_sb_def}"
   fi
-  _rd "[2/5] 输入sing-box UUID(回车自动生成)" "$_uuid_sb_def" || _uuid_sb="$_uuid_sb_def"
-  _uuid_sb="${_rd_val:-$_uuid_sb_def}"
   _save_cfg uuid_singbox "$_uuid_sb"
 
   # [3/5] 证书: 先检测已有证书, 有效且>30天直接复用; 快过期/不存在才选方式
@@ -3385,6 +3390,30 @@ Shadowsocks+WS (sw)"
   echo "  端口起始: $_argo_port"
   echo "  Argo协议: $_argopro_list"
   echo "======================================"
+
+  # UUID: 如果已有uuid则复用, 否则让用户输入(回车自动生成), 与菜单2一致
+  local _uuid_argo
+  if [ -n "${uuid:-}" ]; then
+    _uuid_argo="$uuid"
+    echo "✅ 复用已有UUID: $_uuid_argo"
+  else
+    _uuid_argo=$(_load_cfg uuid_singbox "")
+    if [ -z "$_uuid_argo" ] && [ -f "$HOME/agsbx/uuid" ]; then
+      _uuid_argo=$(cat "$HOME/agsbx/uuid")
+    fi
+    local _uuid_argo_def
+    if [ -z "$_uuid_argo" ]; then
+      _uuid_argo_def=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || uuidgen 2>/dev/null)
+    else
+      _uuid_argo_def="$_uuid_argo"
+    fi
+    _rd "输入Argo UUID(回车自动生成)" "$_uuid_argo_def" || _uuid_argo="$_uuid_argo_def"
+    _uuid_argo="${_rd_val:-$_uuid_argo_def}"
+  fi
+  export uuid="$_uuid_argo"
+  echo "$uuid" > "$HOME/agsbx/uuid"
+  _save_cfg uuid_singbox "$uuid"
+
   if ! _yn "确认?" y; then
     return 1
   fi
