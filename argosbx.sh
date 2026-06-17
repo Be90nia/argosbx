@@ -1475,7 +1475,7 @@ fi
 if grep "\"tag\":\"xhttp-reality\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 echo "💣【 Vless-xhttp-reality-enc 】支持ENC加密，节点信息如下："
 port_xh=$(cat "$HOME/agsbx/port_xh")
-vl_xh_link="vless://$uuid@$server_ip:$port_xh?encryption=$enkey&flow=xtls-rprx-vision&security=reality&sni=$ym_vl_re&fp=chrome&pbk=$public_key_x&sid=$short_id_x&type=xhttp&path=$uuid-xh&mode=auto#${sxname}vl-xhttp-reality-enc-$hostname"
+vl_xh_link="vless://$uuid@$server_ip:$port_xh?encryption=$enkey&security=reality&sni=$ym_vl_re&fp=chrome&pbk=$public_key_x&sid=$short_id_x&type=xhttp&path=$uuid-xh&mode=auto#${sxname}vl-xhttp-reality-enc-$hostname"
 echo "$vl_xh_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vl_xh_link"
 echo

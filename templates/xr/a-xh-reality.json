@@ -6,8 +6,7 @@
       "settings": {
         "clients": [
           {
-            "id": "__UUID__",
-            "flow": "xtls-rprx-vision"
+            "id": "__UUID__"
           }
         ],
         "decryption": "__DEKEY__"
