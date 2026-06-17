@@ -3339,9 +3339,32 @@ menu_argo() {
     echo "[2/4] 使用临时隧道(trycloudflare.com)，无需Token"
   fi
 
-  # [3/4] 端口起始
+  # [3/5] UUID (如果已有uuid则复用, 否则让用户输入, 回车自动生成)
+  local _uuid_argo
+  if [ -n "${uuid:-}" ]; then
+    _uuid_argo="$uuid"
+    echo "✅ 复用已有UUID: $_uuid_argo"
+  else
+    _uuid_argo=$(_load_cfg uuid_singbox "")
+    if [ -z "$_uuid_argo" ] && [ -f "$HOME/agsbx/uuid" ]; then
+      _uuid_argo=$(cat "$HOME/agsbx/uuid")
+    fi
+    local _uuid_argo_def
+    if [ -z "$_uuid_argo" ]; then
+      _uuid_argo_def=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || uuidgen 2>/dev/null)
+    else
+      _uuid_argo_def="$_uuid_argo"
+    fi
+    _rd "[3/5] 输入Argo UUID(回车自动生成)" "$_uuid_argo_def" || _uuid_argo="$_uuid_argo_def"
+    _uuid_argo="${_rd_val:-$_uuid_argo_def}"
+  fi
+  export uuid="$_uuid_argo"
+  echo "$uuid" > "$HOME/agsbx/uuid"
+  _save_cfg uuid_singbox "$uuid"
+
+  # [4/5] 端口起始
   local _argo_port
-  _rd "[3/4] Argo监听端口起始值(每协议1端口)" "$_argo_port_def" || _argo_port="$_argo_port_def"
+  _rd "[4/5] Argo监听端口起始值(每协议1端口)" "$_argo_port_def" || _argo_port="$_argo_port_def"
   _argo_port="${_rd_val:-$_argo_port_def}"
   _save_cfg argo_port_start "$_argo_port"
 
@@ -3358,7 +3381,7 @@ VMess+XHTTP (mx)
 Shadowsocks+WS (sw)"
 
   echo
-  echo "[4/4] 选择Argo代理协议"
+  echo "[5/5] 选择Argo代理协议"
   _checklist "Argo协议多选" "$_argo_items" "$_argo_sel_def" || { echo "已取消"; return 1; }
   local _sel="$_chk_sel"
 
@@ -3388,31 +3411,9 @@ Shadowsocks+WS (sw)"
   echo "  隧道域名: ${_argo_domain:-临时隧道}"
   echo "  Token:    ${_argo_token:+已设置}${_argo_token:-无}"
   echo "  端口起始: $_argo_port"
+  echo "  UUID:     $uuid"
   echo "  Argo协议: $_argopro_list"
   echo "======================================"
-
-  # UUID: 如果已有uuid则复用, 否则让用户输入(回车自动生成), 与菜单2一致
-  local _uuid_argo
-  if [ -n "${uuid:-}" ]; then
-    _uuid_argo="$uuid"
-    echo "✅ 复用已有UUID: $_uuid_argo"
-  else
-    _uuid_argo=$(_load_cfg uuid_singbox "")
-    if [ -z "$_uuid_argo" ] && [ -f "$HOME/agsbx/uuid" ]; then
-      _uuid_argo=$(cat "$HOME/agsbx/uuid")
-    fi
-    local _uuid_argo_def
-    if [ -z "$_uuid_argo" ]; then
-      _uuid_argo_def=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || uuidgen 2>/dev/null)
-    else
-      _uuid_argo_def="$_uuid_argo"
-    fi
-    _rd "输入Argo UUID(回车自动生成)" "$_uuid_argo_def" || _uuid_argo="$_uuid_argo_def"
-    _uuid_argo="${_rd_val:-$_uuid_argo_def}"
-  fi
-  export uuid="$_uuid_argo"
-  echo "$uuid" > "$HOME/agsbx/uuid"
-  _save_cfg uuid_singbox "$uuid"
 
   if ! _yn "确认?" y; then
     return 1
