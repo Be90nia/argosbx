@@ -3424,6 +3424,9 @@ Shadowsocks+WS (sw)"
   export agn="${_argo_domain:-}"
   export agk="${_argo_token:-}"
   export argopro="$_argopro_list"
+  # 同步ARGO_DOMAIN/ARGO_AUTH(ins()和cloudflared用这两个变量)
+  export ARGO_DOMAIN="${_argo_domain:-}"
+  export ARGO_AUTH="${_argo_token:-}"
 
   echo
   echo "✅ Argo隧道配置完成"
