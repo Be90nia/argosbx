@@ -1,4 +1,4 @@
-#!/bin/sh
+﻿#!/bin/sh
 export LANG=en_US.UTF-8
 
 # ===== S0: 安全加固初始化 =====
@@ -1715,7 +1715,7 @@ cat <<EOF
             "tag": "${sxname}vmess-$hostname",
             "tls": {
                 "enabled": false,
-                "server_name": "www.bing.com",
+                "server_name": "${directnym:-$server_ip}",
                 "insecure": false,
                 "utls": {
                     "enabled": true,
@@ -1791,8 +1791,8 @@ cat <<EOF
             "min_idle_session": 5,
             "tls": {
                 "enabled": true,
-                "insecure": true,
-                "server_name": "www.bing.com"
+                "insecure": false,
+                "server_name": "${directnym:-$server_ip}"
             }
          },
 EOF
@@ -1811,8 +1811,8 @@ cat <<EOF
   udp: true
   idle-session-check-interval: 30
   idle-session-timeout: 30
-  sni: www.bing.com
-  skip-cert-verify: true
+  sni: ${directnym:-$server_ip}
+  skip-cert-verify: false
 EOF
 }
 clanpt1(){
@@ -1889,8 +1889,8 @@ $(sbhy2ports 2>/dev/null)
         "password": "$uuid",
         "tls": {
             "enabled": true,
-            "server_name": "www.bing.com",
-            "insecure": true,
+            "server_name": "${directnym:-$server_ip}",
+            "insecure": false,
             "alpn": [
                 "h3"
             ]
@@ -1911,8 +1911,8 @@ cat <<EOF
   password: $uuid                          
   alpn:
     - h3
-  sni: www.bing.com                               
-  skip-cert-verify: true
+  sni: ${directnym:-$server_ip}                               
+  skip-cert-verify: false
   fast-open: true
 EOF
 }
@@ -1936,15 +1936,15 @@ cat <<EOF
             "server_port": $port_tu,
             "uuid": "$uuid",
             "password": "$uuid",
-            "congestion_control": "bbr",
+            "congestion_control": "cubic",
             "udp_relay_mode": "native",
             "udp_over_stream": false,
             "zero_rtt_handshake": false,
             "heartbeat": "10s",
             "tls":{
                 "enabled": true,
-                "server_name": "www.bing.com",
-                "insecure": true,
+                "server_name": "${directnym:-$server_ip}",
+                "insecure": false,
                 "alpn": [
                     "h3"
                 ]
@@ -1968,8 +1968,8 @@ cat <<EOF
   reduce-rtt: true
   udp-relay-mode: native
   congestion-controller: bbr
-  sni: www.bing.com                                
-  skip-cert-verify: true
+  sni: ${directnym:-$server_ip}                                
+  skip-cert-verify: false
 EOF
 }
 cltupt1(){
@@ -2036,8 +2036,8 @@ cat <<EOF
       "password": "$uuid",
       "tls": {
         "enabled": true,
-        "server_name": "$server_ip",
-        "insecure": true
+        "server_name": "${directnym:-$server_ip}",
+        "insecure": false
       }
     },
 EOF
