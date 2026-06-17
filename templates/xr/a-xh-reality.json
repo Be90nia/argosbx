@@ -25,7 +25,7 @@
         },
         "xhttpSettings": {
           "host": "",
-          "path": "__UUID__-xh",
+          "path": "__BASEPATH__-xh",
           "mode": "auto"
         }
       },
