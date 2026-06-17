@@ -2586,7 +2586,7 @@ rm /tmp/crontab.tmp
 rm -rf  "$HOME/bin/agsbx"
 # 清理acme.sh cron和alias(证书目录由下面的rm统一清理)
 if [ -e "$HOME/.acme.sh/acme.sh" ]; then
-"$HOME/.acme.sh/acme.sh" --uninstall 2>/dev/null | grep -v "remove them by yourself" | grep -v "keys and certs"
+"$HOME/.acme.sh/acme.sh" --uninstall 2>/dev/null | grep -v "remove them by yourself" | grep -v "keys and certs" | grep -v "Removing cron" | grep -v "Uninstalling alias"
 fi
 rm -rf /etc/argosbx "$HOME/.acme.sh"
 if [ "$(ps -p 1 -o comm= 2>/dev/null)" = "systemd" ]; then
