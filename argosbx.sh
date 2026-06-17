@@ -1,4 +1,4 @@
-﻿#!/bin/sh
+#!/bin/sh
 export LANG=en_US.UTF-8
 
 # ===== S0: 安全加固初始化 =====
@@ -55,7 +55,6 @@ fi
 [ -z "${mxpt+x}" ] || mxp=yes
 [ -z "${swpt+x}" ] || swp=yes
 [ -z "${vwept+x}" ] || vwep=yes
-[ -z "${stpt+x}" ] || stp=yes
 [ -z "${napt+x}" ] || nap=yes
 [ -z "${trpt+x}" ] || trp=yes
 [ -z "${vtpt+x}" ] || vtp=yes
@@ -64,7 +63,7 @@ fi
 
 if find /proc/*/exe -type l 2>/dev/null | grep -E '/proc/[0-9]+/exe' | xargs -r readlink 2>/dev/null | grep -Eq 'agsbx/(s|x)' || pgrep -f 'agsbx/(s|x)' >/dev/null 2>&1; then
 if [ "$1" = "rep" ]; then
-[ "$vwp" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || [ "$vup" = yes ] || [ "$twp" = yes ] || [ "$tuhp" = yes ] || [ "$mup" = yes ] || [ "$txp" = yes ] || [ "$mxp" = yes ] || [ "$swp" = yes ] || [ "$vwep" = yes ] || [ "$stp" = yes ] || [ "$nap" = yes ] || [ "$trp" = yes ] || [ "$vtp" = yes ] || [ "$ttp" = yes ] || { echo "提示：rep重置协议时，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
+[ "$vwp" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || [ "$vup" = yes ] || [ "$twp" = yes ] || [ "$tuhp" = yes ] || [ "$mup" = yes ] || [ "$txp" = yes ] || [ "$mxp" = yes ] || [ "$swp" = yes ] || [ "$vwep" = yes ] || [ "$nap" = yes ] || [ "$trp" = yes ] || [ "$vtp" = yes ] || [ "$ttp" = yes ] || { echo "提示：rep重置协议时，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
 fi
 else
 # 未安装场景：如果是交互式TTY且无协议变量，跳过exit让S8菜单处理；否则保持原exit逻辑
@@ -88,13 +87,11 @@ export port_an=${anpt:-''}
 export port_ar=${arpt:-''}
 export port_ss=${sspt:-''}
 export port_so=${sopt:-''}
-export port_st=${stpt:-''}
 export port_na=${napt:-''}
 export port_tr=${trpt:-''}
 export port_vtv=${vtpt:-''}
 export port_tt=${ttpt:-''}
 export nap_user=${nap_user:-''}
-export stls_dest=${stdst:-''}
 export ym_vl_re=${reym:-''}
 export cdnym=${cdnym:-''}
 export directnym=${directnym:-''}
@@ -377,9 +374,6 @@ tpl_sb() {
       -e "s|__BASEPATH__|${basepath}|g" \
       -e "s|__PORT__|${_tplport}|g" \
       -e "s|__SSKEY__|${sskey}|g" \
-      -e "s|__STLSPASS__|${stlspass}|g" \
-      -e "s|__SSINTKEY__|${ssintkey}|g" \
-      -e "s|__STLS_DEST__|${stls_dest}|g" \
       -e "s|__NAP_USER__|${nap_user}|g" \
       -e "s|__YM_VL_RE__|${ym_vl_re}|g" \
       -e "s|__PRIVATE_KEY_S__|${private_key_s}|g" \
@@ -1002,23 +996,6 @@ fi
 else
 ssp=ssptargo
 fi
-if [ -n "$stp" ]; then
-  stp=stpt
-  if [ ! -e "$HOME/agsbx/stlspass" ]; then
-    stlspass=$("$HOME/agsbx/sing-box" generate rand 16 --base64)
-    echo "$stlspass" > "$HOME/agsbx/stlspass"
-  fi
-  if [ ! -e "$HOME/agsbx/ssintkey" ]; then
-    ssintkey=$("$HOME/agsbx/sing-box" generate rand 32 --base64)
-    echo "$ssintkey" > "$HOME/agsbx/ssintkey"
-  fi
-  stlspass=$(cat "$HOME/agsbx/stlspass")
-  ssintkey=$(cat "$HOME/agsbx/ssintkey")
-  [ -z "$stls_dest" ] && stls_dest=www.microsoft.com
-  alloc_port port_st
-  echo "ShadowTLS端口：$port_st (伪装目标: $stls_dest)"
-  tpl_sb c-stls "$port_st"
-fi
 if [ -n "$nap" ]; then
   nap=napt
   [ -z "$nap_user" ] && nap_user=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 8)
@@ -1153,6 +1130,9 @@ fi
 fi
 }
 ins(){
+# 持久化directnym/cdnym到文件(cip重新生成链接时需要读取)
+[ -n "$directnym" ] && echo "$directnym" > "$HOME/agsbx/directnym"
+[ -n "$cdnym" ] && echo "$cdnym" > "$HOME/agsbx/cdnym"
 # 证书签发(CDN协议需要cdnym证书, acme.sh + CF DNS API)
 if [ -n "$cdnym" ] && [ -n "$cfkey" ] && { [ -n "$vxp" ] || [ -n "$vwp" ] || [ -n "$vup" ] || [ -n "$twp" ] || [ -n "$tuhp" ] || [ -n "$vmp" ] || [ -n "$mup" ] || [ -n "$txp" ] || [ -n "$mxp" ] || [ -n "$swp" ] || [ -n "$vwep" ]; }; then
   certsign "$cdnym" "cdnym" || echo "⚠️ CDN证书签发失败，CDN协议可能无法正常工作(CF Full Strict模式)"
@@ -1170,7 +1150,7 @@ xrsbvm
 xrsbso
 warpsx
 xrsbout
-hyp="hyptargo"; tup="tuptargo"; anp="anptargo"; arp="arptargo"; ssp="ssptargo"; stp="stptargo"; nap="naptargo"
+hyp="hyptargo"; tup="tuptargo"; anp="anptargo"; arp="arptargo"; ssp="ssptargo"; nap="naptargo"
 elif [ "$xhp" != yes ] && [ "$vlp" != yes ] && [ "$vxp" != yes ] && [ "$vwp" != yes ] && [ "$vup" != yes ] && [ "$twp" != yes ] && [ "$tuhp" != yes ] && [ "$mup" != yes ] && [ "$txp" != yes ] && [ "$mxp" != yes ] && [ "$swp" != yes ] && [ "$vwep" != yes ] && [ "$trp" != yes ] && [ "$vtp" != yes ] && [ "$ttp" != yes ]; then
 installsb
 xrsbvm
@@ -1280,7 +1260,7 @@ mkdir -p "$HOME/bin"
 (command -v curl >/dev/null 2>&1 && curl -sL "$agsbxurl" -o "$SCRIPT_PATH") || (command -v wget >/dev/null 2>&1 && wget -qO "$SCRIPT_PATH" "$agsbxurl")
 chmod +x "$SCRIPT_PATH"
 if ! [ "$(ps -p 1 -o comm= 2>/dev/null)" = "systemd" ] && ! command -v rc-service >/dev/null 2>&1; then
-echo "if ! find /proc/*/exe -type l 2>/dev/null | grep -E '/proc/[0-9]+/exe' | xargs -r readlink 2>/dev/null | grep -Eq 'agsbx/(s|x)' && ! pgrep -f 'agsbx/(s|x)' >/dev/null 2>&1; then echo '检测到系统可能中断过，或者变量格式错误？建议在SSH对话框输入 reboot 重启下服务器。现在自动执行Argosbx脚本的节点恢复操作，请稍等……'; sleep 6; export cfip=\"${cfip}\" hyjpt=\"${hyjpt}\" cdnym=\"${cdnym}\" name=\"${name}\" ippz=\"${ippz}\" argo=\"${argo}\" argopro=\"${argopro}\" uuid=\"${uuid}\" $wap=\"${warp}\" $xhp=\"${port_xh}\" $vxp=\"${port_vx}\" $ssp=\"${port_ss}\" $sop=\"${port_so}\" $anp=\"${port_an}\" $arp=\"${port_ar}\" $vlp=\"${port_vl_re}\" $vwp=\"${port_vw}\" $vmp=\"${port_vm_ws}\" $hyp=\"${port_hy2}\" $tup=\"${port_tu}\" $stp=\"${port_st}\" $nap=\"${port_na}\" $trp=\"${port_tr}\" $vtp=\"${port_vtv}\" $ttp=\"${port_tt}\" reym=\"${ym_vl_re}\" agn=\"${ARGO_DOMAIN}\" agk=\"${ARGO_AUTH}\"; bash "$HOME/bin/agsbx"; fi" >> ~/.bashrc
+echo "if ! find /proc/*/exe -type l 2>/dev/null | grep -E '/proc/[0-9]+/exe' | xargs -r readlink 2>/dev/null | grep -Eq 'agsbx/(s|x)' && ! pgrep -f 'agsbx/(s|x)' >/dev/null 2>&1; then echo '检测到系统可能中断过，或者变量格式错误？建议在SSH对话框输入 reboot 重启下服务器。现在自动执行Argosbx脚本的节点恢复操作，请稍等……'; sleep 6; export cfip=\"${cfip}\" hyjpt=\"${hyjpt}\" cdnym=\"${cdnym}\" name=\"${name}\" ippz=\"${ippz}\" argo=\"${argo}\" argopro=\"${argopro}\" uuid=\"${uuid}\" $wap=\"${warp}\" $xhp=\"${port_xh}\" $vxp=\"${port_vx}\" $ssp=\"${port_ss}\" $sop=\"${port_so}\" $anp=\"${port_an}\" $arp=\"${port_ar}\" $vlp=\"${port_vl_re}\" $vwp=\"${port_vw}\" $vmp=\"${port_vm_ws}\" $hyp=\"${port_hy2}\" $tup=\"${port_tu}\" $nap=\"${port_na}\" $trp=\"${port_tr}\" $vtp=\"${port_vtv}\" $ttp=\"${port_tt}\" reym=\"${ym_vl_re}\" agn=\"${ARGO_DOMAIN}\" agk=\"${ARGO_AUTH}\"; bash "$HOME/bin/agsbx"; fi" >> ~/.bashrc
 fi
 sed -i '/export PATH="\$HOME\/bin:\$PATH"/d' ~/.bashrc
 echo 'export PATH="$HOME/bin:$PATH"' >> "$HOME/.bashrc"
@@ -1464,6 +1444,9 @@ echo "$vl_xh_link"
 echo
 fi
 basepath=$(cat "$HOME/agsbx/basepath" 2>/dev/null)
+directnym=$(cat "$HOME/agsbx/directnym" 2>/dev/null)
+if [ -f "$HOME/agsbx/cdnip1" ]; then cdnip1=$(cat "$HOME/agsbx/cdnip1"); else cdnip1="yg1.ygkkk.dpdns.org"; fi
+if [ -f "$HOME/agsbx/cdnip2" ]; then cdnip2=$(cat "$HOME/agsbx/cdnip2"); else cdnip2="yg6.ygkkk.dpdns.org"; fi
 if grep "\"tag\":\"vless-xhttp\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 echo "💣【 Vless-xhttp-enc 】支持ENC加密，节点信息如下："
 vl_vx_link="vless://$uuid@$server_ip:2053?encryption=$enkey&type=xhttp&path=/${basepath}-vx&mode=packet-up&security=tls&sni=$xvvmcdnym&fp=chrome#${sxname}vl-xhttp-enc-$hostname"
@@ -1977,51 +1960,6 @@ cltupt1(){
 echo "- ${sxname}tuic5-$hostname"
 }
 fi
-# C9 ShadowTLS v3+SS (无官方URI，仅输出连接参数)
-if grep "\"tag\":\"stls-in\"" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
-echo "💣【 ShadowTLS v3+SS 】节点信息如下："
-port_st=$(cat "$HOME/agsbx/port_st")
-stlspass=$(cat "$HOME/agsbx/stlspass")
-ssintkey=$(cat "$HOME/agsbx/ssintkey")
-stls_dest=${stls_dest:-www.microsoft.com}
-echo "⚠️ ShadowTLS无官方URI格式，以下为手动配置参数："
-echo "地址：$server_ip  端口：$port_st  ShadowTLS版本：v3"
-echo "ShadowTLS密码：$stlspass  伪装域名：$stls_dest"
-echo "内嵌SS加密：2022-blake3-aes-256-gcm  SS密码：$ssintkey"
-# 写入jhsub.txt(注释格式,供用户参考)
-echo "# ShadowTLS v3+SS (无官方URI,手动配置)" >> "$HOME/agsbx/jhsub.txt"
-echo "# 地址：$server_ip  端口：$port_st  版本：v3" >> "$HOME/agsbx/jhsub.txt"
-echo "# ShadowTLS密码：$stlspass  伪装域名：$stls_dest" >> "$HOME/agsbx/jhsub.txt"
-echo "# 内嵌SS：2022-blake3-aes-256-gcm  SS密码：$ssintkey" >> "$HOME/agsbx/jhsub.txt"
-echo
-sbstpt(){
-cat <<EOF
-    {
-      "type": "shadowtls",
-      "tag": "${sxname}shadowtls-$hostname",
-      "server": "$server_ip",
-      "server_port": $port_st,
-      "version": 3,
-      "password": "$stlspass",
-      "tls": {
-        "enabled": true,
-        "server_name": "$stls_dest",
-        "utls": { "enabled": true, "fingerprint": "chrome" }
-      },
-      "detour": "${sxname}ss-internal-$hostname"
-    },
-    {
-      "type": "shadowsocks",
-      "tag": "${sxname}ss-internal-$hostname",
-      "method": "2022-blake3-aes-256-gcm",
-      "password": "$ssintkey"
-    },
-EOF
-}
-sbstpt1(){
-echo "\"${sxname}shadowtls-$hostname\","
-}
-fi
 # C10 Naive
 if grep "\"tag\":\"naive-in\"" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
 echo "💣【 Naive 】节点信息如下："
@@ -2209,44 +2147,34 @@ for _p in $argo_sel; do
   case $_p in
     vw)
       echo "vless://${uuid}@${cdnip1}:443?encryption=none&security=tls&sni=${argodomain}&fp=chrome&type=ws&host=${argodomain}&path=/${basepath}-a-vw#${sxname}vless-ws-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
-      echo "vless://${uuid}@${cdnip2}:80?encryption=none&type=ws&host=${argodomain}&path=/${basepath}-a-vw#${sxname}vless-ws-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
       ;;
     vx)
       echo "vless://${uuid}@${cdnip1}:443?encryption=${enkey}&security=tls&sni=${argodomain}&fp=chrome&type=xhttp&host=${argodomain}&path=/${basepath}-a-vx&mode=packet-up#${sxname}vless-xhttp-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
-      echo "vless://${uuid}@${cdnip2}:80?encryption=${enkey}&type=xhttp&host=${argodomain}&path=/${basepath}-a-vx&mode=packet-up#${sxname}vless-xhttp-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
       ;;
     vm)
       echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-ws-tls-argo-$hostname-443\",\"add\":\"$cdnip1\",\"port\":\"443\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"ws\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-a-vm\",\"tls\":\"tls\",\"sni\":\"$argodomain\",\"alpn\":\"\",\"fp\":\"chrome\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
-      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-ws-argo-$hostname-80\",\"add\":\"$cdnip2\",\"port\":\"80\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"ws\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-a-vm\",\"tls\":\"\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
       ;;
     vu)
       echo "vless://${uuid}@${cdnip1}:443?encryption=${enkey}&security=tls&sni=${argodomain}&fp=chrome&type=httpupgrade&host=${argodomain}&path=/${basepath}-a-vu#${sxname}vless-httpupgrade-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
-      echo "vless://${uuid}@${cdnip2}:80?encryption=${enkey}&type=httpupgrade&host=${argodomain}&path=/${basepath}-a-vu#${sxname}vless-httpupgrade-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
       ;;
     tw)
       echo "trojan://${uuid}@${cdnip1}:443?security=tls&sni=${argodomain}&fp=chrome&type=ws&host=${argodomain}&path=/${basepath}-a-tw#${sxname}trojan-ws-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
-      echo "trojan://${uuid}@${cdnip2}:80?type=ws&host=${argodomain}&path=/${basepath}-a-tw#${sxname}trojan-ws-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
       ;;
     tu)
       echo "trojan://${uuid}@${cdnip1}:443?security=tls&sni=${argodomain}&fp=chrome&type=httpupgrade&host=${argodomain}&path=/${basepath}-a-tu#${sxname}trojan-httpupgrade-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
-      echo "trojan://${uuid}@${cdnip2}:80?type=httpupgrade&host=${argodomain}&path=/${basepath}-a-tu#${sxname}trojan-httpupgrade-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
       ;;
     mu)
       echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-httpupgrade-tls-argo-$hostname-443\",\"add\":\"$cdnip1\",\"port\":\"443\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"httpupgrade\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-a-mu\",\"tls\":\"tls\",\"sni\":\"$argodomain\",\"alpn\":\"\",\"fp\":\"chrome\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
-      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-httpupgrade-argo-$hostname-80\",\"add\":\"$cdnip2\",\"port\":\"80\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"httpupgrade\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-a-mu\",\"tls\":\"\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
       ;;
     tx)
       echo "trojan://${uuid}@${cdnip1}:443?security=tls&sni=${argodomain}&fp=chrome&type=xhttp&host=${argodomain}&path=/${basepath}-a-tx&mode=packet-up#${sxname}trojan-xhttp-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
-      echo "trojan://${uuid}@${cdnip2}:80?type=xhttp&host=${argodomain}&path=/${basepath}-a-tx&mode=packet-up#${sxname}trojan-xhttp-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
       ;;
     mx)
       echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-xhttp-tls-argo-$hostname-443\",\"add\":\"$cdnip1\",\"port\":\"443\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"xhttp\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-a-mx\",\"tls\":\"tls\",\"sni\":\"$argodomain\",\"alpn\":\"\",\"fp\":\"chrome\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
-      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-xhttp-argo-$hostname-80\",\"add\":\"$cdnip2\",\"port\":\"80\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"xhttp\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-a-mx\",\"tls\":\"\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
       ;;
      sw)
        _ss_enc_argo=$(printf '%s' "$sskey" | sed 's/+/%2B/g; s/=/%3D/g; s|/|%2F|g')
        echo "ss://2022-blake3-aes-128-gcm:${_ss_enc_argo}@${cdnip1}:443/?type=ws&host=${argodomain}&path=/${basepath}-a-sw#${sxname}ss-ws-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
-       echo "ss://2022-blake3-aes-128-gcm:${_ss_enc_argo}@${cdnip2}:80/?type=ws&host=${argodomain}&path=/${basepath}-a-sw#${sxname}ss-ws-argo-$hostname-80" >> "$HOME/agsbx/jhsub.txt"
        ;;
   esac
 done
@@ -2513,9 +2441,9 @@ out=$($f)
 [ -n "$out" ] && printf "%s\n" "$out"
 fi
 }
-  sbxy="$(get_func sbvlpt; get_func sbsspt; get_func sbanpt; get_func sbarpt; get_func sbvmpt; get_func sbhypt; get_func sbtupt; get_func sbvmargopt; get_func sbvwargopt; get_func sbtwargopt; get_func sbtuargopt; get_func sbmuargopt; get_func sbstpt; get_func sbnapt; get_func sbtrpt; get_func sbvtpt; get_func sbttpt)"
+  sbxy="$(get_func sbvlpt; get_func sbsspt; get_func sbanpt; get_func sbarpt; get_func sbvmpt; get_func sbhypt; get_func sbtupt; get_func sbvmargopt; get_func sbvwargopt; get_func sbtwargopt; get_func sbtuargopt; get_func sbmuargopt; get_func sbnapt; get_func sbtrpt; get_func sbvtpt; get_func sbttpt)"
   clxy="$(get_func clvlpt; get_func clsspt; get_func clanpt; get_func clvmpt; get_func clhypt; get_func cltupt; get_func clvmargopt; get_func clvwargopt; get_func cltwargopt; get_func cltuargopt; get_func clmuargopt; get_func clswargopt; get_func cltrpt; get_func clvtpt; get_func clttpt)"
-  sbgz="$(get_func sbvlpt1; get_func sbsspt1; get_func sbanpt1; get_func sbarpt1; get_func sbvmpt1; get_func sbhypt1; get_func sbtupt1; get_func sbvmargopt1; get_func sbvwargopt1; get_func sbtwargopt1; get_func sbtuargopt1; get_func sbmuargopt1; get_func sbstpt1; get_func sbnapt1; get_func sbtrpt1; get_func sbvtpt1; get_func sbttpt1)"
+  sbgz="$(get_func sbvlpt1; get_func sbsspt1; get_func sbanpt1; get_func sbarpt1; get_func sbvmpt1; get_func sbhypt1; get_func sbtupt1; get_func sbvmargopt1; get_func sbvwargopt1; get_func sbtwargopt1; get_func sbtuargopt1; get_func sbmuargopt1; get_func sbnapt1; get_func sbtrpt1; get_func sbvtpt1; get_func sbttpt1)"
   clgz="$({ get_func clvlpt1; get_func clsspt1; get_func clanpt1; get_func clvmpt1; get_func clhypt1; get_func cltupt1; get_func clvmargopt1; get_func clvwargopt1; get_func cltwargopt1; get_func cltuargopt1; get_func clmuargopt1; get_func clswargopt1; get_func cltrpt1; get_func clvtpt1; get_func clttpt1; } | sed '2,$s/^/    /')"
 sbgz=$(printf "%s\n" "$sbgz" | sed '$ s/,$//')
   tpl_client sbox-client.json "$HOME/agsbx/sbox.json"
@@ -2553,7 +2481,6 @@ grep -q '"tag":"tuic5-sb"' "$HOME/agsbx/sb.json" 2>/dev/null && echo "TUIC      
 grep -q '"tag":"anytls-sb"' "$HOME/agsbx/sb.json" 2>/dev/null && echo "AnyTLS             | $(cat $HOME/agsbx/port_an 2>/dev/null)   | ${directnym:-$server_ip} | directnym"
 grep -q '"tag":"anyreality-sb"' "$HOME/agsbx/sb.json" 2>/dev/null && echo "Any-Reality        | $(cat $HOME/agsbx/port_ar 2>/dev/null)   | $ym_vl_re | 无(Reality)"
 grep -q '"tag":"ss-2022"' "$HOME/agsbx/sb.json" 2>/dev/null && echo "SS-2022直连        | $(cat $HOME/agsbx/port_ss 2>/dev/null)   | 无 | 无(自身加密)"
-grep -q '"tag":"stls-in"' "$HOME/agsbx/sb.json" 2>/dev/null && echo "ShadowTLS v3+SS    | $(cat $HOME/agsbx/port_st 2>/dev/null)   | ${stls_dest:-www.microsoft.com} | 无(外层TLS伪装)"
 grep -q '"tag":"naive-in"' "$HOME/agsbx/sb.json" 2>/dev/null && echo "Naive              | $(cat $HOME/agsbx/port_na 2>/dev/null)   | ${directnym:-$server_ip} | directnym"
 grep -q '"tag":"trojan-reality"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "Trojan+Reality     | $(cat $HOME/agsbx/port_tr 2>/dev/null)   | $ym_vl_re | 无(Reality)"
 grep -q '"tag":"vless-tls-vision"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VLESS+TLS+Vision   | $(cat $HOME/agsbx/port_vtv 2>/dev/null)   | ${directnym:-$server_ip} | directnym"
@@ -3199,7 +3126,7 @@ menu_noncdn() {
     echo "[3/5] 未检测到可用证书，请选择证书方式"
     echo "  1. 已有证书(提供crt/key文件路径)"
     echo "  2. CF API自动申请(acme.sh dns_cf)"
-    echo "  3. 跳过(只装无TLS协议: SS-2022/ShadowTLS)"
+    echo "  3. 跳过(只装无TLS协议: SS-2022)"
     _rd "  选择[1-3]" "1" || _certmode="1"
     _certmode="${_rd_val:-1}"
     _save_cfg noncdn_certmode "$_certmode"
@@ -3254,7 +3181,6 @@ TUIC (sing-box·QUIC·TLS)
 AnyTLS (sing-box·TLS)
 Any-Reality VLESS+Reality (sing-box·无证书)
 SS-2022直连 (sing-box·无TLS)
-ShadowTLS v3+SS (sing-box·嵌套SS)
 Naive (sing-box·HTTP/2·TLS)
 Trojan+TCP+Reality (xray·Reality)
 VLESS+TCP+TLS+Vision (xray·TLS·flow=Vision)
@@ -3289,8 +3215,8 @@ Trojan+TCP+TLS (xray·TLS)"
   echo "  Reality目标: $_reality"
   echo "  已选协议编号: $_sel"
   echo "  (1=VLESS-Reality-ENC 2=VLESS-Reality-Vision 3=Hysteria2 4=TUIC"
-  echo "   5=AnyTLS 6=Any-Reality 7=SS-2022 8=ShadowTLS 9=Naive"
-  echo "   10=Trojan+Reality 11=VLESS+TLS+Vision 12=Trojan+TLS)"
+  echo "   5=AnyTLS 6=Any-Reality 7=SS-2022 8=Naive"
+  echo "   9=Trojan+Reality 10=VLESS+TLS+Vision 11=Trojan+TLS)"
   echo "======================================"
   if ! _yn "确认开始部署?" y; then
     return 1
@@ -3314,11 +3240,10 @@ Trojan+TCP+TLS (xray·TLS)"
       5) export anp=yes ;;
       6) export arp=yes ;;
       7) export ssp=yes ;;
-      8) export stp=yes ;;
-      9) export nap=yes ;;
-      10) export trp=yes ;;
-      11) export vtp=yes ;;
-      12) export ttp=yes ;;
+      8) export nap=yes ;;
+      9) export trp=yes ;;
+      10) export vtp=yes ;;
+      11) export ttp=yes ;;
     esac
   done
 
