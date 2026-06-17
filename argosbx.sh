@@ -1645,7 +1645,7 @@ if grep "\"tag\":\"ss-2022\"" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
 echo "💣【 Shadowsocks-2022 】节点信息如下："
 port_ss=$(cat "$HOME/agsbx/port_ss")
 _ss_enc_c=$(printf '%s' "$sskey" | sed 's/+/%2B/g; s/=/%3D/g; s|/|%2F|g')
-ss_link="ss://2022-blake3-aes-128-gcm:${_ss_enc_c}@$server_ip:$port_ss#${sxname}Shadowsocks-2022-$hostname"
+ss_link="ss://2022-blake3-aes-256-gcm:${_ss_enc_c}@$server_ip:$port_ss#${sxname}Shadowsocks-2022-$hostname"
 echo "$ss_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$ss_link"
 echo
@@ -1656,7 +1656,7 @@ cat <<EOF
        "tag": "${sxname}Shadowsocks-2022-$hostname",
        "server": "$server_ip",
        "server_port": $port_ss,
-       "method": "2022-blake3-aes-128-gcm",
+       "method": "2022-blake3-aes-256-gcm",
        "password": "$sskey",
        "udp_over_tcp": {
         "enabled": true,
@@ -1674,7 +1674,7 @@ cat <<EOF
   type: ss
   server: $server_ip
   port: $port_ss
-  cipher: 2022-blake3-aes-128-gcm
+  cipher: 2022-blake3-aes-256-gcm
   password: "$sskey"
   udp: true
   udp-over-tcp: true
