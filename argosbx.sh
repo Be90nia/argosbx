@@ -3214,9 +3214,9 @@ Trojan+TCP+TLS (xray·TLS)"
       3|4|5|9|11|12) _need_cert="$_need_cert$_n " ;;
     esac
   done
-  if [ -n "$_need_cert" ] && [ "$_certmode" = "2" ]; then
+  if [ -n "$_need_cert" ] && [ "${_certmode:-}" = "3" ]; then
     echo "❌ 选择的协议需要TLS证书(Hysteria2/TUIC/AnyTLS/Naive/VLESS+TLS+Vision/Trojan+TLS)"
-    echo "   请重新选择并配置证书方式"
+    echo "   但证书方式为'跳过'，请重新选择并配置证书方式(1或2)"
     return 1
   fi
 
