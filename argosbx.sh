@@ -346,6 +346,13 @@ certsign() {
     --fullchain-file "$_cscrt" \
     --reloadcmd "if command -v systemctl >/dev/null 2>&1; then systemctl restart xray 2>/dev/null || echo 'warn: xray restart failed'; systemctl restart sing-box 2>/dev/null || echo 'warn: sing-box restart failed'; elif command -v rc-service >/dev/null 2>&1; then rc-service xray restart 2>/dev/null || echo 'warn: xray restart failed'; rc-service sing-box restart 2>/dev/null || echo 'warn: sing-box restart failed'; fi"
   unset CF_Email CF_Key
+  # 创建软链接: 让sing-box/xray直接读取acme.sh源证书,续期后无需手动复制
+  local _acme_cert_dir="$HOME/.acme.sh/$_csdomain"
+  if [ -f "$_acme_cert_dir/fullchain.cer" ] && [ -f "$_acme_cert_dir/$_csdomain.key" ]; then
+    ln -sf "$_acme_cert_dir/fullchain.cer" "$_cscrt"
+    ln -sf "$_acme_cert_dir/$_csdomain.key" "$_cskey"
+    echo "✅ 证书软链接: $_cscrt → $_acme_cert_dir/fullchain.cer"
+  fi
   echo "✅ 证书签发成功: $_csdomain → $_cscrt"
 }
 
@@ -3167,10 +3174,9 @@ menu_noncdn() {
         _certkey="${_rd_val:-$_certkey_def}"
         if [ -f "$_certcrt" ] && [ -f "$_certkey" ]; then
           mkdir -p /etc/argosbx/certs
-          cp -f "$_certcrt" /etc/argosbx/certs/directnym.crt
-          cp -f "$_certkey" /etc/argosbx/certs/directnym.key
-          chmod 600 /etc/argosbx/certs/directnym.key
-          echo "  ✅ 证书已复制到 /etc/argosbx/certs/directnym.crt+key"
+          ln -sf "$_certcrt" /etc/argosbx/certs/directnym.crt
+          ln -sf "$_certkey" /etc/argosbx/certs/directnym.key
+          echo "  ✅ 证书软链接: /etc/argosbx/certs/directnym.crt → $_certcrt"
         else
           echo "  ⚠ 文件不存在，稍后将自动申请或跳过"
           _certmode="3"
