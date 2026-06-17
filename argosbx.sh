@@ -284,6 +284,15 @@ certsign() {
         echo "⚠️ directnym证书是CF Origin CA(不被公网信任),需重新签发Let's Encrypt证书"
       else
         echo "证书已存在(Let's Encrypt): $_cscrt"
+        # 尝试将普通文件改为软链接指向acme.sh源证书(续期后自动更新)
+        local _acme_cert_dir="$HOME/.acme.sh/$_csdomain"
+        if [ -d "$_acme_cert_dir" ] && [ -f "$_acme_cert_dir/fullchain.cer" ] && [ -f "$_acme_cert_dir/$_csdomain.key" ]; then
+          if [ ! -L "$_cscrt" ]; then
+            ln -sf "$_acme_cert_dir/fullchain.cer" "$_cscrt"
+            ln -sf "$_acme_cert_dir/$_csdomain.key" "$_cskey"
+            echo "✅ 证书已改为软链接: $_cscrt → $_acme_cert_dir/fullchain.cer"
+          fi
+        fi
         return 0
       fi
     else
