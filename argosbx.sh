@@ -277,11 +277,22 @@ certsign() {
   local _acme="$HOME/.acme.sh/acme.sh"
   mkdir -p /etc/argosbx/certs
   if [ -f "$_cscrt" ] && [ -f "$_cskey" ]; then
-    echo "证书已存在: $_cscrt"
-    return 0
+    # directnym(灰云直连)必须是公网信任证书(Let's Encrypt),CF Origin CA不被公网信任
+    if [ "$_csprefix" = "directnym" ]; then
+      _issuer=$(openssl x509 -in "$_cscrt" -noout -issuer 2>/dev/null)
+      if echo "$_issuer" | grep -qi "CloudFlare"; then
+        echo "⚠️ directnym证书是CF Origin CA(不被公网信任),需重新签发Let's Encrypt证书"
+      else
+        echo "证书已存在(Let's Encrypt): $_cscrt"
+        return 0
+      fi
+    else
+      echo "证书已存在: $_cscrt"
+      return 0
+    fi
   fi
-  # 跨证书复用检测: 扫描已有证书,若SAN/CN覆盖目标域名则复用(避免泛域名证书重复签发)
-  if command -v openssl >/dev/null 2>&1; then
+  # 跨证书复用检测: 仅cdnym允许复用(CF Origin CA), directnym必须用Let's Encrypt(公网信任)
+  if [ "$_csprefix" != "directnym" ] && command -v openssl >/dev/null 2>&1; then
     for _existing_crt in /etc/argosbx/certs/*.crt; do
       [ -f "$_existing_crt" ] || continue
       _existing_key="${_existing_crt%.crt}.key"
