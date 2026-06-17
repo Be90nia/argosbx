@@ -1152,6 +1152,16 @@ fi
 if [ -n "$directnym" ] && [ -n "$cfkey" ] && { [ -n "$vtp" ] || [ -n "$ttp" ] || [ -n "$hyp" ] || [ -n "$tup" ] || [ -n "$anp" ] || [ -n "$nap" ]; }; then
   certsign "$directnym" "directnym" || echo "⚠️ directnym证书签发失败，直连TLS协议可能无法正常工作"
 fi
+# 证书验证: 确保证书文件存在且有效，否则禁用需要TLS的sing-box协议
+if [ -n "$directnym" ] && { [ -n "$hyp" ] || [ -n "$tup" ] || [ -n "$anp" ] || [ -n "$nap" ] || [ -n "$vtp" ] || [ -n "$ttp" ]; }; then
+  if [ ! -f "/etc/argosbx/certs/directnym.key" ] || [ ! -f "/etc/argosbx/certs/directnym.crt" ]; then
+    echo "❌ directnym证书文件不存在，禁用需要TLS的sing-box协议"
+    hyp=""; tup=""; anp=""; nap=""; vtp=""; ttp=""
+  elif ! openssl rsa -in /etc/argosbx/certs/directnym.key -check -noout 2>/dev/null && ! openssl ec -in /etc/argosbx/certs/directnym.key -check -noout 2>/dev/null; then
+    echo "❌ directnym.key格式无效，禁用需要TLS的sing-box协议"
+    hyp=""; tup=""; anp=""; nap=""; vtp=""; ttp=""
+  fi
+fi
 # 解析Argo协议选择(必须在installxray之前,因为installxray_argo需要argo_xxx标志)
 parse_argopro
 if [ "$hyp" != yes ] && [ "$tup" != yes ] && [ "$anp" != yes ] && [ "$arp" != yes ] && [ "$ssp" != yes ] && [ "$stp" != yes ] && [ "$nap" != yes ]; then
