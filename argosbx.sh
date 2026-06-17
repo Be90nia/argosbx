@@ -3107,9 +3107,14 @@ menu_noncdn() {
   # [3/5] 证书: 先检测已有证书, 有效且>30天直接复用; 快过期/不存在才选方式
   echo
   local _certmode=""
-  # 检测标准位置已有证书是否覆盖directnym域名(也检测cdnym, 泛域名通用)
-  for _cf in /etc/argosbx/certs/directnym.crt /etc/argosbx/certs/cdnym.crt; do
+  # directnym(灰云直连)必须是公网信任证书(Let's Encrypt),不检测cdnym.crt(CF Origin CA不被公网信任)
+  for _cf in /etc/argosbx/certs/directnym.crt; do
     if [ -n "$_directnym" ] && _check_cert "$_cf" "$_directnym"; then
+      # 检查是否CF Origin CA(不被公网信任,灰云直连不能用)
+      if openssl x509 -in "$_cf" -noout -issuer 2>/dev/null | grep -qi "CloudFlare"; then
+        echo "⚠ directnym证书是CF Origin CA(不被公网信任),需要Let's Encrypt证书"
+        break
+      fi
       if openssl x509 -in "$_cf" -noout -checkend 2592000 2>/dev/null; then
         echo "✅ 检测到有效证书(>30天)，直接复用: $_cf"
         mkdir -p /etc/argosbx/certs
