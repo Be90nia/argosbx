@@ -2715,15 +2715,15 @@ _yn() {
   local _p="$1" _d="${2:-y}" _v
   while :; do
     if [ "$_d" = "y" ]; then
-      printf "%s [Y/n]: " "$_p" >&2
+      printf "%s [Y/n]: " "$_p"
     else
-      printf "%s [y/N]: " "$_p" >&2
+      printf "%s [y/N]: " "$_p"
     fi
     read _v
     case "${_v:-$_d}" in
       [Yy]*) return 0 ;;
       [Nn]*) return 1 ;;
-      *) echo "请输入 Y 或 n" >&2 ;;
+      *) echo "请输入 Y 或 n" ;;
     esac
   done
 }
