@@ -1661,7 +1661,8 @@ fi
 if grep "\"tag\":\"ss-2022\"" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
 echo "💣【 Shadowsocks-2022 】节点信息如下："
 port_ss=$(cat "$HOME/agsbx/port_ss")
-ss_link="ss://$(echo -n "2022-blake3-aes-128-gcm:$sskey@$server_ip:$port_ss" | base64 -w0)#${sxname}Shadowsocks-2022-$hostname"
+_ss_enc_c=$(printf '%s' "$sskey" | sed 's/+/%2B/g; s/=/%3D/g; s|/|%2F|g')
+ss_link="ss://2022-blake3-aes-128-gcm:${_ss_enc_c}@$server_ip:$port_ss#${sxname}Shadowsocks-2022-$hostname"
 echo "$ss_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$ss_link"
 echo
@@ -1987,6 +1988,11 @@ echo "⚠️ ShadowTLS无官方URI格式，以下为手动配置参数："
 echo "地址：$server_ip  端口：$port_st  ShadowTLS版本：v3"
 echo "ShadowTLS密码：$stlspass  伪装域名：$stls_dest"
 echo "内嵌SS加密：2022-blake3-aes-256-gcm  SS密码：$ssintkey"
+# 写入jhsub.txt(注释格式,供用户参考)
+echo "# ShadowTLS v3+SS (无官方URI,手动配置)" >> "$HOME/agsbx/jhsub.txt"
+echo "# 地址：$server_ip  端口：$port_st  版本：v3" >> "$HOME/agsbx/jhsub.txt"
+echo "# ShadowTLS密码：$stlspass  伪装域名：$stls_dest" >> "$HOME/agsbx/jhsub.txt"
+echo "# 内嵌SS：2022-blake3-aes-256-gcm  SS密码：$ssintkey" >> "$HOME/agsbx/jhsub.txt"
 echo
 sbstpt(){
 cat <<EOF
