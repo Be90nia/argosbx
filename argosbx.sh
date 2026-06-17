@@ -3241,6 +3241,9 @@ Trojan+TCP+TLS (xray·TLS)"
 
   # 导出环境变量
   export directnym="${_directnym:-}"
+  # CF凭证: 如果菜单2输入了就export, 否则从已有环境变量或config继承
+  if [ -n "${_cfemail_chk:-}" ]; then export cfemail="$_cfemail_chk"; fi
+  if [ -n "${_cfkey_chk:-}" ]; then export cfkey="$_cfkey_chk"; fi
   # uuid: 不覆盖已有值(如果menu_cdn已设xray uuid则保留)，sing-box用同一uuid
   [ -z "${uuid:-}" ] && export uuid="${_uuid_sb}"
   _save_cfg uuid_singbox "$_uuid_sb"
