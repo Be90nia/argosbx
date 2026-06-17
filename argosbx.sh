@@ -374,6 +374,7 @@ tpl_sb() {
     dl "$tplbaseurl/sb/$_tplname.json" "$_tplfile" || { echo "⚠️ 模板下载失败: $_tplname"; return 1; }
   fi
   sed -e "s|__UUID__|${uuid}|g" \
+      -e "s|__BASEPATH__|${basepath}|g" \
       -e "s|__PORT__|${_tplport}|g" \
       -e "s|__SSKEY__|${sskey}|g" \
       -e "s|__STLSPASS__|${stlspass}|g" \
