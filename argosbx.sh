@@ -42,6 +42,26 @@ agsbx_cleanup(){
     setenforce "$_agsbx_se_saved" >/dev/null 2>&1
   fi
 }
+
+# _kill_by_pattern — 按可执行路径正则杀进程（统一 7 处重复的 /proc 扫描代码）
+# 用法: _kill_by_pattern '/agsbx/x'              # 静默
+#        _kill_by_pattern '/agsbx/c|/agsbx/s' verbose  # 打印每个 kill 结果
+_kill_by_pattern() {
+  local _pat="$1" _verbose="${2:-}"
+  local P TARGET PID
+  for P in /proc/[0-9]*; do
+    [ -L "$P/exe" ] || continue
+    TARGET=$(readlink -f "$P/exe" 2>/dev/null) || continue
+    if echo "$TARGET" | grep -qE "$_pat"; then
+      PID=$(basename "$P")
+      if kill "$PID" 2>/dev/null; then
+        [ -n "$_verbose" ] && echo "Killed $PID ($TARGET)"
+      else
+        [ -n "$_verbose" ] && echo "Could not kill $PID ($TARGET)"
+      fi
+    fi
+  done
+}
 trap 'agsbx_cleanup; exit 130' INT
 trap 'agsbx_cleanup; exit 143' TERM
 trap 'agsbx_cleanup' EXIT
@@ -2609,7 +2629,7 @@ echo "相关快捷方式如下：(首次安装成功后需重连SSH，agsbx快�
 showmode
 }
 cleandel(){
-for P in /proc/[0-9]*; do if [ -L "$P/exe" ]; then TARGET=$(readlink -f "$P/exe" 2>/dev/null); if echo "$TARGET" | grep -qE '/agsbx/c|/agsbx/s|/agsbx/x'; then PID=$(basename "$P"); kill "$PID" 2>/dev/null; fi; fi; done
+_kill_by_pattern '/agsbx/c|/agsbx/s|/agsbx/x'
 kill -15 $(pgrep -f 'agsbx/s' 2>/dev/null) $(pgrep -f 'agsbx/c' 2>/dev/null) $(pgrep -f 'agsbx/x' 2>/dev/null) $(pgrep -f 'websbx' 2>/dev/null) >/dev/null 2>&1
 sed -i '/agsbx/d' ~/.bashrc
 sed -i '/export PATH="\$HOME\/bin:\$PATH"/d' ~/.bashrc
@@ -2782,7 +2802,7 @@ agsbx_restore(){
     _log "ERROR" "备份路径遍历检查失败: $_bkfile"
     exit 1
   fi
-  for P in /proc/[0-9]*; do [ -L "$P/exe" ] || continue; TARGET=$(readlink -f "$P/exe" 2>/dev/null) || continue; case "$TARGET" in */agsbx/*) kill "$(basename "$P")" 2>/dev/null ;; esac; done
+  _kill_by_pattern '/agsbx/'
   _restore_fail=0
   tar -xzf "$_bkfile" -C "$HOME" 2>/dev/null || _restore_fail=1
   tar -xzf "$_bkfile" -C / 2>/dev/null || _restore_fail=1
@@ -3718,17 +3738,17 @@ elif [ "$1" = "list" ]; then
 cip
 exit
 elif [ "$1" = "upx" ]; then
-for P in /proc/[0-9]*; do [ -L "$P/exe" ] || continue; TARGET=$(readlink -f "$P/exe" 2>/dev/null) || continue; case "$TARGET" in *"/agsbx/x"*) kill "$(basename "$P")" 2>/dev/null ;; esac; done
+_kill_by_pattern '/agsbx/x'
 kill -15 $(pgrep -f 'agsbx/x' 2>/dev/null) >/dev/null 2>&1
 upxray && xrestart && echo "Xray内核更新完成" && sleep 2 && cip
 exit
 elif [ "$1" = "ups" ]; then
-for P in /proc/[0-9]*; do [ -L "$P/exe" ] || continue; TARGET=$(readlink -f "$P/exe" 2>/dev/null) || continue; case "$TARGET" in *"/agsbx/s"*) kill "$(basename "$P")" 2>/dev/null ;; esac; done
+_kill_by_pattern '/agsbx/s'
 kill -15 $(pgrep -f 'agsbx/s' 2>/dev/null) >/dev/null 2>&1
 upsingbox && sbrestart && echo "Sing-box内核更新完成" && sleep 2 && cip
 exit
 elif [ "$1" = "upc" ]; then
-for P in /proc/[0-9]*; do [ -L "$P/exe" ] || continue; TARGET=$(readlink -f "$P/exe" 2>/dev/null) || continue; case "$TARGET" in *"/agsbx/c"*) kill "$(basename "$P")" 2>/dev/null ;; esac; done
+_kill_by_pattern '/agsbx/c'
 kill -15 $(pgrep -f 'agsbx/c' 2>/dev/null) >/dev/null 2>&1
 upcloudflared && echo "Cloudflared内核更新完成" && sleep 2
 if [ -e "$HOME/agsbx/sbargotoken.log" ]; then
@@ -3796,7 +3816,7 @@ exit
 fi
 # 菜单返回后(_menu_returned=1)强制走安装流程,即使xray/sing-box已在运行
 if { ! find /proc/*/exe -type l 2>/dev/null | grep -E '/proc/[0-9]+/exe' | xargs -r readlink 2>/dev/null | grep -Eq 'agsbx/(s|x)' && ! pgrep -f 'agsbx/(s|x)' >/dev/null 2>&1; } || [ -n "${_menu_returned:-}" ]; then
-for P in /proc/[0-9]*; do if [ -L "$P/exe" ]; then TARGET=$(readlink -f "$P/exe" 2>/dev/null); if echo "$TARGET" | grep -qE '/agsbx/c|/agsbx/s|/agsbx/x'; then PID=$(basename "$P"); kill "$PID" 2>/dev/null && echo "Killed $PID ($TARGET)" || echo "Could not kill $PID ($TARGET)"; fi; fi; done
+_kill_by_pattern '/agsbx/c|/agsbx/s|/agsbx/x' verbose
 kill -15 $(pgrep -f 'agsbx/s' 2>/dev/null) $(pgrep -f 'agsbx/c' 2>/dev/null) $(pgrep -f 'agsbx/x' 2>/dev/null) >/dev/null 2>&1
 if [ -z "$( (command -v curl >/dev/null 2>&1 && curl -s4m5 -k "$v46url" 2>/dev/null) || (command -v wget >/dev/null 2>&1 && timeout 3 wget -4 -qO- --tries=2 "$v46url" 2>/dev/null) )" ]; then
 echo -e "nameserver 2a00:1098:2b::1\nnameserver 2a00:1098:2c::1" > /etc/resolv.conf
