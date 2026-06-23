@@ -31,7 +31,8 @@ agsbx_cleanup(){
   [ -n "$agsbx_cftoken_tmp" ] && [ -f "$agsbx_cftoken_tmp" ] && shred -u "$agsbx_cftoken_tmp" 2>/dev/null || rm -f "$agsbx_cftoken_tmp" 2>/dev/null
   [ -f "$agsbx_lockfile" ] && flock -u 200 2>/dev/null
 }
-trap 'agsbx_cleanup; exit 1' INT TERM
+trap 'agsbx_cleanup; exit 130' INT
+trap 'agsbx_cleanup; exit 143' TERM
 trap 'agsbx_cleanup' EXIT
 if [ -z "$1" ] || { [ "$1" != "list" ] && [ "$1" != "doctor" ] && [ "$1" != "backup" ] && [ "$1" != "restore" ]; }; then
   exec 200>"$agsbx_lockfile" 2>/dev/null && flock -n 200 2>/dev/null || { echo "⚠️ 另一个argosbx实例正在运行，请等待其完成或手动删除锁文件: $agsbx_lockfile"; exit 1; }
@@ -954,6 +955,8 @@ if [ ! -f "$HOME/agsbx/SHA256.txt" ]; then
 command -v openssl >/dev/null 2>&1 && openssl ecparam -genkey -name prime256v1 -out "$HOME/agsbx/private.key" >/dev/null 2>&1
 command -v openssl >/dev/null 2>&1 && openssl req -new -x509 -days 36500 -key "$HOME/agsbx/private.key" -out "$HOME/agsbx/cert.crt" -subj "/CN=www.bing.com" >/dev/null 2>&1
 if [ ! -f "$HOME/agsbx/private.key" ]; then
+echo "⚠️ openssl 本地生成证书失败，回退到 GitHub 共享证书(全网共享私钥，建议安装 openssl 消除该风险)"
+_log "WARN" "openssl 缺失或生成失败，使用 GitHub 共享 TLS 证书(私钥公开，存在解密风险)"
 url="https://github.com/yonggekkk/argosbx/releases/download/argosbx/private.key"; out="$HOME/agsbx/private.key"; (command -v curl>/dev/null 2>&1 && curl -Ls -o "$out" --retry 2 "$url") || (command -v wget>/dev/null 2>&1 && timeout 3 wget -q -O "$out" --tries=2 "$url")
 url="https://github.com/yonggekkk/argosbx/releases/download/argosbx/cert.crt"; out="$HOME/agsbx/cert.crt"; (command -v curl>/dev/null 2>&1 && curl -Ls -o "$out" --retry 2 "$url") || (command -v wget>/dev/null 2>&1 && timeout 3 wget -q -O "$out" --tries=2 "$url")
 echo "fc6dca8cfc4081102aa9655d0d4805c27d7266f605541d242ad66ad00a284a35" > "$HOME/agsbx/SHA256.txt"
@@ -1069,7 +1072,7 @@ After=network.target
 Type=simple
 NoNewPrivileges=yes
 TimeoutStartSec=0
-ExecStart=/root/agsbx/xray run -c /root/agsbx/xr.json
+ExecStart=$HOME/agsbx/xray run -c $HOME/agsbx/xr.json
 Restart=on-failure
 RestartSec=5s
 StandardOutput=journal
@@ -1091,8 +1094,8 @@ elif command -v rc-service >/dev/null 2>&1 && [ "$_euid" -eq 0 ]; then
 cat > /etc/init.d/xray <<EOF
 #!/sbin/openrc-run
 description="xr service"
-command="/root/agsbx/xray"
-command_args="run -c /root/agsbx/xr.json"
+command="$HOME/agsbx/xray"
+command_args="run -c $HOME/agsbx/xr.json"
 command_background=yes
 pidfile="/run/xray.pid"
 command_background="yes"
@@ -1105,6 +1108,8 @@ rc-update add xray default >/dev/null 2>&1
 rc-service xray start >/dev/null 2>&1
 else
 nohup "$HOME/agsbx/xray" run -c "$HOME/agsbx/xr.json" >/dev/null 2>&1 &
+sleep 1
+pgrep -f 'agsbx/xray' >/dev/null 2>&1 || { echo "⚠️ xray 启动失败(nohup模式)，请检查 $HOME/agsbx/xr.json 配置"; _log "ERROR" "xray nohup 启动失败"; }
 fi
 fi
 if [ -e "$HOME/agsbx/sb.json" ]; then
@@ -1119,7 +1124,7 @@ After=network.target
 Type=simple
 NoNewPrivileges=yes
 TimeoutStartSec=0
-ExecStart=/root/agsbx/sing-box run -c /root/agsbx/sb.json
+ExecStart=$HOME/agsbx/sing-box run -c $HOME/agsbx/sb.json
 Restart=on-failure
 RestartSec=5s
 StandardOutput=journal
@@ -1141,8 +1146,8 @@ elif command -v rc-service >/dev/null 2>&1 && [ "$_euid" -eq 0 ]; then
 cat > /etc/init.d/sing-box <<EOF
 #!/sbin/openrc-run
 description="sb service"
-command="/root/agsbx/sing-box"
-command_args="run -c /root/agsbx/sb.json"
+command="$HOME/agsbx/sing-box"
+command_args="run -c $HOME/agsbx/sb.json"
 command_background=yes
 pidfile="/run/sing-box.pid"
 command_background="yes"
@@ -1155,6 +1160,8 @@ rc-update add sing-box default >/dev/null 2>&1
 rc-service sing-box start >/dev/null 2>&1
 else
 nohup "$HOME/agsbx/sing-box" run -c "$HOME/agsbx/sb.json" >/dev/null 2>&1 &
+sleep 1
+pgrep -f 'agsbx/sing-box' >/dev/null 2>&1 || { echo "⚠️ sing-box 启动失败(nohup模式)，请检查 $HOME/agsbx/sb.json 配置"; _log "ERROR" "sing-box nohup 启动失败"; }
 fi
 fi
 }
@@ -1164,11 +1171,11 @@ ins(){
 [ -n "$cdnym" ] && echo "$cdnym" > "$HOME/agsbx/cdnym"
 # 证书签发(CDN协议需要cdnym证书, acme.sh + CF DNS API)
 if [ -n "$cdnym" ] && [ -n "$cfkey" ] && { [ -n "$vxp" ] || [ -n "$vwp" ] || [ -n "$vup" ] || [ -n "$twp" ] || [ -n "$tuhp" ] || [ -n "$vmp" ] || [ -n "$mup" ] || [ -n "$txp" ] || [ -n "$mxp" ] || [ -n "$swp" ] || [ -n "$vwep" ]; }; then
-  certsign "$cdnym" "cdnym" || echo "⚠️ CDN证书签发失败，CDN协议可能无法正常工作(CF Full Strict模式)"
+  certsign "$cdnym" "cdnym" || { echo "⚠️ CDN证书签发失败，CDN协议可能无法正常工作(CF Full Strict模式)"; _log "ERROR" "CDN证书签发失败(cdnym)"; }
 fi
 # 证书签发(直连TLS协议需要directnym证书)
 if [ -n "$directnym" ] && [ -n "$cfkey" ] && { [ -n "$vtp" ] || [ -n "$ttp" ] || [ -n "$hyp" ] || [ -n "$tup" ] || [ -n "$anp" ] || [ -n "$nap" ]; }; then
-  certsign "$directnym" "directnym" || echo "⚠️ directnym证书签发失败，直连TLS协议可能无法正常工作"
+  certsign "$directnym" "directnym" || { echo "⚠️ directnym证书签发失败，直连TLS协议可能无法正常工作"; _log "ERROR" "directnym证书签发失败"; }
 fi
 # 证书验证: 确保证书文件存在且有效，否则禁用需要TLS的sing-box协议
 if [ -n "$directnym" ] && { [ -n "$hyp" ] || [ -n "$tup" ] || [ -n "$anp" ] || [ -n "$nap" ] || [ -n "$vtp" ] || [ -n "$ttp" ]; }; then
@@ -1224,7 +1231,7 @@ After=network.target
 Type=simple
 NoNewPrivileges=yes
 TimeoutStartSec=0
-ExecStart=/root/agsbx/cloudflared tunnel --no-autoupdate --edge-ip-version auto --protocol http2 run --token "${ARGO_AUTH}"
+ExecStart=$HOME/agsbx/cloudflared tunnel --no-autoupdate --edge-ip-version auto --protocol http2 run --token "${ARGO_AUTH}"
 Restart=on-failure
 RestartSec=5s
 [Install]
@@ -1244,7 +1251,7 @@ elif command -v rc-service >/dev/null 2>&1 && [ "$_euid" -eq 0 ]; then
 cat > /etc/init.d/argo <<EOF
 #!/sbin/openrc-run
 description="argo service"
-command="/root/agsbx/cloudflared tunnel"
+command="$HOME/agsbx/cloudflared tunnel"
 command_args="--no-autoupdate --edge-ip-version auto --protocol http2 run --token ${ARGO_AUTH}"
 pidfile="/run/argo.pid"
 command_background="yes"
@@ -1287,6 +1294,7 @@ echo "================================================================="
 fi
 else
 echo "Argo$argoname隧道申请失败，请稍后再试"
+_log "ERROR" "Argo$argoname隧道申请失败(argodomain为空)"
 fi
 fi
 sleep 5
@@ -2686,6 +2694,12 @@ agsbx_restore(){
     exit 1
   fi
   echo "从 $_bkfile 恢复Argosbx配置..."
+  # 路径遍历防护：拒绝含 .. 的条目，防止恶意备份覆盖系统文件
+  if tar -tzf "$_bkfile" 2>/dev/null | grep -qE '(^|/)\.\.(/|$)'; then
+    echo "❌ 备份文件含路径遍历条目(..)，拒绝恢复"
+    _log "ERROR" "备份路径遍历检查失败: $_bkfile"
+    exit 1
+  fi
   for P in /proc/[0-9]*; do [ -L "$P/exe" ] || continue; TARGET=$(readlink -f "$P/exe" 2>/dev/null) || continue; case "$TARGET" in */agsbx/*) kill "$(basename "$P")" 2>/dev/null ;; esac; done
   tar -xzf "$_bkfile" -C "$HOME" 2>/dev/null
   tar -xzf "$_bkfile" -C / 2>/dev/null
