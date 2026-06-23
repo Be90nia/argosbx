@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 export LANG=en_US.UTF-8
 
 # ===== S0: 安全加固初始化 =====
@@ -25,6 +25,8 @@ _log "INFO" "argosbx 启动，PID=$$"
 _euid=$(id -u 2>/dev/null || echo 0)
 agsbx_lockfile="/var/lock/argosbx.lock"
 agsbx_tmpdir="${TMPDIR:-/tmp}"
+# crontab 临时文件：基于 PID，flock 单实例保证无并发竞态
+_crontab_tmp="$agsbx_tmpdir/agsbx.cron.$$"
 agsbx_cleanup(){
   [ -n "$agsbx_cftoken_tmp" ] && [ -f "$agsbx_cftoken_tmp" ] && shred -u "$agsbx_cftoken_tmp" 2>/dev/null || rm -f "$agsbx_cftoken_tmp" 2>/dev/null
   [ -f "$agsbx_lockfile" ] && flock -u 200 2>/dev/null
@@ -469,7 +471,7 @@ op=$(cat /etc/redhat-release 2>/dev/null || cat /etc/os-release 2>/dev/null | gr
 case $(uname -m) in
 arm64|aarch64) cpu=arm64;;
 amd64|x86_64) cpu=amd64;;
-*) echo "目前脚本不支持$(uname -m)架构" && exit
+*) echo "目前脚本不支持$(uname -m)架构" && exit 1
 esac
 if [ "$1" != "del" ]; then
 mkdir -p "$HOME/agsbx" && chmod 700 "$HOME/agsbx"
@@ -1056,7 +1058,7 @@ sop=soptargo
 
 xrsbout(){
 if [ -e "$HOME/agsbx/xr.json" ]; then
-sed -i '${s/,\s*$//}' "$HOME/agsbx/xr.json"
+sed -i '${s/,[[:space:]]*$//}' "$HOME/agsbx/xr.json"
 tpl_fw xr outbound.json >> "$HOME/agsbx/xr.json"
 if [ "$(ps -p 1 -o comm= 2>/dev/null)" = "systemd" ] && [ "$_euid" -eq 0 ]; then
 cat > /etc/systemd/system/xr.service <<EOF
@@ -1106,7 +1108,7 @@ nohup "$HOME/agsbx/xray" run -c "$HOME/agsbx/xr.json" >/dev/null 2>&1 &
 fi
 fi
 if [ -e "$HOME/agsbx/sb.json" ]; then
-sed -i '${s/,\s*$//}' "$HOME/agsbx/sb.json"
+sed -i '${s/,[[:space:]]*$//}' "$HOME/agsbx/sb.json"
 tpl_fw sb outbound.json >> "$HOME/agsbx/sb.json"
 if [ "$(ps -p 1 -o comm= 2>/dev/null)" = "systemd" ] && [ "$_euid" -eq 0 ]; then
 cat > /etc/systemd/system/sb.service <<EOF
@@ -1303,22 +1305,22 @@ sed -i '/export PATH="\$HOME\/bin:\$PATH"/d' ~/.bashrc
 echo 'export PATH="$HOME/bin:$PATH"' >> "$HOME/.bashrc"
 grep -qxF 'source ~/.bashrc' ~/.bash_profile 2>/dev/null || echo 'source ~/.bashrc' >> ~/.bash_profile
 . ~/.bashrc 2>/dev/null
-crontab -l > /tmp/crontab.tmp 2>/dev/null
+crontab -l > "$_crontab_tmp" 2>/dev/null
 if ! [ "$(ps -p 1 -o comm= 2>/dev/null)" = "systemd" ] && ! command -v rc-service >/dev/null 2>&1; then
-sed -i '/agsbx\/sing-box/d' /tmp/crontab.tmp
-sed -i '/agsbx\/xray/d' /tmp/crontab.tmp
+sed -i '/agsbx\/sing-box/d' "$_crontab_tmp"
+sed -i '/agsbx\/xray/d' "$_crontab_tmp"
 if find /proc/*/exe -type l 2>/dev/null | grep -E '/proc/[0-9]+/exe' | xargs -r readlink 2>/dev/null | grep -q 'agsbx/s' || pgrep -f 'agsbx/s' >/dev/null 2>&1 ; then
-echo '@reboot sleep 10 && /bin/sh -c "nohup $HOME/agsbx/sing-box run -c $HOME/agsbx/sb.json >/dev/null 2>&1 &"' >> /tmp/crontab.tmp
+echo '@reboot sleep 10 && /bin/sh -c "nohup $HOME/agsbx/sing-box run -c $HOME/agsbx/sb.json >/dev/null 2>&1 &"' >> "$_crontab_tmp"
 fi
 if find /proc/*/exe -type l 2>/dev/null | grep -E '/proc/[0-9]+/exe' | xargs -r readlink 2>/dev/null | grep -q 'agsbx/x' || pgrep -f 'agsbx/x' >/dev/null 2>&1 ; then
-echo '@reboot sleep 10 && /bin/sh -c "nohup $HOME/agsbx/xray run -c $HOME/agsbx/xr.json >/dev/null 2>&1 &"' >> /tmp/crontab.tmp
+echo '@reboot sleep 10 && /bin/sh -c "nohup $HOME/agsbx/xray run -c $HOME/agsbx/xr.json >/dev/null 2>&1 &"' >> "$_crontab_tmp"
 fi
 fi
-sed -i '/agsbx\/cloudflared/d' /tmp/crontab.tmp
+sed -i '/agsbx\/cloudflared/d' "$_crontab_tmp"
 if [ -n "$argo_count" ] && [ "$argo_count" -gt 0 ]; then
 if [ -n "${ARGO_DOMAIN}" ] && [ -n "${ARGO_AUTH}" ]; then
 if ! [ "$(ps -p 1 -o comm= 2>/dev/null)" = "systemd" ] && ! command -v rc-service >/dev/null 2>&1; then
-echo '@reboot sleep 10 && /bin/sh -c "nohup $HOME/agsbx/cloudflared tunnel --no-autoupdate --edge-ip-version auto --protocol http2 run --token $(cat $HOME/agsbx/sbargotoken.log 2>/dev/null) >/dev/null 2>&1 &"' >> /tmp/crontab.tmp
+echo '@reboot sleep 10 && /bin/sh -c "nohup $HOME/agsbx/cloudflared tunnel --no-autoupdate --edge-ip-version auto --protocol http2 run --token $(cat $HOME/agsbx/sbargotoken.log 2>/dev/null) >/dev/null 2>&1 &"' >> "$_crontab_tmp"
 fi
 else
 if command -v apk >/dev/null 2>&1; then
@@ -1332,18 +1334,18 @@ EOF
 chmod +x /etc/local.d/alpineargosbx.start
 rc-update add local default >/dev/null 2>&1
 else
-echo '@reboot sleep 10 && /bin/bash -c "nohup $HOME/agsbx/cloudflared tunnel --url http://localhost:$(cat $HOME/agsbx/argoport.log) --edge-ip-version auto --no-autoupdate --protocol http2 > $HOME/agsbx/argo.log 2>&1 & sleep 10 && bash $HOME/bin/agsbx list >/dev/null 2>&1"' >> /tmp/crontab.tmp
+echo '@reboot sleep 10 && /bin/bash -c "nohup $HOME/agsbx/cloudflared tunnel --url http://localhost:$(cat $HOME/agsbx/argoport.log) --edge-ip-version auto --no-autoupdate --protocol http2 > $HOME/agsbx/argo.log 2>&1 & sleep 10 && bash $HOME/bin/agsbx list >/dev/null 2>&1"' >> "$_crontab_tmp"
 fi
 fi
 fi
 # 证书过期监控(每日检测，<30天告警) — 与init系统无关，所有平台都启用
-sed -i '/cert_warn/d' /tmp/crontab.tmp 2>/dev/null
-echo '0 6 * * * for _c in /etc/argosbx/certs/*.crt; do [ -f "$_c" ] || continue; _e=$(openssl x509 -enddate -noout -in "$_c" 2>/dev/null | cut -d= -f2); _d=$(( ($(date -d "$_e" +%s 2>/dev/null || echo 0) - $(date +%s)) / 86400 )); [ "$_d" -lt 30 ] && echo "⚠️ 证书 $(basename "$_c") 剩余 ${_d} 天" >> "$HOME/agsbx/cert_warn.log"; done' >> /tmp/crontab.tmp
-crontab /tmp/crontab.tmp >/dev/null 2>&1
-rm /tmp/crontab.tmp
+sed -i '/cert_warn/d' "$_crontab_tmp" 2>/dev/null
+echo '0 6 * * * for _c in /etc/argosbx/certs/*.crt; do [ -f "$_c" ] || continue; _e=$(openssl x509 -enddate -noout -in "$_c" 2>/dev/null | cut -d= -f2); _d=$(( ($(date -d "$_e" +%s 2>/dev/null || echo 0) - $(date +%s)) / 86400 )); [ "$_d" -lt 30 ] && echo "⚠️ 证书 $(basename "$_c") 剩余 ${_d} 天" >> "$HOME/agsbx/cert_warn.log"; done' >> "$_crontab_tmp"
+crontab "$_crontab_tmp" >/dev/null 2>&1
+rm -f "$_crontab_tmp"
 echo "Argosbx脚本进程启动成功，安装完毕" && sleep 2
 else
-echo "Argosbx脚本进程未启动，安装失败" && exit
+echo "Argosbx脚本进程未启动，安装失败" && exit 1
 fi
 if [ -n "$cfip" ]; then
 set -- $cfip
@@ -1565,7 +1567,7 @@ if [ -f "$HOME/agsbx/cdnym" ]; then
 echo "💣【 VMess-httpupgrade-cdn 】B组Origin Rules回源39000，节点信息如下："
 echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN走443端口+Origin Rules回源39000"
 echo "⚠️ 需在CF Dashboard → Rules → Origin Rules 添加规则：URI Path starts with \"/${basepath}-mu\" → Rewrite to Port 39000"
-vm_mu_cdn_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-httpupgrade-cdn-$hostname\", \"add\": \"yg$(cfipsj).ygkkk.dpdns.org\", \"port\": \"443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"httpupgrade\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$basepath-mu\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"fp\": \"chrome\"}" | base64 -w0)"
+vm_mu_cdn_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-httpupgrade-cdn-$hostname\", \"add\": \"yg$(cfipsj).ygkkk.dpdns.org\", \"port\": \"443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"httpupgrade\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$basepath-mu\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"fp\": \"chrome\"}" | base64 | tr -d '\n')"
 echo "$vm_mu_cdn_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vm_mu_cdn_link"
 echo
@@ -1588,7 +1590,7 @@ echo "💣【 VMess-xhttp-cdn 】B组Origin Rules回源39002，节点信息如�
 echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN走443端口+Origin Rules回源39002"
 echo "⚠️ 需在CF Dashboard → Rules → Origin Rules 添加规则：URI Path starts with \"/${basepath}-mx\" → Rewrite to Port 39002"
 echo "⚠️ net=xhttp 需要 v2rayN 6.x+ / xray-core 1.8.8+"
-vm_mx_cdn_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-xhttp-cdn-$hostname\", \"add\": \"yg$(cfipsj).ygkkk.dpdns.org\", \"port\": \"443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"xhttp\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$basepath-mx\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"fp\": \"chrome\"}" | base64 -w0)"
+vm_mx_cdn_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-xhttp-cdn-$hostname\", \"add\": \"yg$(cfipsj).ygkkk.dpdns.org\", \"port\": \"443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"xhttp\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$basepath-mx\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"fp\": \"chrome\"}" | base64 | tr -d '\n')"
 echo "$vm_mx_cdn_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vm_mx_cdn_link"
 echo
@@ -1724,7 +1726,7 @@ echo "- ${sxname}Shadowsocks-2022-$hostname"
 fi
 if grep "\"tag\":\"vmess-ws\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1 || grep "\"tag\":\"vmess-sb\"" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
 echo "💣【 Vmess-ws 】节点信息如下："
-vm_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-$hostname\", \"add\": \"$server_ip\", \"port\": \"2083\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$basepath-vm\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"fp\": \"chrome\"}" | base64 -w0)"
+vm_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-$hostname\", \"add\": \"$server_ip\", \"port\": \"2083\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$basepath-vm\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"fp\": \"chrome\"}" | base64 | tr -d '\n')"
 echo "$vm_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vm_link"
 echo
@@ -1786,7 +1788,7 @@ echo "- ${sxname}vmess-ws-$hostname"
 if [ -f "$HOME/agsbx/cdnym" ]; then
  echo "💣【 Vmess-ws-cdn 】节点信息如下："
   echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定2083端口+TLS"
-  vm_cdn_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-cdn-$hostname\", \"add\": \"yg$(cfipsj).ygkkk.dpdns.org\", \"port\": \"2083\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$basepath-vm\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 -w0)"
+  vm_cdn_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-cdn-$hostname\", \"add\": \"yg$(cfipsj).ygkkk.dpdns.org\", \"port\": \"2083\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$basepath-vm\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 | tr -d '\n')"
 echo "$vm_cdn_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vm_cdn_link"
 echo
@@ -1894,7 +1896,6 @@ EOF
 else
 hyps=
 fi
-#hy2_link="hysteria2://$uuid@$server_ip:$port_hy2?security=tls&alpn=h3&insecure=1&allowInsecure=1$hyps&sni=www.bing.com#${sxname}hy2-$hostname"
 hy2_link="hysteria2://$uuid@${directnym:-$server_ip}:$port_hy2/?sni=${directnym:-$server_ip}&insecure=0$hyps#${sxname}hy2-$hostname"
 echo "$hy2_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$hy2_link"
@@ -2189,7 +2190,7 @@ for _p in $argo_sel; do
       echo "vless://${uuid}@${cdnip1}:443?encryption=${enkey}&security=tls&sni=${argodomain}&fp=chrome&type=xhttp&host=${argodomain}&path=/${basepath}-a-vx&mode=packet-up#${sxname}vless-xhttp-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
       ;;
     vm)
-      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-ws-tls-argo-$hostname-443\",\"add\":\"$cdnip1\",\"port\":\"443\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"ws\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-a-vm\",\"tls\":\"tls\",\"sni\":\"$argodomain\",\"alpn\":\"\",\"fp\":\"chrome\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
+      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-ws-tls-argo-$hostname-443\",\"add\":\"$cdnip1\",\"port\":\"443\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"ws\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-a-vm\",\"tls\":\"tls\",\"sni\":\"$argodomain\",\"alpn\":\"\",\"fp\":\"chrome\"}" | base64 | tr -d '\n')" >> "$HOME/agsbx/jhsub.txt"
       ;;
     vu)
       echo "vless://${uuid}@${cdnip1}:443?encryption=${enkey}&security=tls&sni=${argodomain}&fp=chrome&type=httpupgrade&host=${argodomain}&path=/${basepath}-a-vu#${sxname}vless-httpupgrade-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
@@ -2201,13 +2202,13 @@ for _p in $argo_sel; do
       echo "trojan://${uuid}@${cdnip1}:443?security=tls&sni=${argodomain}&fp=chrome&type=httpupgrade&host=${argodomain}&path=/${basepath}-a-tu#${sxname}trojan-httpupgrade-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
       ;;
     mu)
-      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-httpupgrade-tls-argo-$hostname-443\",\"add\":\"$cdnip1\",\"port\":\"443\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"httpupgrade\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-a-mu\",\"tls\":\"tls\",\"sni\":\"$argodomain\",\"alpn\":\"\",\"fp\":\"chrome\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
+      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-httpupgrade-tls-argo-$hostname-443\",\"add\":\"$cdnip1\",\"port\":\"443\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"httpupgrade\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-a-mu\",\"tls\":\"tls\",\"sni\":\"$argodomain\",\"alpn\":\"\",\"fp\":\"chrome\"}" | base64 | tr -d '\n')" >> "$HOME/agsbx/jhsub.txt"
       ;;
     tx)
       echo "trojan://${uuid}@${cdnip1}:443?security=tls&sni=${argodomain}&fp=chrome&type=xhttp&host=${argodomain}&path=/${basepath}-a-tx&mode=packet-up#${sxname}trojan-xhttp-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
       ;;
     mx)
-      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-xhttp-tls-argo-$hostname-443\",\"add\":\"$cdnip1\",\"port\":\"443\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"xhttp\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-a-mx\",\"tls\":\"tls\",\"sni\":\"$argodomain\",\"alpn\":\"\",\"fp\":\"chrome\"}" | base64 -w0)" >> "$HOME/agsbx/jhsub.txt"
+      echo "vmess://$(echo "{ \"v\":\"2\",\"ps\":\"${sxname}vmess-xhttp-tls-argo-$hostname-443\",\"add\":\"$cdnip1\",\"port\":\"443\",\"id\":\"$uuid\",\"aid\":\"0\",\"scy\":\"auto\",\"net\":\"xhttp\",\"type\":\"none\",\"host\":\"$argodomain\",\"path\":\"/${basepath}-a-mx\",\"tls\":\"tls\",\"sni\":\"$argodomain\",\"alpn\":\"\",\"fp\":\"chrome\"}" | base64 | tr -d '\n')" >> "$HOME/agsbx/jhsub.txt"
       ;;
      sw)
        _ss_enc_argo=$(printf '%s' "$sskey" | sed 's/+/%2B/g; s/=/%3D/g; s|/|%2F|g')
@@ -2574,15 +2575,15 @@ kill -15 $(pgrep -f 'agsbx/s' 2>/dev/null) $(pgrep -f 'agsbx/c' 2>/dev/null) $(p
 sed -i '/agsbx/d' ~/.bashrc
 sed -i '/export PATH="\$HOME\/bin:\$PATH"/d' ~/.bashrc
 . ~/.bashrc 2>/dev/null
-crontab -l > /tmp/crontab.tmp 2>/dev/null
-sed -i '/agsbx\/sing-box/d' /tmp/crontab.tmp
-sed -i '/agsbx\/xray/d' /tmp/crontab.tmp
-sed -i '/agsbx\/cloudflared/d' /tmp/crontab.tmp
-sed -i '/websbx/d' /tmp/crontab.tmp
-sed -i '/acme\.sh/d' /tmp/crontab.tmp
-sed -i '/cert_warn/d' /tmp/crontab.tmp
-crontab /tmp/crontab.tmp >/dev/null 2>&1
-rm /tmp/crontab.tmp
+crontab -l > "$_crontab_tmp" 2>/dev/null
+sed -i '/agsbx\/sing-box/d' "$_crontab_tmp"
+sed -i '/agsbx\/xray/d' "$_crontab_tmp"
+sed -i '/agsbx\/cloudflared/d' "$_crontab_tmp"
+sed -i '/websbx/d' "$_crontab_tmp"
+sed -i '/acme\.sh/d' "$_crontab_tmp"
+sed -i '/cert_warn/d' "$_crontab_tmp"
+crontab "$_crontab_tmp" >/dev/null 2>&1
+rm -f "$_crontab_tmp"
 rm -rf  "$HOME/bin/agsbx"
 # 清理acme.sh cron和alias(证书目录由下面的rm统一清理)
 if [ -e "$HOME/.acme.sh/acme.sh" ]; then
@@ -2731,7 +2732,7 @@ _rd() {
   else
     printf "%s: " "$_p"
   fi
-  read _rd_val || return 1
+  read -r _rd_val || return 1
   _rd_val="${_rd_val:-$_d}"
 }
 
@@ -2745,7 +2746,7 @@ _yn() {
     else
       printf "%s [y/N]: " "$_p"
     fi
-    read _v
+    read -r _v
     case "${_v:-$_d}" in
       [Yy]*) return 0 ;;
       [Nn]*) return 1 ;;
@@ -2783,7 +2784,7 @@ _checklist() {
     echo "  a=全选  0=全不选  q=取消"
     echo "  输入编号(多个用空格或逗号分隔，例如: 1 3 5 或 1,3,5)"
     printf "选择[%s]: " "${_dflt:-无}"
-    read _sel
+    read -r _sel
     case "$_sel" in
       [Qq]*) return 1 ;;
       "")
@@ -2835,7 +2836,7 @@ _checklist() {
       return 0
     fi
     printf "按回车重新选择..."
-    read _
+    read -r _
   done
 }
 
@@ -2857,7 +2858,7 @@ _radiolist() {
     done
     echo
     printf "选择[%s] (q=取消): " "$_dflt" >&2
-    read _sel
+    read -r _sel
     case "$_sel" in
       [Qq]*) return 1 ;;
       "")
@@ -2882,13 +2883,17 @@ _save_cfg() {
   local _key="$1" _val="$2"
   local _cfgdir="$HOME/agsbx"
   local _cfgfile="$_cfgdir/menu_config"
+  local _tmp="$_cfgfile.tmp.$$"
   mkdir -p "$_cfgdir"
-  # 删除旧的同名键
+  # 原子写：过滤旧键到临时文件 → 追加新值 → mv 替换
+  # 避免 sed -i + >> 两步操作中途失败导致配置损坏
   if [ -f "$_cfgfile" ]; then
-    sed -i "/^${_key}=/d" "$_cfgfile" 2>/dev/null
+    grep -v "^${_key}=" "$_cfgfile" 2>/dev/null > "$_tmp" || true
+  else
+    : > "$_tmp"
   fi
-  # 追加新值
-  printf "%s=%s\n" "$_key" "$_val" >> "$_cfgfile"
+  printf "%s=%s\n" "$_key" "$_val" >> "$_tmp"
+  mv -f "$_tmp" "$_cfgfile"
 }
 
 # 读取配置
@@ -3521,7 +3526,7 @@ showmenu_main() {
     echo "╚══════════════════════════════════════════╝"
     printf "请选择 [1-9/D/Q]: "
     local _choice
-    read _choice
+    read -r _choice
     case "$_choice" in
       1) menu_cdn && { echo; echo "配置已保存，将执行安装..."; sleep 2; return 0; } ;;
       2) menu_noncdn && { echo; echo "配置已保存，将执行安装..."; sleep 2; return 0; } ;;
@@ -3555,7 +3560,7 @@ menu_viewsub() {
   echo
   echo "======================================"
   printf "按回车返回主菜单..."
-  read _
+  read -r _
 }
 
 # ---- 菜单9: 查看路径配置 ----
@@ -3574,7 +3579,7 @@ menu_viewpath() {
   echo
   echo "======================================"
   printf "按回车返回主菜单..."
-  read _
+  read -r _
 }
 
 # ===== S8: 命令入口 =====
@@ -3748,11 +3753,11 @@ EOF
 chmod +x /etc/local.d/alpinesubsbx.start
 rc-update add local default >/dev/null 2>&1
 else
-crontab -l 2>/dev/null > /tmp/crontab.tmp
-sed -i '/websbx/d' /tmp/crontab.tmp
-echo '@reboot sleep 10 && /bin/bash -c "busybox httpd -f -p $(cat $HOME/agsbx/subport.log 2>/dev/null) -h $HOME/websbx > /dev/null 2>&1 &"' >> /tmp/crontab.tmp
-crontab /tmp/crontab.tmp >/dev/null 2>&1
-rm /tmp/crontab.tmp
+crontab -l 2>/dev/null > "$_crontab_tmp"
+sed -i '/websbx/d' "$_crontab_tmp"
+echo '@reboot sleep 10 && /bin/bash -c "busybox httpd -f -p $(cat $HOME/agsbx/subport.log 2>/dev/null) -h $HOME/websbx > /dev/null 2>&1 &"' >> "$_crontab_tmp"
+crontab "$_crontab_tmp" >/dev/null 2>&1
+rm -f "$_crontab_tmp"
 fi
 echo "本地IP订阅链接已更新完成"
 fi
