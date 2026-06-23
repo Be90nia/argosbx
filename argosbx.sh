@@ -488,7 +488,8 @@ echo "当前版本：V26.5.10"
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 hostname=$(uname -a | awk '{print $2}')
 op=$(cat /etc/redhat-release 2>/dev/null || cat /etc/os-release 2>/dev/null | grep -i pretty_name | cut -d \" -f2)
-[ -z "$(systemd-detect-virt 2>/dev/null)" ] && vi=$(virt-what 2>/dev/null) || vi=$(systemd-detect-virt 2>/dev/null)
+# 容器/虚拟化检测（当前仅用于未来扩展，显式标注非死代码）
+agsbx_virt=$(systemd-detect-virt 2>/dev/null || virt-what 2>/dev/null || echo "")
 case $(uname -m) in
 arm64|aarch64) cpu=arm64;;
 amd64|x86_64) cpu=amd64;;
@@ -499,12 +500,18 @@ mkdir -p "$HOME/agsbx" && chmod 700 "$HOME/agsbx"
 if [ ! -f sbx_update ]; then
 echo "执行必要的脚本依赖中，请稍等10秒……"
 if command -v apk >/dev/null 2>&1; then
-apk update >/dev/null 2>&1 && apk add --no-cache bash busybox-extras gcompat libc6-compat iptables >/dev/null 2>&1
+apk update >/dev/null 2>&1 && apk add --no-cache bash busybox-extras gcompat libc6-compat iptables util-linux procps-ng openssl coreutils >/dev/null 2>&1
 elif command -v apt >/dev/null 2>&1; then
 export DEBIAN_FRONTEND=noninteractive
 # 不安装iptables-persistent(会冲突卸载ufw), 不用debconf-set-selections(会覆盖防火墙规则)
-apt update >/dev/null 2>&1 && apt install -y busybox coreutils util-linux cron >/dev/null 2>&1
+apt update >/dev/null 2>&1 && apt install -y busybox coreutils util-linux cron procps openssl ca-certificates >/dev/null 2>&1
 command -v iptables >/dev/null 2>&1 || apt install -y iptables >/dev/null 2>&1
+elif command -v dnf >/dev/null 2>&1; then
+dnf install -y busybox coreutils util-linux cronie procps-ng openssl ca-certificates iptables >/dev/null 2>&1
+elif command -v yum >/dev/null 2>&1; then
+yum install -y busybox coreutils util-linux cronie procps-ng openssl ca-certificates iptables >/dev/null 2>&1
+elif command -v zypper >/dev/null 2>&1; then
+zypper install -y busybox coreutils util-linux cron procps openssl ca-certificates iptables >/dev/null 2>&1
 fi
 touch sbx_update
 fi
@@ -1334,6 +1341,8 @@ fi
 sed -i '/export PATH="\$HOME\/bin:\$PATH"/d' ~/.bashrc
 echo 'export PATH="$HOME/bin:$PATH"' >> "$HOME/.bashrc"
 grep -qxF 'source ~/.bashrc' ~/.bash_profile 2>/dev/null || echo 'source ~/.bashrc' >> ~/.bash_profile
+# Alpine 默认 ash 登录读 ~/.profile (非 ~/.bash_profile)，同步以确保 agsbx 快捷方式生效
+grep -qxF 'source ~/.bashrc' ~/.profile 2>/dev/null || echo 'source ~/.bashrc' >> ~/.profile
 . ~/.bashrc 2>/dev/null
 crontab -l > "$_crontab_tmp" 2>/dev/null
 if ! [ "$(ps -p 1 -o comm= 2>/dev/null)" = "systemd" ] && ! command -v rc-service >/dev/null 2>&1; then
@@ -2604,6 +2613,9 @@ for P in /proc/[0-9]*; do if [ -L "$P/exe" ]; then TARGET=$(readlink -f "$P/exe"
 kill -15 $(pgrep -f 'agsbx/s' 2>/dev/null) $(pgrep -f 'agsbx/c' 2>/dev/null) $(pgrep -f 'agsbx/x' 2>/dev/null) $(pgrep -f 'websbx' 2>/dev/null) >/dev/null 2>&1
 sed -i '/agsbx/d' ~/.bashrc
 sed -i '/export PATH="\$HOME\/bin:\$PATH"/d' ~/.bashrc
+# 同步清理 ~/.profile 和 ~/.bash_profile 里的 agsbx 残留(Alpine ash / 登录shell)
+sed -i '/agsbx/d' ~/.profile 2>/dev/null
+sed -i '/agsbx/d' ~/.bash_profile 2>/dev/null
 . ~/.bashrc 2>/dev/null
 crontab -l > "$_crontab_tmp" 2>/dev/null
 sed -i '/agsbx\/sing-box/d' "$_crontab_tmp"
