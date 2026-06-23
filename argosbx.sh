@@ -30,6 +30,10 @@ _crontab_tmp="$agsbx_tmpdir/agsbx.cron.$$"
 agsbx_cleanup(){
   [ -n "$agsbx_cftoken_tmp" ] && [ -f "$agsbx_cftoken_tmp" ] && shred -u "$agsbx_cftoken_tmp" 2>/dev/null || rm -f "$agsbx_cftoken_tmp" 2>/dev/null
   [ -f "$agsbx_lockfile" ] && flock -u 200 2>/dev/null
+  # 恢复 SELinux 原状态(若脚本临时 setenforce 0)
+  if [ -n "${_agsbx_se_saved:-}" ] && [ "$_agsbx_se_saved" != "Disabled" ] && command -v setenforce >/dev/null 2>&1; then
+    setenforce "$_agsbx_se_saved" >/dev/null 2>&1
+  fi
 }
 trap 'agsbx_cleanup; exit 130' INT
 trap 'agsbx_cleanup; exit 143' TERM
@@ -182,8 +186,9 @@ gen_basepath() {
   basepath=$(cat "$HOME/agsbx/basepath")
 }
 
-# validate_input — 验证用户输入的安全性(域名/UUID/basepath/端口)
+# validate_input — 验证用户输入的安全性(域名/UUID/basepath/端口/注入防护)
 validate_input() {
+  local _v _val
   # 域名验证: 允许字母/数字/连字符/下划线(部分DNS provider如CF支持下划线子域名)
   if [ -n "$cdnym" ]; then
     echo "$cdnym" | grep -qE '^[a-zA-Z0-9_]([a-zA-Z0-9_-]*[a-zA-Z0-9_])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$' || { echo "⚠️ 域名格式无效: $cdnym"; exit 1; }
@@ -194,6 +199,14 @@ validate_input() {
   if [ -n "$basepath" ]; then
     echo "$basepath" | grep -qE '^[a-zA-Z0-9_-]+$' || { echo "⚠️ basepath含非法字符(仅允许字母数字下划线连字符): $basepath"; exit 1; }
   fi
+  # 防 bashrc/命令注入：用户输入变量禁止 shell 危险元字符
+  # 这些变量会被拼接到 ~/.bashrc 的恢复脚本(L1300附近)，含 ;|&$`"\ 等可执行任意命令
+  for _v in name cfip hyjpt cdnym directnym ippz argo argopro reym agn agk warp; do
+    eval "_val=\${$_v:-}"
+    if [ -n "$_val" ] && printf '%s' "$_val" | grep -qE '[;|&$`"\\()<>]'; then
+      echo "⚠️ 变量 $_v 含非法字符(禁止 ;|&\$\`\\"()<> 等 shell 元字符，防 bashrc 注入)"; exit 1
+    fi
+  done
 }
 
 # parse_argopro — 解析argopro变量为argo_xxx标志(兼容旧argo变量)
@@ -1166,6 +1179,8 @@ fi
 fi
 }
 ins(){
+# 输入安全校验(无条件执行，覆盖所有协议组合，防 bashrc 注入)
+validate_input
 # 持久化directnym/cdnym到文件(cip重新生成链接时需要读取)
 [ -n "$directnym" ] && echo "$directnym" > "$HOME/agsbx/directnym"
 [ -n "$cdnym" ] && echo "$cdnym" > "$HOME/agsbx/cdnym"
@@ -3719,6 +3734,7 @@ echo "VPS系统：$op"
 echo "CPU架构：$cpu"
 echo "Argosbx脚本未安装，开始安装…………" && sleep 1
 if [ -n "$oap" ]; then
+_agsbx_se_saved=$(getenforce 2>/dev/null)
 setenforce 0 >/dev/null 2>&1
 echo "已跳过iptables操作(避免清空已有防火墙规则)"
 fi
@@ -3778,6 +3794,11 @@ fi
 if [ -n "$hyjpt" ] && [ -n "$hyp" ]; then
 echo
 echo "设置Hysteria2协议的跳跃端口：$hyjpt"
+# 权限预检：iptables 需 CAP_NET_ADMIN，非 root 或无权限时静默失败会让用户误以为端口跳跃已生效
+if ! iptables -t nat -nL >/dev/null 2>&1; then
+  echo "⚠️ iptables 不可用(非root或缺少CAP_NET_ADMIN)，hy2 端口跳跃(hyjpt)不会生效"
+  _log "WARN" "iptables 权限不足，hyjpt=$hyjpt 端口跳跃配置跳过"
+else
 # 不清空整个PREROUTING链(避免删除已有防火墙规则), 先删除自己之前添加的DNAT规则
 hyport=$(cat "$HOME/agsbx/port_hy2")
 for port in $hyjpt; do
@@ -3787,6 +3808,7 @@ iptables -t nat -A PREROUTING -p udp --dport "$port" -j DNAT --to-destination :"
 ip6tables -t nat -A PREROUTING -p udp --dport "$port" -j DNAT --to-destination :"$hyport"
 done
 # 不调用netfilter-persistent save(避免覆盖已有防火墙持久化规则)
+fi
 fi
 cip
 echo
