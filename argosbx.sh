@@ -17,6 +17,13 @@ _log() {
   else
     _lvl="INFO"; _msg="$1"
   fi
+  # 简单轮转：超过 512KB 截断保留最近 256KB，避免长期运行无限增长
+  if [ -f "$agsbx_logfile" ]; then
+    _logsize=$(wc -c < "$agsbx_logfile" 2>/dev/null || echo 0)
+    if [ "${_logsize:-0}" -gt 524288 ]; then
+      tail -c 262144 "$agsbx_logfile" > "${agsbx_logfile}.rotate" 2>/dev/null && mv -f "${agsbx_logfile}.rotate" "$agsbx_logfile" 2>/dev/null
+    fi
+  fi
   printf '[%s] [%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || date)" "$_lvl" "$_msg" >> "$agsbx_logfile" 2>/dev/null
 }
 _log "INFO" "argosbx 启动，PID=$$"
@@ -191,13 +198,13 @@ validate_input() {
   local _v _val
   # 域名验证: 允许字母/数字/连字符/下划线(部分DNS provider如CF支持下划线子域名)
   if [ -n "$cdnym" ]; then
-    echo "$cdnym" | grep -qE '^[a-zA-Z0-9_]([a-zA-Z0-9_-]*[a-zA-Z0-9_])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$' || { echo "⚠️ 域名格式无效: $cdnym"; exit 1; }
+    echo "$cdnym" | grep -qE '^[a-zA-Z0-9_]([a-zA-Z0-9_-]*[a-zA-Z0-9_])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$' || { echo "⚠️ 域名格式无效: $cdnym (示例: example.com 或 sub.example.com)"; exit 1; }
   fi
   if [ -n "$uuid" ]; then
-    echo "$uuid" | grep -qiE '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' || { echo "⚠️ UUID格式无效: $uuid"; exit 1; }
+    echo "$uuid" | grep -qiE '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' || { echo "⚠️ UUID格式无效: $uuid (示例: 12345678-1234-1234-1234-123456789abc)"; exit 1; }
   fi
   if [ -n "$basepath" ]; then
-    echo "$basepath" | grep -qE '^[a-zA-Z0-9_-]+$' || { echo "⚠️ basepath含非法字符(仅允许字母数字下划线连字符): $basepath"; exit 1; }
+    echo "$basepath" | grep -qE '^[a-zA-Z0-9_-]+$' || { echo "⚠️ basepath含非法字符(仅允许字母数字下划线连字符): $basepath (示例: mypath123)"; exit 1; }
   fi
   # 防 bashrc/命令注入：用户输入变量禁止 shell 危险元字符
   # 这些变量会被拼接到 ~/.bashrc 的恢复脚本(L1300附近)，含 ;|&$`"\ 等可执行任意命令
@@ -2675,20 +2682,57 @@ agsbx_doctor(){
   done
   echo
   echo "【端口监听】"
-  if [ -f "$HOME/agsbx/xr.json" ]; then
-    for _port in $(grep -oE '"port"[[:space:]]*:[[:space:]]*[0-9]+' "$HOME/agsbx/xr.json" | grep -oE '[0-9]+$' | sort -un); do
+  for _cfg in "$HOME/agsbx/xr.json" "$HOME/agsbx/sb.json"; do
+    [ -f "$_cfg" ] || continue
+    _cfgname=$(basename "$_cfg" | cut -d. -f1)
+    for _port in $(grep -oE '"(port|listen_port)"[[:space:]]*:[[:space:]]*[0-9]+' "$_cfg" | grep -oE '[0-9]+$' | sort -un); do
       if ss -tln 2>/dev/null | grep -q ":$_port " || netstat -tln 2>/dev/null | grep -q ":$_port "; then
-        echo "  ✅ 端口 $_port: 监听中"
-      else echo "  ❌ 端口 $_port: 未监听"; fi
+        echo "  ✅ [$_cfgname] 端口 $_port: 监听中"
+      else echo "  ❌ [$_cfgname] 端口 $_port: 未监听"; fi
     done
-  fi
+  done
   echo
   echo "【配置校验】"
   if [ -f "$HOME/agsbx/xr.json" ]; then
-    "$HOME/agsbx/xray" run -test -c "$HOME/agsbx/xr.json" >/dev/null 2>&1 && echo "  ✅ xr.json: 语法正确" || echo "  ❌ xr.json: 语法错误"
+    if _err=$("$HOME/agsbx/xray" run -test -c "$HOME/agsbx/xr.json" 2>&1); then
+      echo "  ✅ xr.json: 语法正确"
+    else
+      echo "  ❌ xr.json: 语法错误"
+      echo "$_err" | tail -3 | sed 's/^/    /'
+    fi
   fi
   if [ -f "$HOME/agsbx/sb.json" ]; then
-    "$HOME/agsbx/sing-box" check -c "$HOME/agsbx/sb.json" >/dev/null 2>&1 && echo "  ✅ sb.json: 语法正确" || echo "  ❌ sb.json: 语法错误"
+    if _err=$("$HOME/agsbx/sing-box" check -c "$HOME/agsbx/sb.json" 2>&1); then
+      echo "  ✅ sb.json: 语法正确"
+    else
+      echo "  ❌ sb.json: 语法错误"
+      echo "$_err" | tail -3 | sed 's/^/    /'
+    fi
+  fi
+  echo
+  echo "【Argo 隧道】"
+  if [ -f "$HOME/agsbx/sbargoym.log" ] && [ -s "$HOME/agsbx/sbargoym.log" ]; then
+    echo "  固定隧道域名: $(cat "$HOME/agsbx/sbargoym.log")"
+  elif [ -f "$HOME/agsbx/argo.log" ]; then
+    _td=$(grep -a trycloudflare.com "$HOME/agsbx/argo.log" 2>/dev/null | head -1)
+    if [ -n "$_td" ]; then echo "  临时隧道: $_td"; else echo "  临时隧道: 未检测到(可能申请中)"; fi
+  else
+    echo "  未配置 Argo"
+  fi
+  echo
+  echo "【磁盘空间】"
+  if command -v df >/dev/null 2>&1; then
+    _df_info=$(df -P "$HOME" 2>/dev/null | awk 'NR==2{print $4, $5}')
+    _df_avail=$(echo "$_df_info" | awk '{print $1}')
+    _df_used=$(echo "$_df_info" | awk '{print $2}')
+    if [ -n "$_df_avail" ]; then
+      _df_avail_mb=$((_df_avail / 1024))
+      if [ "$_df_avail_mb" -lt 100 ]; then
+        echo "  ⚠️ $HOME 剩余 ${_df_avail_mb} MB (已用 ${_df_used})，空间不足可能影响安装"
+      else
+        echo "  ✅ $HOME 剩余 ${_df_avail_mb} MB (已用 ${_df_used})"
+      fi
+    fi
   fi
   echo
   echo "═══ 检查完成 ═══"
@@ -2697,10 +2741,21 @@ agsbx_backup(){
   _bkfile="argosbx_backup_$(date +%Y%m%d_%H%M%S).tar.gz"
   _bkpath="${2:-$HOME/$_bkfile}"
   echo "备份Argosbx配置到: $_bkpath"
-  tar -czf "$_bkpath" -C "$HOME" agsbx -C / etc/argosbx 2>/dev/null
-  _bksize=$(wc -c < "$_bkpath" 2>/dev/null || echo 0)
-  echo "✅ 备份完成: $_bkpath ($((_bksize / 1024)) KB)"
-  echo "恢复命令: argosbx restore $_bkpath"
+  if tar -czf "$_bkpath" -C "$HOME" agsbx -C / etc/argosbx 2>/dev/null; then
+    _bksize=$(wc -c < "$_bkpath" 2>/dev/null || echo 0)
+    if [ "$_bksize" -lt 100 ]; then
+      echo "⚠️ 备份文件异常小(${_bksize} 字节)，可能不完整，请检查 $HOME/agsbx 和 /etc/argosbx 是否存在"
+      _log "WARN" "备份文件异常小: $_bkpath (${_bksize} B)"
+    else
+      echo "✅ 备份完成: $_bkpath ($((_bksize / 1024)) KB)"
+      echo "恢复命令: argosbx restore $_bkpath"
+      _log "INFO" "备份完成: $_bkpath (${_bksize} B)"
+    fi
+  else
+    echo "❌ 备份失败(tar 退出码 $?)，请检查 $HOME/agsbx 和 /etc/argosbx 是否存在"
+    _log "ERROR" "备份失败: tar 退出码非0"
+    exit 1
+  fi
 }
 agsbx_restore(){
   _bkfile="$2"
@@ -2716,9 +2771,20 @@ agsbx_restore(){
     exit 1
   fi
   for P in /proc/[0-9]*; do [ -L "$P/exe" ] || continue; TARGET=$(readlink -f "$P/exe" 2>/dev/null) || continue; case "$TARGET" in */agsbx/*) kill "$(basename "$P")" 2>/dev/null ;; esac; done
-  tar -xzf "$_bkfile" -C "$HOME" 2>/dev/null
-  tar -xzf "$_bkfile" -C / 2>/dev/null
+  _restore_fail=0
+  tar -xzf "$_bkfile" -C "$HOME" 2>/dev/null || _restore_fail=1
+  tar -xzf "$_bkfile" -C / 2>/dev/null || _restore_fail=1
+  # 校验关键配置文件存在
+  if [ ! -d "$HOME/agsbx" ] || { [ ! -f "$HOME/agsbx/uuid" ] && [ ! -f "$HOME/agsbx/menu_config" ]; }; then
+    echo "⚠️ 恢复后关键配置缺失(agsbx目录或uuid/menu_config)，备份可能不完整"
+    _log "WARN" "恢复后配置校验失败: $_bkfile"
+  fi
+  if [ "$_restore_fail" = 1 ]; then
+    echo "⚠️ 恢复过程中部分 tar 操作失败，请检查备份文件完整性"
+    _log "WARN" "恢复 tar 部分失败: $_bkfile"
+  fi
   echo "✅ 配置恢复完成，正在重启服务..."
+  _log "INFO" "配置恢复完成，重启服务: $_bkfile"
   bash "$HOME/bin/agsbx" res
 }
 
