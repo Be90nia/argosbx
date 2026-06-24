@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 export LANG=en_US.UTF-8
+# pipefail：管道任一段失败则整体失败，让进程检测/IP探测等管道错误被正确捕获
+# 不引入 set -e（会破坏 >/dev/null 2>&1 || return 1 错误处理模式）
+# 不引入 set -u（会破坏 ${var+x} 和直接 $var 引用模式）
+set -o pipefail
 
 # ===== S0: 安全加固初始化 =====
 umask 077
@@ -8,6 +12,7 @@ umask 077
 # 不引入 set -u（会破坏脚本现有的 ${var+x} 和直接 $var 引用模式）
 # 替代方案：通过 _log 函数记录关键事件 + 显式 || 分支错误处理
 # 6.6.22 结构化日志：所有操作记录到 install.log
+# 6.6.24 引入 pipefail（管道错误捕获，不影响单命令错误处理模式）
 agsbx_logfile="$HOME/agsbx/install.log"
 mkdir -p "$HOME/agsbx" 2>/dev/null
 _log() {
@@ -30,7 +35,8 @@ _log "INFO" "argosbx 启动，PID=$$"
 # 注意：bash 把 EUID 作为只读内置变量，POSIX sh 则允许赋值。
 # 统一改用 _euid 避免 bash 直接运行时报 "EUID: readonly variable"
 _euid=$(id -u 2>/dev/null || echo 0)
-agsbx_lockfile="/var/lock/argosbx.lock"
+# lock 文件基于 UID 隔离：非 root 也能写入 TMPDIR，避免 /var/lock 的 root 限制
+agsbx_lockfile="${agsbx_tmpdir}/argosbx-${_euid}.lock"
 agsbx_tmpdir="${TMPDIR:-/tmp}"
 # crontab 临时文件：基于 PID，flock 单实例保证无并发竞态
 _crontab_tmp="$agsbx_tmpdir/agsbx.cron.$$"
@@ -181,8 +187,8 @@ dl_s() {
   return 1
 }
 
-# alloc_port portvar — 端口分配(随机/指定/持久化，flock串行化防竞态)
-alloc_port() {
+# _alloc_port portvar — 端口分配(随机/指定/持久化，flock串行化防竞态)
+_alloc_port() {
   local _apvar="$1"
   local _apval
   eval _apval="\$$_apvar"
@@ -201,8 +207,8 @@ alloc_port() {
   } 9>"$HOME/agsbx/.port.lock"
 }
 
-# gen_basepath — 生成或读取basepath(用户指定 or 随机16位hex，持久化)
-gen_basepath() {
+# _gen_basepath — 生成或读取basepath(用户指定 or 随机16位hex，持久化)
+_gen_basepath() {
   mkdir -p "$HOME/agsbx"
   if [ -z "$basepath" ] && [ ! -e "$HOME/agsbx/basepath" ]; then
     basepath=$(head -c 32 /dev/urandom | sha256sum | cut -c 1-16)
@@ -213,8 +219,8 @@ gen_basepath() {
   basepath=$(cat "$HOME/agsbx/basepath")
 }
 
-# validate_input — 验证用户输入的安全性(域名/UUID/basepath/端口/注入防护)
-validate_input() {
+# _validate_input — 验证用户输入的安全性(域名/UUID/basepath/端口/注入防护)
+_validate_input() {
   local _v _val
   # 域名验证: 允许字母/数字/连字符/下划线(部分DNS provider如CF支持下划线子域名)
   if [ -n "$cdnym" ]; then
@@ -833,16 +839,16 @@ fi
 
 # basepath生成(CDN协议path需要)
 if [ -n "$vxp" ] || [ -n "$vwp" ] || [ -n "$vup" ] || [ -n "$twp" ] || [ -n "$tuhp" ] || [ -n "$mup" ] || [ -n "$txp" ] || [ -n "$mxp" ] || [ -n "$swp" ] || [ -n "$vwep" ]; then
-  gen_basepath
+  _gen_basepath
   echo "Basepath: $basepath"
 fi
 
 # 输入安全验证(域名/UUID/basepath格式校验)
-validate_input
+_validate_input
 
 if [ -n "$xhp" ]; then
 xhp=xhpt
-alloc_port port_xh
+_alloc_port port_xh
  echo "Vless-xhttp-reality-enc端口：$port_xh"
 tpl_xr a-xh-reality "$port_xh"
 else
@@ -962,7 +968,7 @@ vwep=vwept
 fi
 if [ -n "$vlp" ]; then
 vlp=vlpt
-alloc_port port_vl_re
+_alloc_port port_vl_re
  echo "Vless-tcp-reality-v端口：$port_vl_re"
 tpl_xr c-vl-reality-vision "$port_vl_re"
 else
@@ -972,19 +978,19 @@ if [ -n "$trp" ]; then
   trp=trpt
   [ -z "$ym_vl_re" ] && ym_vl_re=apple.com
   echo "Reality域名：$ym_vl_re"
-  alloc_port port_tr
+  _alloc_port port_tr
   echo "Trojan+Reality端口：$port_tr"
   tpl_xr c-tr-reality "$port_tr"
 fi
 if [ -n "$vtp" ]; then
   vtp=vtpt
-  alloc_port port_vtv
+  _alloc_port port_vtv
   echo "VLESS+TLS+Vision端口：$port_vtv"
   tpl_xr c-vt-tls-vision "$port_vtv"
 fi
 if [ -n "$ttp" ]; then
   ttp=ttpt
-  alloc_port port_tt
+  _alloc_port port_tt
   echo "Trojan+TLS端口：$port_tt"
   tpl_xr c-tt-tls "$port_tt"
 fi
@@ -1014,7 +1020,7 @@ fi
 fi
 if [ -n "$hyp" ]; then
 hyp=hypt
-alloc_port port_hy2
+_alloc_port port_hy2
  echo "Hysteria2端口：$port_hy2"
 tpl_sb c-hy2 "$port_hy2"
 else
@@ -1022,7 +1028,7 @@ hyp=hyptargo
 fi
 if [ -n "$tup" ]; then
 tup=tupt
-alloc_port port_tu
+_alloc_port port_tu
  echo "Tuic端口：$port_tu"
 tpl_sb c-tu "$port_tu"
 else
@@ -1030,7 +1036,7 @@ tup=tuptargo
 fi
 if [ -n "$anp" ]; then
 anp=anpt
-alloc_port port_an
+_alloc_port port_an
  echo "Anytls端口：$port_an"
 tpl_sb c-an "$port_an"
 else
@@ -1056,7 +1062,7 @@ fi
 private_key_s=$(cat "$HOME/agsbx/sbk/private_key")
 public_key_s=$(cat "$HOME/agsbx/sbk/public_key")
 short_id_s=$(cat "$HOME/agsbx/sbk/short_id")
- alloc_port port_ar
+ _alloc_port port_ar
   echo "Any-Reality端口：$port_ar"
   tpl_sb c-ar "$port_ar"
 else
@@ -1068,7 +1074,7 @@ if [ ! -e "$HOME/agsbx/sskey" ]; then
 sskey=$(head -c 32 /dev/urandom | base64 | tr -d '\n')
 echo "$sskey" > "$HOME/agsbx/sskey"
 fi
-  alloc_port port_ss
+  _alloc_port port_ss
   sskey=$(cat "$HOME/agsbx/sskey")
   echo "Shadowsocks-2022端口：$port_ss"
   tpl_sb c-ss "$port_ss"
@@ -1079,7 +1085,7 @@ if [ -n "$nap" ]; then
   nap=napt
   [ -z "$nap_user" ] && nap_user=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 8)
   echo "$nap_user" > "$HOME/agsbx/nap_user"
-  alloc_port port_na
+  _alloc_port port_na
   echo "Naive端口：$port_na"
   tpl_sb c-na "$port_na"
 fi
@@ -1088,9 +1094,9 @@ fi
 xrsbvm(){
 if [ -n "$vmp" ]; then
 vmp=vmpt
-gen_basepath
+_gen_basepath
 echo "Vmess-ws：xray模式→端口2083(CF固定) / singbox模式→随机端口"
-alloc_port port_vm_ws
+_alloc_port port_vm_ws
 if [ -e "$HOME/agsbx/xr.json" ]; then
 tpl_xr a-vm-ws
 else
@@ -1214,7 +1220,7 @@ fi
 }
 ins(){
 # 输入安全校验(无条件执行，覆盖所有协议组合，防 bashrc 注入)
-validate_input
+_validate_input
 # 持久化directnym/cdnym到文件(cip重新生成链接时需要读取)
 [ -n "$directnym" ] && echo "$directnym" > "$HOME/agsbx/directnym"
 [ -n "$cdnym" ] && echo "$cdnym" > "$HOME/agsbx/cdnym"
