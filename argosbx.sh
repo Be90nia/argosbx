@@ -345,7 +345,24 @@ certsign() {
         return 0
       fi
     else
-      echo "证书已存在: $_cscrt"
+      # cdnym 已有证书: 检测来源，acme.sh签发的转软链接(续期自动)，CF Origin CA手动放的不动
+      _issuer=$(openssl x509 -in "$_cscrt" -noout -issuer 2>/dev/null)
+      if echo "$_issuer" | grep -qi "CloudFlare"; then
+        echo "证书已存在(CF Origin CA 手动放置): $_cscrt"
+      else
+        echo "证书已存在(acme.sh签发): $_cscrt"
+        local _acme_cert_dir="$HOME/.acme.sh/$_csdomain"
+        if [ -d "$_acme_cert_dir" ] && [ -f "$_acme_cert_dir/fullchain.cer" ] && [ -f "$_acme_cert_dir/$_csdomain.key" ]; then
+          if [ ! -L "$_cscrt" ]; then
+            ln -sfn "$_acme_cert_dir/fullchain.cer" "$_cscrt"
+            ln -sfn "$_acme_cert_dir/$_csdomain.key" "$_cskey"
+            echo "✅ cdnym证书已转为软链接(续期自动生效): $_cscrt → $_acme_cert_dir/fullchain.cer"
+            _log "INFO" "cdnym证书转软链接: $_cscrt → acme.sh源"
+          else
+            echo "  (已是软链接，续期自动生效)"
+          fi
+        fi
+      fi
       return 0
     fi
   fi
@@ -399,18 +416,30 @@ certsign() {
     unset CF_Email CF_Key
     return 1
   fi
+  # install-cert 复制到 .acme-install 废弃位置(仅用于触发 reloadcmd 续期重启)
+  # 软链接锚点 /etc/argosbx/certs/prefix.crt 指向 acme.sh 源，续期时 install-cert 复制到 .acme-install 不覆盖软链接
+  # 这样续期后 acme.sh 源更新 → reloadcmd 重启服务 → 服务读软链接 → 读到新证书，90天自动生效无需挪动
   "$_acme" --install-cert -d "$_csdomain" \
-    --key-file "$_cskey" \
-    --fullchain-file "$_cscrt" \
+    --key-file "$_cskey.acme-install" \
+    --fullchain-file "$_cscrt.acme-install" \
     --reloadcmd "if command -v systemctl >/dev/null 2>&1; then systemctl restart xray 2>/dev/null || echo 'warn: xray restart failed'; systemctl restart sing-box 2>/dev/null || echo 'warn: sing-box restart failed'; elif command -v rc-service >/dev/null 2>&1; then rc-service xray restart 2>/dev/null || echo 'warn: xray restart failed'; rc-service sing-box restart 2>/dev/null || echo 'warn: sing-box restart failed'; fi"
   unset CF_Email CF_Key
-  # 创建软链接: 让sing-box/xray直接读取acme.sh源证书,续期后无需手动复制
+  # 软链接锚点指向 acme.sh 源(续期自动更新，CF手动证书走菜单上传的 cp -f 硬拷贝不经此分支)
   local _acme_cert_dir="$HOME/.acme.sh/$_csdomain"
   if [ -f "$_acme_cert_dir/fullchain.cer" ] && [ -f "$_acme_cert_dir/$_csdomain.key" ]; then
-    ln -sf "$_acme_cert_dir/fullchain.cer" "$_cscrt"
-    ln -sf "$_acme_cert_dir/$_csdomain.key" "$_cskey"
-    echo "✅ 证书软链接: $_cscrt → $_acme_cert_dir/fullchain.cer"
+    ln -sfn "$_acme_cert_dir/fullchain.cer" "$_cscrt"
+    ln -sfn "$_acme_cert_dir/$_csdomain.key" "$_cskey"
+    echo "✅ 证书软链接(续期自动生效): $_cscrt → $_acme_cert_dir/fullchain.cer"
+    _log "INFO" "证书软链接建立: $_cscrt → acme.sh源(域名 $_csdomain)"
+  else
+    # acme.sh 源未找到(异常)，回退到 install-cert 副本作为硬拷贝
+    mv -f "$_cscrt.acme-install" "$_cscrt" 2>/dev/null
+    mv -f "$_cskey.acme-install" "$_cskey" 2>/dev/null
+    echo "⚠️ acme.sh 源路径未找到，使用 install-cert 副本(续期需手动挪证书)"
+    _log "WARN" "acme.sh 源路径缺失 $_acme_cert_dir，证书回退硬拷贝"
   fi
+  # 清理 install-cert 废弃文件
+  rm -f "$_cscrt.acme-install" "$_cskey.acme-install" 2>/dev/null
   echo "✅ 证书签发成功: $_csdomain → $_cscrt"
 }
 
