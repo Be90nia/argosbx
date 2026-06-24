@@ -1482,7 +1482,7 @@ fi
 }
 # ===== S6: 订阅链接生成 =====
 
-cip(){
+_gen_clients_and_sub(){
 ipbest(){
 serip=$( (command -v curl >/dev/null 2>&1 && (curl -s4m5 "$v46url" 2>/dev/null || curl -s6m5 "$v46url" 2>/dev/null) ) || (command -v wget >/dev/null 2>&1 && (timeout 3 wget -4 -qO- --tries=2 "$v46url" 2>/dev/null || timeout 3 wget -6 -qO- --tries=2 "$v46url" 2>/dev/null) ) )
 if echo "$serip" | grep -q ':'; then
@@ -1557,7 +1557,9 @@ case "$server_ip" in
 esac
 echo
 ym_vl_re=$(cat "$HOME/agsbx/ym_vl_re" 2>/dev/null)
-cfipsj() { echo $((RANDOM % 13 + 1)); }
+# CDN优选域名数量(yg1..ygN.ygkkk.dpdns.org)，_cfipsj 随机选其一作为 CDN 节点地址
+_CFIP_COUNT=13
+_cfipsj() { echo $((RANDOM % _CFIP_COUNT + 1)); }
 if [ -e "$HOME/agsbx/xray" ]; then
 private_key_x=$(cat "$HOME/agsbx/xrk/private_key" 2>/dev/null)
 public_key_x=$(cat "$HOME/agsbx/xrk/public_key" 2>/dev/null)
@@ -1591,7 +1593,7 @@ echo
 if [ -f "$HOME/agsbx/cdnym" ]; then
  echo "💣【 Vless-xhttp-enc-cdn 】支持ENC加密，节点信息如下："
  echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定2053端口+TLS"
- vl_vx_cdn_link="vless://$uuid@yg$(cfipsj).ygkkk.dpdns.org:2053?encryption=$enkey&type=xhttp&host=$xvvmcdnym&path=/${basepath}-vx&mode=packet-up&security=tls&sni=$xvvmcdnym&fp=chrome#${sxname}vl-xhttp-enc-cdn-$hostname"
+ vl_vx_cdn_link="vless://$uuid@yg$(_cfipsj).ygkkk.dpdns.org:2053?encryption=$enkey&type=xhttp&host=$xvvmcdnym&path=/${basepath}-vx&mode=packet-up&security=tls&sni=$xvvmcdnym&fp=chrome#${sxname}vl-xhttp-enc-cdn-$hostname"
 echo "$vl_vx_cdn_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vl_vx_cdn_link"
 echo
@@ -1606,7 +1608,7 @@ echo
 if [ -f "$HOME/agsbx/cdnym" ]; then
  echo "💣【 Vless-ws-cdn 】节点信息如下："
  echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定443端口+TLS"
- vl_vw_cdn_link="vless://$uuid@yg$(cfipsj).ygkkk.dpdns.org:443?encryption=none&type=ws&host=$xvvmcdnym&path=/${basepath}-vw&security=tls&sni=$xvvmcdnym&fp=chrome#${sxname}vl-ws-cdn-$hostname"
+ vl_vw_cdn_link="vless://$uuid@yg$(_cfipsj).ygkkk.dpdns.org:443?encryption=none&type=ws&host=$xvvmcdnym&path=/${basepath}-vw&security=tls&sni=$xvvmcdnym&fp=chrome#${sxname}vl-ws-cdn-$hostname"
 echo "$vl_vw_cdn_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vl_vw_cdn_link"
 echo
@@ -1621,7 +1623,7 @@ echo
 if [ -f "$HOME/agsbx/cdnym" ]; then
  echo "💣【 Vless-httpupgrade-enc-cdn 】支持ENC加密，节点信息如下："
   echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定2087端口+TLS"
-  vl_vu_cdn_link="vless://$uuid@yg$(cfipsj).ygkkk.dpdns.org:2087?encryption=$enkey&type=httpupgrade&host=$xvvmcdnym&path=/${basepath}-vu&security=tls&sni=$xvvmcdnym&fp=chrome#${sxname}vl-httpupgrade-enc-cdn-$hostname"
+  vl_vu_cdn_link="vless://$uuid@yg$(_cfipsj).ygkkk.dpdns.org:2087?encryption=$enkey&type=httpupgrade&host=$xvvmcdnym&path=/${basepath}-vu&security=tls&sni=$xvvmcdnym&fp=chrome#${sxname}vl-httpupgrade-enc-cdn-$hostname"
 echo "$vl_vu_cdn_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vl_vu_cdn_link"
 echo
@@ -1636,7 +1638,7 @@ echo
 if [ -f "$HOME/agsbx/cdnym" ]; then
  echo "💣【 Trojan-ws-cdn 】节点信息如下："
   echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定2096端口+TLS"
-  tr_tw_cdn_link="trojan://$uuid@yg$(cfipsj).ygkkk.dpdns.org:2096?security=tls&type=ws&host=$xvvmcdnym&path=/${basepath}-tw&sni=$xvvmcdnym&fp=chrome#${sxname}tr-ws-cdn-$hostname"
+  tr_tw_cdn_link="trojan://$uuid@yg$(_cfipsj).ygkkk.dpdns.org:2096?security=tls&type=ws&host=$xvvmcdnym&path=/${basepath}-tw&sni=$xvvmcdnym&fp=chrome#${sxname}tr-ws-cdn-$hostname"
 echo "$tr_tw_cdn_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$tr_tw_cdn_link"
 echo
@@ -1651,7 +1653,7 @@ echo
 if [ -f "$HOME/agsbx/cdnym" ]; then
  echo "💣【 Trojan-httpupgrade-cdn 】节点信息如下："
   echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定8443端口+TLS"
-  tr_tuh_cdn_link="trojan://$uuid@yg$(cfipsj).ygkkk.dpdns.org:8443?security=tls&type=httpupgrade&host=$xvvmcdnym&path=/${basepath}-tuh&sni=$xvvmcdnym&fp=chrome#${sxname}tr-httpupgrade-cdn-$hostname"
+  tr_tuh_cdn_link="trojan://$uuid@yg$(_cfipsj).ygkkk.dpdns.org:8443?security=tls&type=httpupgrade&host=$xvvmcdnym&path=/${basepath}-tuh&sni=$xvvmcdnym&fp=chrome#${sxname}tr-httpupgrade-cdn-$hostname"
 echo "$tr_tuh_cdn_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$tr_tuh_cdn_link"
 echo
@@ -1663,7 +1665,7 @@ if [ -f "$HOME/agsbx/cdnym" ]; then
 echo "💣【 VMess-httpupgrade-cdn 】B组Origin Rules回源39000，节点信息如下："
 echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN走443端口+Origin Rules回源39000"
 echo "⚠️ 需在CF Dashboard → Rules → Origin Rules 添加规则：URI Path starts with \"/${basepath}-mu\" → Rewrite to Port 39000"
-vm_mu_cdn_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-httpupgrade-cdn-$hostname\", \"add\": \"yg$(cfipsj).ygkkk.dpdns.org\", \"port\": \"443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"httpupgrade\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$basepath-mu\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"fp\": \"chrome\"}" | base64 | tr -d '\n')"
+vm_mu_cdn_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-httpupgrade-cdn-$hostname\", \"add\": \"yg$(_cfipsj).ygkkk.dpdns.org\", \"port\": \"443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"httpupgrade\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$basepath-mu\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"fp\": \"chrome\"}" | base64 | tr -d '\n')"
 echo "$vm_mu_cdn_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vm_mu_cdn_link"
 echo
@@ -1674,7 +1676,7 @@ if [ -f "$HOME/agsbx/cdnym" ]; then
 echo "💣【 Trojan-xhttp-cdn 】B组Origin Rules回源39001，节点信息如下："
 echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN走443端口+Origin Rules回源39001"
 echo "⚠️ 需在CF Dashboard → Rules → Origin Rules 添加规则：URI Path starts with \"/${basepath}-tx\" → Rewrite to Port 39001"
-tr_tx_cdn_link="trojan://$uuid@yg$(cfipsj).ygkkk.dpdns.org:443?security=tls&type=xhttp&host=$xvvmcdnym&path=/${basepath}-tx&mode=packet-up&sni=$xvvmcdnym&fp=chrome#${sxname}tr-xhttp-cdn-$hostname"
+tr_tx_cdn_link="trojan://$uuid@yg$(_cfipsj).ygkkk.dpdns.org:443?security=tls&type=xhttp&host=$xvvmcdnym&path=/${basepath}-tx&mode=packet-up&sni=$xvvmcdnym&fp=chrome#${sxname}tr-xhttp-cdn-$hostname"
 echo "$tr_tx_cdn_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$tr_tx_cdn_link"
 echo
@@ -1686,7 +1688,7 @@ echo "💣【 VMess-xhttp-cdn 】B组Origin Rules回源39002，节点信息如�
 echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN走443端口+Origin Rules回源39002"
 echo "⚠️ 需在CF Dashboard → Rules → Origin Rules 添加规则：URI Path starts with \"/${basepath}-mx\" → Rewrite to Port 39002"
 echo "⚠️ net=xhttp 需要 v2rayN 6.x+ / xray-core 1.8.8+"
-vm_mx_cdn_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-xhttp-cdn-$hostname\", \"add\": \"yg$(cfipsj).ygkkk.dpdns.org\", \"port\": \"443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"xhttp\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$basepath-mx\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"fp\": \"chrome\"}" | base64 | tr -d '\n')"
+vm_mx_cdn_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-xhttp-cdn-$hostname\", \"add\": \"yg$(_cfipsj).ygkkk.dpdns.org\", \"port\": \"443\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"xhttp\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$basepath-mx\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"fp\": \"chrome\"}" | base64 | tr -d '\n')"
 echo "$vm_mx_cdn_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vm_mx_cdn_link"
 echo
@@ -1701,7 +1703,7 @@ echo "⚠️ 导入后请检查传输协议是否为ws, 若显示raw请手动改
 echo "    传输: ws | Host: $xvvmcdnym | Path: /${basepath}-sw | TLS: 开启 | SNI: $xvvmcdnym"
 sskey=$(cat "$HOME/agsbx/sskey" 2>/dev/null)
  _ss_enc=$(printf '%s' "$sskey" | sed 's/+/%2B/g; s/=/%3D/g; s|/|%2F|g')
- ss_sw_cdn_link="ss://2022-blake3-aes-128-gcm:${_ss_enc}@yg$(cfipsj).ygkkk.dpdns.org:443/?type=ws&host=$xvvmcdnym&path=/${basepath}-sw&security=tls&sni=$xvvmcdnym#${sxname}ss-ws-cdn-$hostname"
+ ss_sw_cdn_link="ss://2022-blake3-aes-128-gcm:${_ss_enc}@yg$(_cfipsj).ygkkk.dpdns.org:443/?type=ws&host=$xvvmcdnym&path=/${basepath}-sw&security=tls&sni=$xvvmcdnym#${sxname}ss-ws-cdn-$hostname"
 echo "$ss_sw_cdn_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$ss_sw_cdn_link"
 echo
@@ -1712,7 +1714,7 @@ if [ -f "$HOME/agsbx/cdnym" ]; then
 echo "💣【 Vless-ws-enc-cdn 】B组Origin Rules回源39004，支持ENC加密，节点信息如下："
 echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN走443端口+Origin Rules回源39004"
 echo "⚠️ 需在CF Dashboard → Rules → Origin Rules 添加规则：URI Path starts with \"/${basepath}-vwe\" → Rewrite to Port 39004"
-vl_vwe_cdn_link="vless://$uuid@yg$(cfipsj).ygkkk.dpdns.org:443?encryption=$enkey&type=ws&host=$xvvmcdnym&path=/${basepath}-vwe&security=tls&sni=$xvvmcdnym&fp=chrome#${sxname}vl-ws-enc-cdn-$hostname"
+vl_vwe_cdn_link="vless://$uuid@yg$(_cfipsj).ygkkk.dpdns.org:443?encryption=$enkey&type=ws&host=$xvvmcdnym&path=/${basepath}-vwe&security=tls&sni=$xvvmcdnym&fp=chrome#${sxname}vl-ws-enc-cdn-$hostname"
 echo "$vl_vwe_cdn_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vl_vwe_cdn_link"
 echo
@@ -1884,7 +1886,7 @@ echo "- ${sxname}vmess-ws-$hostname"
 if [ -f "$HOME/agsbx/cdnym" ]; then
  echo "💣【 Vmess-ws-cdn 】节点信息如下："
   echo "注：默认地址 yg数字.ygkkk.dpdns.org 可自行更换优选IP域名，CDN回源固定2083端口+TLS"
-  vm_cdn_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-cdn-$hostname\", \"add\": \"yg$(cfipsj).ygkkk.dpdns.org\", \"port\": \"2083\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$basepath-vm\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 | tr -d '\n')"
+  vm_cdn_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-cdn-$hostname\", \"add\": \"yg$(_cfipsj).ygkkk.dpdns.org\", \"port\": \"2083\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$basepath-vm\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"alpn\": \"\", \"fp\": \"chrome\"}" | base64 | tr -d '\n')"
 echo "$vm_cdn_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vm_cdn_link"
 echo
@@ -2567,7 +2569,7 @@ clswargopt(){ :; }
 clswargopt1(){ :; }
 fi
 
-get_func() {
+_get_func() {
 local f=$1
 if type "$f" >/dev/null 2>&1; then
 local out
@@ -2575,10 +2577,10 @@ out=$($f)
 [ -n "$out" ] && printf "%s\n" "$out"
 fi
 }
-  sbxy="$(get_func sbvlpt; get_func sbsspt; get_func sbanpt; get_func sbarpt; get_func sbvmpt; get_func sbhypt; get_func sbtupt; get_func sbvmargopt; get_func sbvwargopt; get_func sbtwargopt; get_func sbtuargopt; get_func sbmuargopt; get_func sbnapt; get_func sbtrpt; get_func sbvtpt; get_func sbttpt)"
-  clxy="$(get_func clvlpt; get_func clsspt; get_func clanpt; get_func clvmpt; get_func clhypt; get_func cltupt; get_func clvmargopt; get_func clvwargopt; get_func cltwargopt; get_func cltuargopt; get_func clmuargopt; get_func clswargopt; get_func cltrpt; get_func clvtpt; get_func clttpt)"
-  sbgz="$(get_func sbvlpt1; get_func sbsspt1; get_func sbanpt1; get_func sbarpt1; get_func sbvmpt1; get_func sbhypt1; get_func sbtupt1; get_func sbvmargopt1; get_func sbvwargopt1; get_func sbtwargopt1; get_func sbtuargopt1; get_func sbmuargopt1; get_func sbnapt1; get_func sbtrpt1; get_func sbvtpt1; get_func sbttpt1)"
-  clgz="$({ get_func clvlpt1; get_func clsspt1; get_func clanpt1; get_func clvmpt1; get_func clhypt1; get_func cltupt1; get_func clvmargopt1; get_func clvwargopt1; get_func cltwargopt1; get_func cltuargopt1; get_func clmuargopt1; get_func clswargopt1; get_func cltrpt1; get_func clvtpt1; get_func clttpt1; } | sed '2,$s/^/    /')"
+  sbxy="$(_get_func sbvlpt; _get_func sbsspt; _get_func sbanpt; _get_func sbarpt; _get_func sbvmpt; _get_func sbhypt; _get_func sbtupt; _get_func sbvmargopt; _get_func sbvwargopt; _get_func sbtwargopt; _get_func sbtuargopt; _get_func sbmuargopt; _get_func sbnapt; _get_func sbtrpt; _get_func sbvtpt; _get_func sbttpt)"
+  clxy="$(_get_func clvlpt; _get_func clsspt; _get_func clanpt; _get_func clvmpt; _get_func clhypt; _get_func cltupt; _get_func clvmargopt; _get_func clvwargopt; _get_func cltwargopt; _get_func cltuargopt; _get_func clmuargopt; _get_func clswargopt; _get_func cltrpt; _get_func clvtpt; _get_func clttpt)"
+  sbgz="$(_get_func sbvlpt1; _get_func sbsspt1; _get_func sbanpt1; _get_func sbarpt1; _get_func sbvmpt1; _get_func sbhypt1; _get_func sbtupt1; _get_func sbvmargopt1; _get_func sbvwargopt1; _get_func sbtwargopt1; _get_func sbtuargopt1; _get_func sbmuargopt1; _get_func sbnapt1; _get_func sbtrpt1; _get_func sbvtpt1; _get_func sbttpt1)"
+  clgz="$({ _get_func clvlpt1; _get_func clsspt1; _get_func clanpt1; _get_func clvmpt1; _get_func clhypt1; _get_func cltupt1; _get_func clvmargopt1; _get_func clvwargopt1; _get_func cltwargopt1; _get_func cltuargopt1; _get_func clmuargopt1; _get_func clswargopt1; _get_func cltrpt1; _get_func clvtpt1; _get_func clttpt1; } | sed '2,$s/^/    /')"
 sbgz=$(printf "%s\n" "$sbgz" | sed '$ s/,$//')
   tpl_client sbox-client.json "$HOME/agsbx/sbox.json"
 
@@ -3772,17 +3774,17 @@ rm -rf "$HOME/agsbx"/{sb.json,xr.json,sbargoym.log,sbargotoken.log,argo.log,argo
 echo "Argosbx重置协议完成，开始更新相关协议变量……" && sleep 2
 echo
 elif [ "$1" = "list" ]; then
-cip
+_gen_clients_and_sub
 exit
 elif [ "$1" = "upx" ]; then
 _kill_by_pattern '/agsbx/x'
 kill -15 $(pgrep -f 'agsbx/x' 2>/dev/null) >/dev/null 2>&1
-upxray && xrestart && echo "Xray内核更新完成" && sleep 2 && cip
+upxray && xrestart && echo "Xray内核更新完成" && sleep 2 && _gen_clients_and_sub
 exit
 elif [ "$1" = "ups" ]; then
 _kill_by_pattern '/agsbx/s'
 kill -15 $(pgrep -f 'agsbx/s' 2>/dev/null) >/dev/null 2>&1
-upsingbox && sbrestart && echo "Sing-box内核更新完成" && sleep 2 && cip
+upsingbox && sbrestart && echo "Sing-box内核更新完成" && sleep 2 && _gen_clients_and_sub
 exit
 elif [ "$1" = "upc" ]; then
 _kill_by_pattern '/agsbx/c'
@@ -3795,7 +3797,7 @@ elif [ -f "/etc/init.d/argo" ]; then
 /etc/init.d/argo restart >/dev/null 2>&1
 fi
 fi
-cip
+_gen_clients_and_sub
 exit
 elif [ "$1" = "res" ]; then
 for P in /proc/[0-9]*; do
@@ -3827,7 +3829,7 @@ fi
 ;;
 esac
 done
-sleep 5 && echo "重启完成" && sleep 3 && cip
+sleep 5 && echo "重启完成" && sleep 3 && _gen_clients_and_sub
 exit
 elif [ "$1" = "doctor" ]; then
 agsbx_doctor
@@ -3945,7 +3947,7 @@ done
 # 不调用netfilter-persistent save(避免覆盖已有防火墙持久化规则)
 fi
 fi
-cip
+_gen_clients_and_sub
 echo
 if grep -qE '"tag":"(vmess-httpupgrade|trojan-xhttp|vmess-xhttp|ss-ws|vless-ws-enc)"' "$HOME/agsbx/xr.json" 2>/dev/null; then
 basepath=$(cat "$HOME/agsbx/basepath" 2>/dev/null)
