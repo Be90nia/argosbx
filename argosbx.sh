@@ -218,7 +218,7 @@ _gen_basepath() {
   elif [ -n "$basepath" ]; then
     echo "$basepath" > "$HOME/agsbx/basepath"
   fi
-  basepath=$(cat "$HOME/agsbx/basepath")
+  basepath=$(cat "$HOME/agsbx/basepath" 2>/dev/null)
 }
 
 # _validate_input — 验证用户输入的安全性(域名/UUID/basepath/端口/注入防护)
@@ -829,7 +829,7 @@ echo "$uuid" > "$HOME/agsbx/uuid"
 elif [ -n "$uuid" ]; then
 echo "$uuid" > "$HOME/agsbx/uuid"
 fi
-uuid=$(cat "$HOME/agsbx/uuid")
+uuid=$(cat "$HOME/agsbx/uuid" 2>/dev/null)
 echo "UUID密码：$uuid"
 }
 installxray(){
@@ -864,9 +864,9 @@ echo "$private_key" > "$HOME/agsbx/xrk/private_key"
 echo "$public_key" > "$HOME/agsbx/xrk/public_key"
 echo "$short_id" > "$HOME/agsbx/xrk/short_id"
 fi
-private_key_x=$(cat "$HOME/agsbx/xrk/private_key")
-public_key_x=$(cat "$HOME/agsbx/xrk/public_key")
-short_id_x=$(cat "$HOME/agsbx/xrk/short_id")
+private_key_x=$(cat "$HOME/agsbx/xrk/private_key" 2>/dev/null)
+public_key_x=$(cat "$HOME/agsbx/xrk/public_key" 2>/dev/null)
+short_id_x=$(cat "$HOME/agsbx/xrk/short_id" 2>/dev/null)
 fi
 if [ -n "$xhp" ] || [ -n "$vxp" ] || [ -n "$vwp" ] || [ -n "$vup" ] || [ -n "$vwep" ] || [ -n "$argo_vx" ] || [ -n "$argo_vu" ]; then
 if [ ! -e "$HOME/agsbx/xrk/dekey" ]; then
@@ -876,8 +876,8 @@ enkey=$(echo "$vlkey" | grep '"encryption":' | sed -n '2p' | cut -d' ' -f2- | tr
 echo "$dekey" > "$HOME/agsbx/xrk/dekey"
 echo "$enkey" > "$HOME/agsbx/xrk/enkey"
 fi
-  dekey=$(cat "$HOME/agsbx/xrk/dekey")
-  enkey=$(cat "$HOME/agsbx/xrk/enkey")
+  dekey=$(cat "$HOME/agsbx/xrk/dekey" 2>/dev/null)
+  enkey=$(cat "$HOME/agsbx/xrk/enkey" 2>/dev/null)
 fi
 
 # basepath生成(CDN协议path需要)
@@ -997,7 +997,7 @@ fi
   sskey=$(head -c 32 /dev/urandom | base64 | tr -d '\n')
   echo "$sskey" > "$HOME/agsbx/sskey"
   fi
- sskey=$(cat "$HOME/agsbx/sskey")
+ sskey=$(cat "$HOME/agsbx/sskey" 2>/dev/null)
  fi
  if [ -n "$swp" ]; then
  swp=swpt
@@ -1102,9 +1102,9 @@ echo "$private_key" > "$HOME/agsbx/sbk/private_key"
 echo "$public_key" > "$HOME/agsbx/sbk/public_key"
 echo "$short_id" > "$HOME/agsbx/sbk/short_id"
 fi
-private_key_s=$(cat "$HOME/agsbx/sbk/private_key")
-public_key_s=$(cat "$HOME/agsbx/sbk/public_key")
-short_id_s=$(cat "$HOME/agsbx/sbk/short_id")
+private_key_s=$(cat "$HOME/agsbx/sbk/private_key" 2>/dev/null)
+public_key_s=$(cat "$HOME/agsbx/sbk/public_key" 2>/dev/null)
+short_id_s=$(cat "$HOME/agsbx/sbk/short_id" 2>/dev/null)
  _alloc_port port_ar
   echo "Any-Reality端口：$port_ar"
   tpl_sb c-ar "$port_ar"
@@ -1118,7 +1118,7 @@ sskey=$(head -c 32 /dev/urandom | base64 | tr -d '\n')
 echo "$sskey" > "$HOME/agsbx/sskey"
 fi
   _alloc_port port_ss
-  sskey=$(cat "$HOME/agsbx/sskey")
+  sskey=$(cat "$HOME/agsbx/sskey" 2>/dev/null)
   echo "Shadowsocks-2022端口：$port_ss"
   tpl_sb c-ss "$port_ss"
 else
@@ -1465,8 +1465,8 @@ echo "$cdnip1" > "$HOME/agsbx/cdnip1"
 echo "$cdnip2" > "$HOME/agsbx/cdnip2"
 else
 if [ -f "$HOME/agsbx/cdnip1" ] && [ -f "$HOME/agsbx/cdnip2" ]; then
-cdnip1=$(cat "$HOME/agsbx/cdnip1")
-cdnip2=$(cat "$HOME/agsbx/cdnip2")
+cdnip1=$(cat "$HOME/agsbx/cdnip1" 2>/dev/null)
+cdnip2=$(cat "$HOME/agsbx/cdnip2" 2>/dev/null)
 else
 cdnip1="yg1.ygkkk.dpdns.org"
 cdnip2="yg6.ygkkk.dpdns.org"
@@ -1558,8 +1558,8 @@ fi
 ipchange
 rm -rf "$HOME/agsbx/jhsub.txt"
 echo "# ========== CDN直通(A组) ==========" >> "$HOME/agsbx/jhsub.txt"
-uuid=$(cat "$HOME/agsbx/uuid")
-server_ip=$(cat "$HOME/agsbx/server_ip.log")
+uuid=$(cat "$HOME/agsbx/uuid" 2>/dev/null)
+server_ip=$(cat "$HOME/agsbx/server_ip.log" 2>/dev/null)
 sxname=$(cat "$HOME/agsbx/name" 2>/dev/null)
 xvvmcdnym=$(cat "$HOME/agsbx/cdnym" 2>/dev/null)
 echo "*********************************************************"
@@ -1588,7 +1588,7 @@ sskey=$(cat "$HOME/agsbx/sskey" 2>/dev/null)
 fi
 if grep "\"tag\":\"xhttp-reality\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 echo "💣【 Vless-xhttp-reality-enc 】支持ENC加密，节点信息如下："
-port_xh=$(cat "$HOME/agsbx/port_xh")
+port_xh=$(cat "$HOME/agsbx/port_xh" 2>/dev/null)
 vl_xh_link="vless://$uuid@$server_ip:$port_xh?encryption=$enkey&security=reality&sni=$ym_vl_re&fp=chrome&pbk=$public_key_x&sid=$short_id_x&type=xhttp&path=$basepath-xh&mode=auto#${sxname}vl-xhttp-reality-enc-$hostname"
 echo "$vl_xh_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vl_xh_link"
@@ -1596,8 +1596,8 @@ echo
 fi
 basepath=$(cat "$HOME/agsbx/basepath" 2>/dev/null)
 directnym=$(cat "$HOME/agsbx/directnym" 2>/dev/null)
-if [ -f "$HOME/agsbx/cdnip1" ]; then cdnip1=$(cat "$HOME/agsbx/cdnip1"); else cdnip1="yg1.ygkkk.dpdns.org"; fi
-if [ -f "$HOME/agsbx/cdnip2" ]; then cdnip2=$(cat "$HOME/agsbx/cdnip2"); else cdnip2="yg6.ygkkk.dpdns.org"; fi
+if [ -f "$HOME/agsbx/cdnip1" ]; then cdnip1=$(cat "$HOME/agsbx/cdnip1" 2>/dev/null); else cdnip1="yg1.ygkkk.dpdns.org"; fi
+if [ -f "$HOME/agsbx/cdnip2" ]; then cdnip2=$(cat "$HOME/agsbx/cdnip2" 2>/dev/null); else cdnip2="yg6.ygkkk.dpdns.org"; fi
 if grep "\"tag\":\"vless-xhttp\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 echo "💣【 Vless-xhttp-enc 】支持ENC加密，节点信息如下："
 vl_vx_link="vless://$uuid@$server_ip:2053?encryption=$enkey&type=xhttp&path=/${basepath}-vx&mode=packet-up&security=tls&sni=$xvvmcdnym&fp=chrome#${sxname}vl-xhttp-enc-$hostname"
@@ -1737,7 +1737,7 @@ fi
 echo "# ========== 非CDN直连(C组) ==========" >> "$HOME/agsbx/jhsub.txt"
 if grep "\"tag\":\"reality-vision\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 echo "💣【 Vless-tcp-reality-vision 】节点信息如下："
-port_vl_re=$(cat "$HOME/agsbx/port_vl_re")
+port_vl_re=$(cat "$HOME/agsbx/port_vl_re" 2>/dev/null)
 vl_link="vless://$uuid@$server_ip:$port_vl_re?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$ym_vl_re&fp=chrome&pbk=$public_key_x&sid=$short_id_x&type=tcp&headerType=none#${sxname}vl-reality-vision-$hostname"
 echo "$vl_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vl_link"
@@ -1794,7 +1794,7 @@ echo "- ${sxname}vless-reality-vision-$hostname"
 fi
 if grep "\"tag\":\"ss-2022\"" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
 echo "💣【 Shadowsocks-2022 】节点信息如下："
-port_ss=$(cat "$HOME/agsbx/port_ss")
+port_ss=$(cat "$HOME/agsbx/port_ss" 2>/dev/null)
 _ss_enc_c=$(printf '%s' "$sskey" | sed 's/+/%2B/g; s/=/%3D/g; s|/|%2F|g')
 ss_link="ss://2022-blake3-aes-256-gcm:${_ss_enc_c}@$server_ip:$port_ss#${sxname}Shadowsocks-2022-$hostname"
 echo "$ss_link" >> "$HOME/agsbx/jhsub.txt"
@@ -1914,7 +1914,7 @@ fi
 fi
 if grep "\"tag\":\"anytls-sb\"" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
 echo "💣【 AnyTLS 】节点信息如下："
-port_an=$(cat "$HOME/agsbx/port_an")
+port_an=$(cat "$HOME/agsbx/port_an" 2>/dev/null)
 an_link="anytls://$uuid@${directnym:-$server_ip}:$port_an?sni=${directnym:-$server_ip}#${sxname}anytls-$hostname"
 echo "$an_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$an_link"
@@ -1962,7 +1962,7 @@ echo "- ${sxname}anytls-$hostname"
 fi
 if grep "\"tag\":\"anyreality-sb\"" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
 echo "💣【 Any-Reality 】节点信息如下："
-port_ar=$(cat "$HOME/agsbx/port_ar")
+port_ar=$(cat "$HOME/agsbx/port_ar" 2>/dev/null)
 ar_link="vless://$uuid@$server_ip:$port_ar?security=reality&sni=$ym_vl_re&fp=chrome&pbk=$public_key_s&sid=$short_id_s&type=tcp&flow=xtls-rprx-vision#${sxname}any-reality-$hostname"
 echo "$ar_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$ar_link"
@@ -1998,8 +1998,8 @@ echo "\"${sxname}any-reality-$hostname\","
 fi
 if grep "\"tag\":\"hy2-sb\"" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
 echo "💣【 Hysteria2 】节点信息如下："
-SHA256=$(cat "$HOME/agsbx/SHA256.txt")
-port_hy2=$(cat "$HOME/agsbx/port_hy2")
+SHA256=$(cat "$HOME/agsbx/SHA256.txt" 2>/dev/null)
+port_hy2=$(cat "$HOME/agsbx/port_hy2" 2>/dev/null)
 hy2_ports=$(iptables -t nat -nL --line 2>/dev/null | grep -w "$port_hy2" | awk '{print $8}' | sed 's/dpts://; s/dpt://' | tr '\n' ',' | sed 's/,$//')
 if [ -n "$hy2_ports" ] || [ -n "$hyjpt" ]; then
 echo "Hysteria2跳跃端口已开启：$hy2_ports"
@@ -2062,7 +2062,7 @@ echo "- ${sxname}hysteria2-$hostname"
 fi
 if grep "\"tag\":\"tuic5-sb\"" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
 echo "💣【 Tuic 】节点信息如下："
-port_tu=$(cat "$HOME/agsbx/port_tu")
+port_tu=$(cat "$HOME/agsbx/port_tu" 2>/dev/null)
 tuic5_link="tuic://$uuid:$uuid@${directnym:-$server_ip}:$port_tu/?sni=${directnym:-$server_ip}&congestion_control=bbr#${sxname}tuic-$hostname"
 echo "$tuic5_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$tuic5_link"
@@ -2119,8 +2119,8 @@ fi
 # C10 Naive
 if grep "\"tag\":\"naive-in\"" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
 echo "💣【 Naive 】节点信息如下："
-port_na=$(cat "$HOME/agsbx/port_na")
-nap_user=$(cat "$HOME/agsbx/nap_user")
+port_na=$(cat "$HOME/agsbx/port_na" 2>/dev/null)
+nap_user=$(cat "$HOME/agsbx/nap_user" 2>/dev/null)
 nap_link="naive+https://${nap_user}:${uuid}@${directnym:-$server_ip}:${port_na}/#${sxname}naive-$hostname"
 echo "$nap_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$nap_link"
@@ -2149,7 +2149,7 @@ fi
 # C11 Trojan+Reality
 if grep "\"tag\":\"trojan-reality\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 echo "💣【 Trojan+Reality 】节点信息如下："
-port_tr=$(cat "$HOME/agsbx/port_tr")
+port_tr=$(cat "$HOME/agsbx/port_tr" 2>/dev/null)
 tr_link="trojan://${uuid}@${server_ip}:${port_tr}?security=reality&sni=${ym_vl_re}&fp=chrome&pbk=${public_key_x}&sid=${short_id_x}&type=tcp#${sxname}trojan-reality-$hostname"
 echo "$tr_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$tr_link"
@@ -2202,7 +2202,7 @@ fi
 # C12 VLESS+TLS+Vision
 if grep "\"tag\":\"vless-tls-vision\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 echo "💣【 VLESS+TLS+Vision 】节点信息如下："
-port_vtv=$(cat "$HOME/agsbx/port_vtv")
+port_vtv=$(cat "$HOME/agsbx/port_vtv" 2>/dev/null)
 _vtp_host=${directnym:-$server_ip}
 vtv_link="vless://${uuid}@${_vtp_host}:${port_vtv}?encryption=none&security=tls&type=tcp&flow=xtls-rprx-vision&sni=${_vtp_host}&fp=chrome#${sxname}vless-tls-vision-$hostname"
 echo "$vtv_link" >> "$HOME/agsbx/jhsub.txt"
@@ -2250,7 +2250,7 @@ fi
 # C13 Trojan+TLS
 if grep "\"tag\":\"trojan-tls\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1; then
 echo "💣【 Trojan+TLS 】节点信息如下："
-port_tt=$(cat "$HOME/agsbx/port_tt")
+port_tt=$(cat "$HOME/agsbx/port_tt" 2>/dev/null)
 _ttp_host=${directnym:-$server_ip}
 tt_link="trojan://${uuid}@${_ttp_host}:${port_tt}?security=tls&sni=${_ttp_host}&type=tcp&fp=chrome#${sxname}trojan-tls-$hostname"
 echo "$tt_link" >> "$HOME/agsbx/jhsub.txt"
@@ -3514,7 +3514,7 @@ menu_argo() {
   else
     _uuid_argo=$(_load_cfg uuid_singbox "")
     if [ -z "$_uuid_argo" ] && [ -f "$HOME/agsbx/uuid" ]; then
-      _uuid_argo=$(cat "$HOME/agsbx/uuid")
+      _uuid_argo=$(cat "$HOME/agsbx/uuid" 2>/dev/null)
     fi
     local _uuid_argo_def
     if [ -z "$_uuid_argo" ]; then
@@ -4103,7 +4103,7 @@ if ! iptables -t nat -nL >/dev/null 2>&1; then
   _log "WARN" "iptables 权限不足，hyjpt=$hyjpt 端口跳跃配置跳过"
 else
 # 不清空整个PREROUTING链(避免删除已有防火墙规则), 先删除自己之前添加的DNAT规则
-hyport=$(cat "$HOME/agsbx/port_hy2")
+hyport=$(cat "$HOME/agsbx/port_hy2" 2>/dev/null)
 for port in ${hyjpt//,/ }; do
 iptables -t nat -D PREROUTING -p udp --dport "$port" -j DNAT --to-destination :"$hyport" 2>/dev/null
 ip6tables -t nat -D PREROUTING -p udp --dport "$port" -j DNAT --to-destination :"$hyport" 2>/dev/null
