@@ -319,6 +319,19 @@ installxray_argo() {
   [ -n "$argo_sw" ] && tpl_xr d-ss-ws
 }
 
+
+# _ln_to_acme 证书crt路径 域名 — 将证书/私钥改为软链接指向acme.sh源
+# 返回 0=成功转换 1=已是软链接 2=acme.sh源缺失
+_ln_to_acme() {
+  local _crt="$1" _domain="$2"
+  local _key="${_crt%.crt}.key"
+  local _src="$HOME/.acme.sh/$_domain"
+  [ -d "$_src" ] && [ -f "$_src/fullchain.cer" ] && [ -f "$_src/$_domain.key" ] || return 2
+  [ -L "$_crt" ] && return 1
+  ln -sfn "$_src/fullchain.cer" "$_crt"
+  ln -sfn "$_src/$_domain.key" "$_key"
+  return 0
+}
 # certsign 域名 证书名 — 使用acme.sh + CF DNS API签发TLS证书(含泛域名)
 certsign() {
   local _csdomain="$1"
@@ -336,14 +349,7 @@ certsign() {
       else
         echo "证书已存在(Let's Encrypt): $_cscrt"
         # 尝试将普通文件改为软链接指向acme.sh源证书(续期后自动更新)
-        local _acme_cert_dir="$HOME/.acme.sh/$_csdomain"
-        if [ -d "$_acme_cert_dir" ] && [ -f "$_acme_cert_dir/fullchain.cer" ] && [ -f "$_acme_cert_dir/$_csdomain.key" ]; then
-          if [ ! -L "$_cscrt" ]; then
-            ln -sf "$_acme_cert_dir/fullchain.cer" "$_cscrt"
-            ln -sf "$_acme_cert_dir/$_csdomain.key" "$_cskey"
-            echo "✅ 证书已改为软链接: $_cscrt → $_acme_cert_dir/fullchain.cer"
-          fi
-        fi
+        _ln_to_acme "$_cscrt" "$_csdomain" && echo "✅ 证书已改为软链接: $_cscrt → $HOME/.acme.sh/$_csdomain/fullchain.cer"
         return 0
       fi
     else
@@ -353,17 +359,13 @@ certsign() {
         echo "证书已存在(CF Origin CA 手动放置): $_cscrt"
       else
         echo "证书已存在(acme.sh签发): $_cscrt"
-        local _acme_cert_dir="$HOME/.acme.sh/$_csdomain"
-        if [ -d "$_acme_cert_dir" ] && [ -f "$_acme_cert_dir/fullchain.cer" ] && [ -f "$_acme_cert_dir/$_csdomain.key" ]; then
-          if [ ! -L "$_cscrt" ]; then
-            ln -sfn "$_acme_cert_dir/fullchain.cer" "$_cscrt"
-            ln -sfn "$_acme_cert_dir/$_csdomain.key" "$_cskey"
-            echo "✅ cdnym证书已转为软链接(续期自动生效): $_cscrt → $_acme_cert_dir/fullchain.cer"
-            _log "INFO" "cdnym证书转软链接: $_cscrt → acme.sh源"
-          else
-            echo "  (已是软链接，续期自动生效)"
-          fi
-        fi
+        local _cs_rc=0
+        _ln_to_acme "$_cscrt" "$_csdomain"; _cs_rc=$?
+        case "$_cs_rc" in
+          0) echo "✅ cdnym证书已转为软链接(续期自动生效): $_cscrt → $HOME/.acme.sh/$_csdomain/fullchain.cer"
+             _log "INFO" "cdnym证书转软链接: $_cscrt → acme.sh源" ;;
+          1) echo "  (已是软链接，续期自动生效)" ;;
+        esac
       fi
       return 0
     fi
@@ -427,18 +429,15 @@ certsign() {
     --reloadcmd "if command -v systemctl >/dev/null 2>&1; then systemctl restart xray 2>/dev/null || echo 'warn: xray restart failed'; systemctl restart sing-box 2>/dev/null || echo 'warn: sing-box restart failed'; elif command -v rc-service >/dev/null 2>&1; then rc-service xray restart 2>/dev/null || echo 'warn: xray restart failed'; rc-service sing-box restart 2>/dev/null || echo 'warn: sing-box restart failed'; fi"
   unset CF_Email CF_Key
   # 软链接锚点指向 acme.sh 源(续期自动更新，CF手动证书走菜单上传的 cp -f 硬拷贝不经此分支)
-  local _acme_cert_dir="$HOME/.acme.sh/$_csdomain"
-  if [ -f "$_acme_cert_dir/fullchain.cer" ] && [ -f "$_acme_cert_dir/$_csdomain.key" ]; then
-    ln -sfn "$_acme_cert_dir/fullchain.cer" "$_cscrt"
-    ln -sfn "$_acme_cert_dir/$_csdomain.key" "$_cskey"
-    echo "✅ 证书软链接(续期自动生效): $_cscrt → $_acme_cert_dir/fullchain.cer"
+  if _ln_to_acme "$_cscrt" "$_csdomain"; then
+    echo "✅ 证书软链接(续期自动生效): $_cscrt → $HOME/.acme.sh/$_csdomain/fullchain.cer"
     _log "INFO" "证书软链接建立: $_cscrt → acme.sh源(域名 $_csdomain)"
   else
     # acme.sh 源未找到(异常)，回退到 install-cert 副本作为硬拷贝
     mv -f "$_cscrt.acme-install" "$_cscrt" 2>/dev/null
     mv -f "$_cskey.acme-install" "$_cskey" 2>/dev/null
     echo "⚠️ acme.sh 源路径未找到，使用 install-cert 副本(续期需手动挪证书)"
-    _log "WARN" "acme.sh 源路径缺失 $_acme_cert_dir，证书回退硬拷贝"
+    _log "WARN" "acme.sh 源路径缺失 $HOME/.acme.sh/$_csdomain，证书回退硬拷贝"
   fi
   # 清理 install-cert 废弃文件
   rm -f "$_cscrt.acme-install" "$_cskey.acme-install" 2>/dev/null
@@ -602,27 +601,25 @@ s1outtag=direct; s2outtag=direct; x1outtag=direct; x2outtag=direct; xip='"::/0",
 echo; echo "请注意：你已安装了warp"
 else
 if [ "$wap" != yes ]; then
-s1outtag=direct; s2outtag=direct; x1outtag=direct; x2outtag=direct; xip='"::/0", "0.0.0.0/0"'; sip='"::/0", "0.0.0.0/0"'; wap=warpargo
+  s1outtag=direct; s2outtag=direct; x1outtag=direct; x2outtag=direct
+  xip='"::/0", "0.0.0.0/0"'; sip='"::/0", "0.0.0.0/0"'; wap=warpargo
 else
-case "$warp" in
-""|sx|xs) s1outtag=warp-out; s2outtag=warp-out; x1outtag=warp-out; x2outtag=warp-out; xip='"::/0", "0.0.0.0/0"'; sip='"::/0", "0.0.0.0/0"'; wap=warp ;;
-s ) s1outtag=warp-out; s2outtag=warp-out; x1outtag=direct; x2outtag=direct; xip='"::/0", "0.0.0.0/0"'; sip='"::/0", "0.0.0.0/0"'; wap=warp ;;
-s4) s1outtag=warp-out; s2outtag=direct; x1outtag=direct; x2outtag=direct; xip='"::/0", "0.0.0.0/0"'; sip='"0.0.0.0/0"'; wap=warp ;;
-s6) s1outtag=warp-out; s2outtag=direct; x1outtag=direct; x2outtag=direct; xip='"::/0", "0.0.0.0/0"'; sip='"::/0"'; wap=warp ;;
-x ) s1outtag=direct; s2outtag=direct; x1outtag=warp-out; x2outtag=warp-out; xip='"::/0", "0.0.0.0/0"'; sip='"::/0", "0.0.0.0/0"'; wap=warp ;;
-x4) s1outtag=direct; s2outtag=direct; x1outtag=warp-out; x2outtag=direct; xip='"0.0.0.0/0"'; sip='"::/0", "0.0.0.0/0"'; wap=warp ;;
-x6) s1outtag=direct; s2outtag=direct; x1outtag=warp-out; x2outtag=direct; xip='"::/0"'; sip='"::/0", "0.0.0.0/0"'; wap=warp ;;
-s4x4|x4s4) s1outtag=warp-out; s2outtag=direct; x1outtag=warp-out; x2outtag=direct; xip='"0.0.0.0/0"'; sip='"0.0.0.0/0"'; wap=warp ;;
-s4x6|x6s4) s1outtag=warp-out; s2outtag=direct; x1outtag=warp-out; x2outtag=direct; xip='"::/0"'; sip='"0.0.0.0/0"'; wap=warp ;;
-s6x4|x4s6) s1outtag=warp-out; s2outtag=direct; x1outtag=warp-out; x2outtag=direct; xip='"0.0.0.0/0"'; sip='"::/0"'; wap=warp ;;
-s6x6|x6s6) s1outtag=warp-out; s2outtag=direct; x1outtag=warp-out; x2outtag=direct; xip='"::/0"'; sip='"::/0"'; wap=warp ;;
-sx4|x4s) s1outtag=warp-out; s2outtag=warp-out; x1outtag=warp-out; x2outtag=direct; xip='"0.0.0.0/0"'; sip='"::/0", "0.0.0.0/0"'; wap=warp ;;
-sx6|x6s) s1outtag=warp-out; s2outtag=warp-out; x1outtag=warp-out; x2outtag=direct; xip='"::/0"'; sip='"::/0", "0.0.0.0/0"'; wap=warp ;;
-xs4|s4x) s1outtag=warp-out; s2outtag=direct; x1outtag=warp-out; x2outtag=warp-out; xip='"::/0", "0.0.0.0/0"'; sip='"0.0.0.0/0"'; wap=warp ;;
-xs6|s6x) s1outtag=warp-out; s2outtag=direct; x1outtag=warp-out; x2outtag=warp-out; xip='"::/0", "0.0.0.0/0"'; sip='"::/0"'; wap=warp ;;
-* ) s1outtag=direct; s2outtag=direct; x1outtag=direct; x2outtag=direct; xip='"::/0", "0.0.0.0/0"'; sip='"::/0", "0.0.0.0/0"'; wap=warpargo ;;
-esac
-fi
+  # 默认全 direct(不匹配任一 case 时保持)
+  s1outtag=direct; s2outtag=direct; x1outtag=direct; x2outtag=direct
+  xip='"::/0", "0.0.0.0/0"'; sip='"::/0", "0.0.0.0/0"'; wap=warpargo
+  [ -z "$warp" ] && warp=sx
+  # sing-box 出站 + IP 范围(s4=IPv4 / s6=IPv6 / s 或 sx=双栈双出站)
+  case "$warp" in
+    *s4*) s1outtag=warp-out; sip='"0.0.0.0/0"'; wap=warp ;;
+    *s6*) s1outtag=warp-out; sip='"::/0"'; wap=warp ;;
+    *s*)  s1outtag=warp-out; s2outtag=warp-out; wap=warp ;;
+  esac
+  # xray 出站 + IP 范围(x4=IPv4 / x6=IPv6 / x 或 sx=双栈双出站)
+  case "$warp" in
+    *x4*) x1outtag=warp-out; xip='"0.0.0.0/0"'; wap=warp ;;
+    *x6*) x1outtag=warp-out; xip='"::/0"'; wap=warp ;;
+    *x*)  x1outtag=warp-out; x2outtag=warp-out; wap=warp ;;
+  esac
 fi
 case "$warp" in *x4*) wxryx='ForceIPv4' ;; *x6*) wxryx='ForceIPv6' ;; *) wxryx='ForceIPv6v4' ;; esac
 if command -v curl >/dev/null 2>&1; then
@@ -664,157 +661,142 @@ _dl_kernel() {
   fi
   return 0
 }
+
+# _kernel_backup 名称 二进制路径 — 升级前备份内核二进制
+_kernel_backup() {
+  local _name="$1" _bin="$2"
+  if [ -f "$_bin" ]; then
+    cp -p "$_bin" "$_bin.bak"
+    _log "INFO" "已备份旧$_name到 ${_name}.bak"
+  fi
+}
+
+# _kernel_rollback 名称 二进制路径 [tmpdir] — 回滚到备份并清理临时目录，返回1
+_kernel_rollback() {
+  local _name="$1" _bin="$2"
+  [ -n "${3:-}" ] && rm -rf "$3"
+  if [ -f "$_bin.bak" ]; then
+    mv "$_bin.bak" "$_bin"
+    _log "WARN" "$_name 已回滚"
+  fi
+  return 1
+}
+
+# _kernel_test 名称 二进制路径 [tmpdir] — 启动测试，失败回滚+清理，成功删 .bak 返回0
+_kernel_test() {
+  local _name="$1" _bin="$2"
+  if ! "$_bin" version >/dev/null 2>&1; then
+    echo "⚠️ 新$_name二进制无法运行，回滚"
+    _kernel_rollback "$_name" "$_bin" "${3:-}"
+    return $?
+  fi
+  rm -f "$_bin.bak"
+  [ -n "${3:-}" ] && rm -rf "$3"
+  return 0
+}
+
+# _sha256_check 名称 文件路径 期望值 — SHA256校验。无期望值走交互确认，失败返回1
+_sha256_check() {
+  local _name="$1" _file="$2" _expected="$3"
+  if [ -z "$_expected" ]; then
+    echo "⚠️ 无法获取$_name SHA256参考值，完整性无法验证"
+    _log "WARN" "$ _name SHA256 ref not available"
+    if [ -t 0 ] 2>/dev/null; then
+      read -p "是否继续安装未验证的二进制？[y/N] " _sha_confirm
+      [ "$_sha_confirm" = "y" ] || [ "$_sha_confirm" = "Y" ] || return 1
+    else
+      echo "❌ 非交互模式，中止安装（请检查网络后重试）"
+      return 1
+    fi
+    return 0
+  fi
+  local _actual=$(sha256sum "$_file" 2>/dev/null | awk '{print $1}')
+  if [ "$_actual" != "$_expected" ]; then
+    echo "⚠️ $_name SHA256校验失败(期望 ${_expected:0:16}... 实际 ${_actual:0:16}...)"
+    _log "ERROR" "$_name SHA256 mismatch"
+    return 1
+  fi
+  echo "✅ $_name SHA256校验通过"
+  _log "INFO" "$_name SHA256 校验通过"
+  return 0
+}
 upxray(){
-xrarch="64"
-[ "$cpu" = "arm64" ] && xrarch="arm64-v8a"
-xrcore=$(dl_s "https://data.jsdelivr.com/v1/package/gh/XTLS/Xray-core" | grep -Eo '"[0-9.]+"' | sed -n 1p | tr -d '",')
-echo "下载Xray官方最新正式版内核：$xrcore"
-_log "INFO" "开始升级xray-core到 v${xrcore}"
-# 6.5.18 升级前备份旧二进制
-if [ -f "$HOME/agsbx/xray" ]; then
-  cp -p "$HOME/agsbx/xray" "$HOME/agsbx/xray.bak"
-  _log "INFO" "已备份旧xray到 xray.bak"
-fi
-tmpdir=$(mktemp -d)
-url="https://github.com/XTLS/Xray-core/releases/download/v${xrcore}/Xray-linux-${xrarch}.zip"
-out="$tmpdir/xray.zip"
-# 6.5.17+6.5.18：下载+大小校验，失败自动回滚
-if ! _dl_kernel "$url" "$out" 1024; then
-  echo "⚠️ Xray内核下载失败"
-  if [ -f "$HOME/agsbx/xray.bak" ]; then mv "$HOME/agsbx/xray.bak" "$HOME/agsbx/xray"; _log "WARN" "已回滚到旧xray"; fi
-  rm -rf "$tmpdir"; return 1
-fi
-# 6.5.17 SHA256 校验(从release页面获取xray.zip的dgst文件)
-sha_url="https://github.com/XTLS/Xray-core/releases/download/v${xrcore}/Xray-linux-${xrarch}.zip.dgst"
-sha_expected=$(dl_s "$sha_url" 2>/dev/null | awk '/SHA256/ {print $NF; exit}' | tr -d '\r\n')
-if [ -n "$sha_expected" ]; then
-  sha_actual=$(sha256sum "$out" 2>/dev/null | awk '{print $1}')
-  if [ "$sha_actual" != "$sha_expected" ]; then
-    echo "⚠️ Xray内核SHA256校验失败(期望 ${sha_expected:0:16}... 实际 ${sha_actual:0:16}...)"
-    _log "ERROR" "xray SHA256 mismatch"
-    if [ -f "$HOME/agsbx/xray.bak" ]; then mv "$HOME/agsbx/xray.bak" "$HOME/agsbx/xray"; _log "WARN" "已回滚"; fi
-    rm -rf "$tmpdir"; return 1
+  local xrarch="64"
+  [ "$cpu" = "arm64" ] && xrarch="arm64-v8a"
+  local xrcore=$(dl_s "https://data.jsdelivr.com/v1/package/gh/XTLS/Xray-core" | grep -Eo '"[0-9.]+"' | sed -n 1p | tr -d '",')
+  echo "下载Xray官方最新正式版内核：$xrcore"
+  _log "INFO" "开始升级xray-core到 v${xrcore}"
+  _kernel_backup xray "$HOME/agsbx/xray"
+  local tmpdir=$(mktemp -d)
+  local url="https://github.com/XTLS/Xray-core/releases/download/v${xrcore}/Xray-linux-${xrarch}.zip"
+  local out="$tmpdir/xray.zip"
+  if ! _dl_kernel "$url" "$out" 1024; then
+    echo "⚠️ Xray内核下载失败"
+    _kernel_rollback xray "$HOME/agsbx/xray" "$tmpdir"; return $?
   fi
-  echo "✅ Xray内核SHA256校验通过"
-  _log "INFO" "xray SHA256 校验通过"
-else
-  echo "⚠️ 无法获取Xray SHA256参考值，完整性无法验证"
-  _log "WARN" "xray SHA256 ref not available"
-  if [ -t 0 ] 2>/dev/null; then
-    read -p "是否继续安装未验证的二进制？[y/N] " _sha_confirm
-    [ "$_sha_confirm" = "y" ] || [ "$_sha_confirm" = "Y" ] || { echo "已取消安装"; rm -rf "$tmpdir"; return 1; }
-  else
-    echo "❌ 非交互模式，中止安装（请检查网络后重试）"; rm -rf "$tmpdir"; return 1
+  local sha_url="https://github.com/XTLS/Xray-core/releases/download/v${xrcore}/Xray-linux-${xrarch}.zip.dgst"
+  local sha_expected=$(dl_s "$sha_url" 2>/dev/null | awk '/SHA256/ {print $NF; exit}' | tr -d '\r\n')
+  if ! _sha256_check xray "$out" "$sha_expected"; then
+    _kernel_rollback xray "$HOME/agsbx/xray" "$tmpdir"; return $?
   fi
-fi
-command -v unzip >/dev/null 2>&1 || { command -v apk >/dev/null 2>&1 && apk add --no-cache unzip >/dev/null 2>&1; } || { command -v apt >/dev/null 2>&1 && apt install -y unzip >/dev/null 2>&1; }
-unzip -o "$out" -d "$tmpdir/xray_extract" >/dev/null 2>&1
-# 6.5.18 验证解压后的二进制可执行
-if [ ! -x "$tmpdir/xray_extract/xray" ]; then
-  echo "⚠️ Xray解压失败或二进制损坏"
-  if [ -f "$HOME/agsbx/xray.bak" ]; then mv "$HOME/agsbx/xray.bak" "$HOME/agsbx/xray"; _log "WARN" "已回滚"; fi
-  rm -rf "$tmpdir"; return 1
-fi
-mv "$tmpdir/xray_extract/xray" "$HOME/agsbx/xray" 2>/dev/null
-chmod +x "$HOME/agsbx/xray"
-# 启动测试：version命令成功才视为升级成功
-if ! "$HOME/agsbx/xray" version >/dev/null 2>&1; then
-  echo "⚠️ 新xray二进制无法运行，回滚"
-  if [ -f "$HOME/agsbx/xray.bak" ]; then mv "$HOME/agsbx/xray.bak" "$HOME/agsbx/xray"; _log "WARN" "xray 二进制无法执行，已回滚"; fi
-  rm -rf "$tmpdir"; return 1
-fi
-rm -f "$HOME/agsbx/xray.bak"
-rm -rf "$tmpdir"
-sbcore=$("$HOME/agsbx/xray" version 2>/dev/null | awk '/^Xray/{print $2}')
-echo "已安装Xray正式版内核：$sbcore"
-_log "INFO" "xray 升级完成: $sbcore"
+  command -v unzip >/dev/null 2>&1 || { command -v apk >/dev/null 2>&1 && apk add --no-cache unzip >/dev/null 2>&1; } || { command -v apt >/dev/null 2>&1 && apt install -y unzip >/dev/null 2>&1; }
+  unzip -o "$out" -d "$tmpdir/xray_extract" >/dev/null 2>&1
+  if [ ! -x "$tmpdir/xray_extract/xray" ]; then
+    echo "⚠️ Xray解压失败或二进制损坏"
+    _kernel_rollback xray "$HOME/agsbx/xray" "$tmpdir"; return $?
+  fi
+  mv "$tmpdir/xray_extract/xray" "$HOME/agsbx/xray" 2>/dev/null
+  chmod +x "$HOME/agsbx/xray"
+  _kernel_test xray "$HOME/agsbx/xray" "$tmpdir" || return 1
+  local sbcore=$("$HOME/agsbx/xray" version 2>/dev/null | awk '/^Xray/{print $2}')
+  echo "已安装Xray正式版内核：$sbcore"
+  _log "INFO" "xray 升级完成: $sbcore"
 }
 upsingbox(){
-sbarch="$cpu"
-sbcore=$(dl_s "https://data.jsdelivr.com/v1/package/gh/SagerNet/sing-box" | grep -Eo '"[0-9.]+"' | sed -n 1p | tr -d '",')
-echo "下载Sing-box官方最新正式版内核：$sbcore"
-_log "INFO" "开始升级sing-box到 v${sbcore}"
-# 6.5.18 升级前备份旧二进制
-if [ -f "$HOME/agsbx/sing-box" ]; then
-  cp -p "$HOME/agsbx/sing-box" "$HOME/agsbx/sing-box.bak"
-  _log "INFO" "已备份旧sing-box到 sing-box.bak"
-fi
-tmpdir=$(mktemp -d)
-url="https://github.com/SagerNet/sing-box/releases/download/v${sbcore}/sing-box-${sbcore}-linux-${sbarch}.tar.gz"
-out="$tmpdir/sing-box.tar.gz"
-if ! _dl_kernel "$url" "$out" 1024; then
-  echo "⚠️ Sing-box内核下载失败"
-  if [ -f "$HOME/agsbx/sing-box.bak" ]; then mv "$HOME/agsbx/sing-box.bak" "$HOME/agsbx/sing-box"; _log "WARN" "已回滚"; fi
-  rm -rf "$tmpdir"; return 1
-fi
-# 6.5.17 SHA256校验(sing-box 提供 checksums.txt)
-sha_url="https://github.com/SagerNet/sing-box/releases/download/v${sbcore}/sing-box-${sbcore}.checksums.txt"
-sha_expected=$(dl_s "$sha_url" 2>/dev/null | awk -v f="sing-box-${sbcore}-linux-${sbarch}.tar.gz" '$2==f {print $1; exit}')
-if [ -n "$sha_expected" ]; then
-  sha_actual=$(sha256sum "$out" 2>/dev/null | awk '{print $1}')
-  if [ "$sha_actual" != "$sha_expected" ]; then
-    echo "⚠️ Sing-box内核SHA256校验失败(期望 ${sha_expected:0:16}... 实际 ${sha_actual:0:16}...)"
-    _log "ERROR" "sing-box SHA256 mismatch"
-    if [ -f "$HOME/agsbx/sing-box.bak" ]; then mv "$HOME/agsbx/sing-box.bak" "$HOME/agsbx/sing-box"; _log "WARN" "已回滚"; fi
-    rm -rf "$tmpdir"; return 1
+  local sbarch="$cpu"
+  local sbcore=$(dl_s "https://data.jsdelivr.com/v1/package/gh/SagerNet/sing-box" | grep -Eo '"[0-9.]+"' | sed -n 1p | tr -d '",')
+  echo "下载Sing-box官方最新正式版内核：$sbcore"
+  _log "INFO" "开始升级sing-box到 v${sbcore}"
+  _kernel_backup sing-box "$HOME/agsbx/sing-box"
+  local tmpdir=$(mktemp -d)
+  local url="https://github.com/SagerNet/sing-box/releases/download/v${sbcore}/sing-box-${sbcore}-linux-${sbarch}.tar.gz"
+  local out="$tmpdir/sing-box.tar.gz"
+  if ! _dl_kernel "$url" "$out" 1024; then
+    echo "⚠️ Sing-box内核下载失败"
+    _kernel_rollback sing-box "$HOME/agsbx/sing-box" "$tmpdir"; return $?
   fi
-  echo "✅ Sing-box内核SHA256校验通过"
-  _log "INFO" "sing-box SHA256 校验通过"
-else
-  echo "⚠️ 无法获取Sing-box SHA256参考值，完整性无法验证"
-  _log "WARN" "sing-box SHA256 ref not available"
-  if [ -t 0 ] 2>/dev/null; then
-    read -p "是否继续安装未验证的二进制？[y/N] " _sha_confirm
-    [ "$_sha_confirm" = "y" ] || [ "$_sha_confirm" = "Y" ] || { echo "已取消安装"; rm -rf "$tmpdir"; return 1; }
-  else
-    echo "❌ 非交互模式，中止安装（请检查网络后重试）"; rm -rf "$tmpdir"; return 1
+  local sha_url="https://github.com/SagerNet/sing-box/releases/download/v${sbcore}/sing-box-${sbcore}.checksums.txt"
+  local sha_expected=$(dl_s "$sha_url" 2>/dev/null | awk -v f="sing-box-${sbcore}-linux-${sbarch}.tar.gz" '$2==f {print $1; exit}')
+  if ! _sha256_check sing-box "$out" "$sha_expected"; then
+    _kernel_rollback sing-box "$HOME/agsbx/sing-box" "$tmpdir"; return $?
   fi
-fi
-tar -xzf "$out" -C "$tmpdir" >/dev/null 2>&1
-if [ ! -x "$tmpdir/sing-box-${sbcore}-linux-${sbarch}/sing-box" ]; then
-  echo "⚠️ Sing-box解压失败或二进制损坏"
-  if [ -f "$HOME/agsbx/sing-box.bak" ]; then mv "$HOME/agsbx/sing-box.bak" "$HOME/agsbx/sing-box"; _log "WARN" "已回滚"; fi
-  rm -rf "$tmpdir"; return 1
-fi
-mv "$tmpdir/sing-box-${sbcore}-linux-${sbarch}/sing-box" "$HOME/agsbx/sing-box" 2>/dev/null
-chmod +x "$HOME/agsbx/sing-box"
-if ! "$HOME/agsbx/sing-box" version >/dev/null 2>&1; then
-  echo "⚠️ 新sing-box二进制无法运行，回滚"
-  if [ -f "$HOME/agsbx/sing-box.bak" ]; then mv "$HOME/agsbx/sing-box.bak" "$HOME/agsbx/sing-box"; _log "WARN" "sing-box 二进制无法执行，已回滚"; fi
-  rm -rf "$tmpdir"; return 1
-fi
-rm -f "$HOME/agsbx/sing-box.bak"
-rm -rf "$tmpdir"
-sbcore=$("$HOME/agsbx/sing-box" version 2>/dev/null | awk '/version/{print $NF}')
-echo "已安装Sing-box正式版内核：$sbcore"
-_log "INFO" "sing-box 升级完成: $sbcore"
+  tar -xzf "$out" -C "$tmpdir" >/dev/null 2>&1
+  if [ ! -x "$tmpdir/sing-box-${sbcore}-linux-${sbarch}/sing-box" ]; then
+    echo "⚠️ Sing-box解压失败或二进制损坏"
+    _kernel_rollback sing-box "$HOME/agsbx/sing-box" "$tmpdir"; return $?
+  fi
+  mv "$tmpdir/sing-box-${sbcore}-linux-${sbarch}/sing-box" "$HOME/agsbx/sing-box" 2>/dev/null
+  chmod +x "$HOME/agsbx/sing-box"
+  _kernel_test sing-box "$HOME/agsbx/sing-box" "$tmpdir" || return 1
+  local sbcore=$("$HOME/agsbx/sing-box" version 2>/dev/null | awk '/version/{print $NF}')
+  echo "已安装Sing-box正式版内核：$sbcore"
+  _log "INFO" "sing-box 升级完成: $sbcore"
 }
 upcloudflared(){
-argocore=$(dl_s "https://data.jsdelivr.com/v1/package/gh/cloudflare/cloudflared" | grep -Eo '"[0-9.]+"' | sed -n 1p | tr -d '",')
-echo "下载Cloudflared官方最新正式版内核：$argocore"
-_log "INFO" "开始升级cloudflared到 v${argocore}"
-# 6.5.18 升级前备份旧二进制
-if [ -f "$HOME/agsbx/cloudflared" ]; then
-  cp -p "$HOME/agsbx/cloudflared" "$HOME/agsbx/cloudflared.bak"
-  _log "INFO" "已备份旧cloudflared到 cloudflared.bak"
-fi
-url="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-$cpu"
-out="$HOME/agsbx/cloudflared"
-if ! _dl_kernel "$url" "$out" 512; then
-  echo "⚠️ Cloudflared内核下载失败"
-  if [ -f "$HOME/agsbx/cloudflared.bak" ]; then mv "$HOME/agsbx/cloudflared.bak" "$HOME/agsbx/cloudflared"; _log "WARN" "已回滚"; fi
-  return 1
-fi
-chmod +x "$HOME/agsbx/cloudflared"
-# 6.5.18 启动测试
-if ! "$HOME/agsbx/cloudflared" version >/dev/null 2>&1; then
-  echo "⚠️ 新cloudflared二进制无法运行，回滚"
-  if [ -f "$HOME/agsbx/cloudflared.bak" ]; then mv "$HOME/agsbx/cloudflared.bak" "$HOME/agsbx/cloudflared"; _log "WARN" "cloudflared 二进制无法执行，已回滚"; fi
-  return 1
-fi
-rm -f "$HOME/agsbx/cloudflared.bak"
-echo "已安装Cloudflared正式版内核：$argocore"
-_log "INFO" "cloudflared 升级完成: $argocore"
+  local argocore=$(dl_s "https://data.jsdelivr.com/v1/package/gh/cloudflare/cloudflared" | grep -Eo '"[0-9.]+"' | sed -n 1p | tr -d '",')
+  echo "下载Cloudflared官方最新正式版内核：$argocore"
+  _log "INFO" "开始升级cloudflared到 v${argocore}"
+  _kernel_backup cloudflared "$HOME/agsbx/cloudflared"
+  local url="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-$cpu"
+  local out="$HOME/agsbx/cloudflared"
+  if ! _dl_kernel "$url" "$out" 512; then
+    echo "⚠️ Cloudflared内核下载失败"
+    _kernel_rollback cloudflared "$HOME/agsbx/cloudflared"; return $?
+  fi
+  chmod +x "$HOME/agsbx/cloudflared"
+  _kernel_test cloudflared "$HOME/agsbx/cloudflared" || return 1
+  echo "已安装Cloudflared正式版内核：$argocore"
+  _log "INFO" "cloudflared 升级完成: $argocore"
 }
 
 # ===== S5: 密钥生成与配置生成 =====
@@ -910,51 +892,11 @@ else
 vxp=vxptargo
 fi
 if [ -n "$vwp" ]; then
-vwp=vwpt
- echo "Vless-ws端口：443 (CF HTTPS主端口)"
-cat >> "$HOME/agsbx/xr.json" <<EOF
-    {
-      "tag":"vless-ws",
-      "listen": "::",
-      "port": 443,
-      "protocol": "vless",
-      "settings": {
-        "users": [
-          {
-            "id": "${uuid}"
-          }
-        ],
-        "decryption": "none",
-        "fallbacks": [
-EOF
-cat >> "$HOME/agsbx/xr.json" <<EOF
-          {"dest":444}
-        ]
-      },
-      "streamSettings": {
-        "network": "ws",
-        "security": "tls",
-        "wsSettings": {
-          "path": "/${basepath}-vw",
-          "host": ""
-        },
-        "tlsSettings": {
-          "certificates": [{
-            "certificateFile": "/etc/argosbx/certs/cdnym.crt",
-            "keyFile": "/etc/argosbx/certs/cdnym.key"
-          }],
-          "alpn": ["h2", "http/1.1"]
-        }
-      },
-        "sniffing": {
-        "enabled": true,
-        "destOverride": ["http", "tls", "quic"],
-        "metadataOnly": false
-      }
-    },
-EOF
+  vwp=vwpt
+  echo "Vless-ws端口：443 (CF HTTPS主端口)"
+  tpl_xr a-vless-ws
 else
-vwp=vwptargo
+  vwp=vwptargo
 fi
 if [ -n "$vup" ]; then
 vup=vupt
@@ -1496,66 +1438,105 @@ fi
 }
 # ===== S6: 订阅链接生成 =====
 
+# _ipbest — 获取最佳公网IP(IPv4优先IPv6回退)写入 server_ip 和日志
+_ipbest() {
+  local serip=$( (command -v curl >/dev/null 2>&1 && (curl -s4m5 "$v46url" 2>/dev/null || curl -s6m5 "$v46url" 2>/dev/null) ) || (command -v wget >/dev/null 2>&1 && (timeout 3 wget -4 -qO- --tries=2 "$v46url" 2>/dev/null || timeout 3 wget -6 -qO- --tries=2 "$v46url" 2>/dev/null) ) )
+  if echo "$serip" | grep -q ':'; then
+    server_ip="[$serip]"
+  else
+    server_ip="$serip"
+  fi
+  echo "$server_ip" > "$HOME/agsbx/server_ip.log"
+}
+
+# _ipchange — 检测 V4/V6 网络环境、打印 IP 概况、根据 ippz 选最佳 IP
+_ipchange() {
+  v4v6
+  local vps_ipv4 vps_ipv6 location w4="" w6=""
+  if [ -z "$v4" ]; then
+    vps_ipv4='无IPV4'; vps_ipv6="$v6"; location="$v6dq"
+  elif [ -n "$v4" ] && [ -n "$v6" ]; then
+    vps_ipv4="$v4"; vps_ipv6="$v6"; location="$v4dq"
+  else
+    vps_ipv4="$v4"; vps_ipv6='无IPV6'; location="$v4dq"
+  fi
+  echo "$v6" | grep -q '^2a09' && w6="【WARP】"
+  echo "$v4" | grep -q '^104.28' && w4="【WARP】"
+  echo
+  argosbxstatus
+  echo
+  echo "=========当前服务器本地IP情况========="
+  echo "本地IPV4地址：$vps_ipv4 $w4"
+  echo "本地IPV6地址：$vps_ipv6 $w6"
+  echo "服务器地区：$location"
+  echo
+  sleep 2
+  case "$ippz" in
+    4) [ -z "$v4" ] && _ipbest || { server_ip="$v4"; echo "$server_ip" > "$HOME/agsbx/server_ip.log"; } ;;
+    6) [ -z "$v6" ] && _ipbest || { server_ip="[$v6]"; echo "$server_ip" > "$HOME/agsbx/server_ip.log"; } ;;
+    *) _ipbest ;;
+  esac
+}
+
+
+# _gen_summary — 生成 summary.txt (Path/端口/协议汇总表，方便CF配置)
+_gen_summary() {
+  echo "=== argosbx Path/端口/协议汇总 ==="
+  echo "生成时间: $(date '+%Y-%m-%d %H:%M:%S')"
+  echo
+  echo "--- A组: CDN直通 (小云朵ON, 服务端监听CF HTTPS端口) ---"
+  echo "协议              | 端口  | Path/ServiceName    | 客户端地址"
+  grep -q '"tag":"vless-ws"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VLESS+WS           | 443   | /$basepath-vw       | ${xvvmcdnym:-cdnym}:443"
+  grep -q '"tag":"vless-xhttp"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VLESS+XHTTP+ENC    | 2053  | /$basepath-vx       | ${xvvmcdnym:-cdnym}:2053"
+  grep -q '"tag":"vmess-ws"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VMess+WS           | 2083  | /$basepath-vm       | ${xvvmcdnym:-cdnym}:2083"
+  grep -q '"tag":"vless-httpupgrade"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VLESS+HTTPUpgrade  | 2087  | /$basepath-vu       | ${xvvmcdnym:-cdnym}:2087"
+  grep -q '"tag":"trojan-ws"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "Trojan+WS          | 2096  | /$basepath-tw       | ${xvvmcdnym:-cdnym}:2096"
+  grep -q '"tag":"trojan-httpupgrade"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "Trojan+HTTPUpgrade | 8443  | /$basepath-tuh      | ${xvvmcdnym:-cdnym}:8443"
+  echo
+  echo "--- B组: CDN Origin Rules (客户端443, CF按path回源) ---"
+  echo "协议              | 服务端端口 | Path          | Origin Rule"
+  grep -q '"tag":"vmess-httpupgrade"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VMess+HTTPUpgrade | 39000      | /$basepath-mu | ${xvvmcdnym:-cdnym}/$basepath-mu → 39000"
+  grep -q '"tag":"trojan-xhttp"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "Trojan+XHTTP      | 39001      | /$basepath-tx | ${xvvmcdnym:-cdnym}/$basepath-tx → 39001"
+  grep -q '"tag":"vmess-xhttp"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VMess+XHTTP       | 39002      | /$basepath-mx | ${xvvmcdnym:-cdnym}/$basepath-mx → 39002"
+  grep -q '"tag":"ss-ws"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "SS+WS             | 39003      | /$basepath-sw | ${xvvmcdnym:-cdnym}/$basepath-sw → 39003"
+  grep -q '"tag":"vless-ws-enc"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VLESS+WS+ENC      | 39004      | /$basepath-vwe| ${xvvmcdnym:-cdnym}/$basepath-vwe → 39004"
+  echo
+  echo "--- C组: 非CDN直连 (小云朵OFF或VPS_IP) ---"
+  echo "协议              | 端口  | 域名/SNI            | 证书"
+  grep -q '"tag":"xhttp-reality"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VLESS-XHTTP-Reality | $(cat $HOME/agsbx/port_xh 2>/dev/null)   | $ym_vl_re | 无(Reality)"
+  grep -q '"tag":"reality-vision"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VLESS-Reality-Vision| $(cat $HOME/agsbx/port_vl_re 2>/dev/null)   | $ym_vl_re | 无(Reality)"
+  grep -q '"tag":"hy2-sb"' "$HOME/agsbx/sb.json" 2>/dev/null && echo "Hysteria2          | $(cat $HOME/agsbx/port_hy2 2>/dev/null)   | ${directnym:-$server_ip} | directnym"
+  grep -q '"tag":"tuic5-sb"' "$HOME/agsbx/sb.json" 2>/dev/null && echo "TUIC               | $(cat $HOME/agsbx/port_tu 2>/dev/null)   | ${directnym:-$server_ip} | directnym"
+  grep -q '"tag":"anytls-sb"' "$HOME/agsbx/sb.json" 2>/dev/null && echo "AnyTLS             | $(cat $HOME/agsbx/port_an 2>/dev/null)   | ${directnym:-$server_ip} | directnym"
+  grep -q '"tag":"anyreality-sb"' "$HOME/agsbx/sb.json" 2>/dev/null && echo "Any-Reality        | $(cat $HOME/agsbx/port_ar 2>/dev/null)   | $ym_vl_re | 无(Reality)"
+  grep -q '"tag":"ss-2022"' "$HOME/agsbx/sb.json" 2>/dev/null && echo "SS-2022直连        | $(cat $HOME/agsbx/port_ss 2>/dev/null)   | 无 | 无(自身加密)"
+  grep -q '"tag":"naive-in"' "$HOME/agsbx/sb.json" 2>/dev/null && echo "Naive              | $(cat $HOME/agsbx/port_na 2>/dev/null)   | ${directnym:-$server_ip} | directnym"
+  grep -q '"tag":"trojan-reality"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "Trojan+Reality     | $(cat $HOME/agsbx/port_tr 2>/dev/null)   | $ym_vl_re | 无(Reality)"
+  grep -q '"tag":"vless-tls-vision"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VLESS+TLS+Vision   | $(cat $HOME/agsbx/port_vtv 2>/dev/null)   | ${directnym:-$server_ip} | directnym"
+  grep -q '"tag":"trojan-tls"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "Trojan+TLS         | $(cat $HOME/agsbx/port_tt 2>/dev/null)   | ${directnym:-$server_ip} | directnym"
+  echo
+  local _argosel=$(cat "$HOME/agsbx/argopro_sel.log" 2>/dev/null)
+  if [ -n "$argodomain" ] && [ -n "$_argosel" ]; then
+    echo "--- D组: Argo隧道 (CF Tunnel) ---"
+    echo "协议              | Path              | 端口   | CF Public Hostname"
+    for _ap in $_argosel; do
+      case $_ap in
+        vw) echo "VLESS+WS           | /$basepath-a-vw     | 39007  | $argodomain ^/$basepath-a-vw → localhost:39007" ;;
+        vx) echo "VLESS+XHTTP        | /$basepath-a-vx     | 39008  | $argodomain ^/$basepath-a-vx → localhost:39008" ;;
+        vm) echo "VMess+WS           | /$basepath-a-vm     | 39009  | $argodomain ^/$basepath-a-vm → localhost:39009" ;;
+        vu) echo "VLESS+HTTPUpgrade  | /$basepath-a-vu     | 39010  | $argodomain ^/$basepath-a-vu → localhost:39010" ;;
+        tw) echo "Trojan+WS          | /$basepath-a-tw     | 39011  | $argodomain ^/$basepath-a-tw → localhost:39011" ;;
+        tu) echo "Trojan+HTTPUpgrade | /$basepath-a-tu     | 39012  | $argodomain ^/$basepath-a-tu → localhost:39012" ;;
+        mu) echo "VMess+HTTPUpgrade  | /$basepath-a-mu     | 39013  | $argodomain ^/$basepath-a-mu → localhost:39013" ;;
+        tx) echo "Trojan+XHTTP       | /$basepath-a-tx     | 39014  | $argodomain ^/$basepath-a-tx → localhost:39014" ;;
+        mx) echo "VMess+XHTTP        | /$basepath-a-mx     | 39015  | $argodomain ^/$basepath-a-mx → localhost:39015" ;;
+        sw) echo "SS+WS              | /$basepath-a-sw     | 39016  | $argodomain ^/$basepath-a-sw → localhost:39016" ;;
+      esac
+    done
+  fi
+} > "$HOME/agsbx/summary.txt"
 _gen_clients_and_sub(){
-ipbest(){
-serip=$( (command -v curl >/dev/null 2>&1 && (curl -s4m5 "$v46url" 2>/dev/null || curl -s6m5 "$v46url" 2>/dev/null) ) || (command -v wget >/dev/null 2>&1 && (timeout 3 wget -4 -qO- --tries=2 "$v46url" 2>/dev/null || timeout 3 wget -6 -qO- --tries=2 "$v46url" 2>/dev/null) ) )
-if echo "$serip" | grep -q ':'; then
-server_ip="[$serip]"
-echo "$server_ip" > "$HOME/agsbx/server_ip.log"
-else
-server_ip="$serip"
-echo "$server_ip" > "$HOME/agsbx/server_ip.log"
-fi
-}
-ipchange(){
-v4v6
-if [ -z "$v4" ]; then
-vps_ipv4='无IPV4'
-vps_ipv6="$v6"
-location="$v6dq"
-elif [ -n "$v4" ] && [ -n "$v6" ]; then
-vps_ipv4="$v4"
-vps_ipv6="$v6"
-location="$v4dq"
-else
-vps_ipv4="$v4"
-vps_ipv6='无IPV6'
-location="$v4dq"
-fi
-if echo "$v6" | grep -q '^2a09'; then
-w6="【WARP】"
-fi
-if echo "$v4" | grep -q '^104.28'; then
-w4="【WARP】"
-fi
-echo
-argosbxstatus
-echo
-echo "=========当前服务器本地IP情况========="
-echo "本地IPV4地址：$vps_ipv4 $w4"
-echo "本地IPV6地址：$vps_ipv6 $w6"
-echo "服务器地区：$location"
-echo
-sleep 2
-if [ "$ippz" = "4" ]; then
-if [ -z "$v4" ]; then
-ipbest
-else
-server_ip="$v4"
-echo "$server_ip" > "$HOME/agsbx/server_ip.log"
-fi
-elif [ "$ippz" = "6" ]; then
-if [ -z "$v6" ]; then
-ipbest
-else
-server_ip="[$v6]"
-echo "$server_ip" > "$HOME/agsbx/server_ip.log"
-fi
-else
-ipbest
-fi
-}
-ipchange
+_ipchange
 rm -rf "$HOME/agsbx/jhsub.txt"
 echo "# ========== CDN直通(A组) ==========" >> "$HOME/agsbx/jhsub.txt"
 uuid=$(cat "$HOME/agsbx/uuid" 2>/dev/null)
@@ -2582,62 +2563,8 @@ sbgz=$(printf "%s\n" "$sbgz" | sed '$ s/,$//')
 
 tpl_client clmi-client.yaml "$HOME/agsbx/clmi.yaml"
 
-# 生成summary.txt (Path/端口/协议汇总表，方便CF配置)
-{
-echo "=== argosbx Path/端口/协议汇总 ==="
-echo "生成时间: $(date '+%Y-%m-%d %H:%M:%S')"
-echo
-echo "--- A组: CDN直通 (小云朵ON, 服务端监听CF HTTPS端口) ---"
-echo "协议              | 端口  | Path/ServiceName    | 客户端地址"
-grep -q '"tag":"vless-ws"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VLESS+WS           | 443   | /$basepath-vw       | ${xvvmcdnym:-cdnym}:443"
-grep -q '"tag":"vless-xhttp"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VLESS+XHTTP+ENC    | 2053  | /$basepath-vx       | ${xvvmcdnym:-cdnym}:2053"
-grep -q '"tag":"vmess-ws"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VMess+WS           | 2083  | /$basepath-vm       | ${xvvmcdnym:-cdnym}:2083"
-grep -q '"tag":"vless-httpupgrade"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VLESS+HTTPUpgrade  | 2087  | /$basepath-vu       | ${xvvmcdnym:-cdnym}:2087"
-grep -q '"tag":"trojan-ws"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "Trojan+WS          | 2096  | /$basepath-tw       | ${xvvmcdnym:-cdnym}:2096"
-grep -q '"tag":"trojan-httpupgrade"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "Trojan+HTTPUpgrade | 8443  | /$basepath-tuh      | ${xvvmcdnym:-cdnym}:8443"
-echo
-echo "--- B组: CDN Origin Rules (客户端443, CF按path回源) ---"
-echo "协议              | 服务端端口 | Path          | Origin Rule"
-grep -q '"tag":"vmess-httpupgrade"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VMess+HTTPUpgrade | 39000      | /$basepath-mu | ${xvvmcdnym:-cdnym}/$basepath-mu → 39000"
-grep -q '"tag":"trojan-xhttp"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "Trojan+XHTTP      | 39001      | /$basepath-tx | ${xvvmcdnym:-cdnym}/$basepath-tx → 39001"
-grep -q '"tag":"vmess-xhttp"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VMess+XHTTP       | 39002      | /$basepath-mx | ${xvvmcdnym:-cdnym}/$basepath-mx → 39002"
-grep -q '"tag":"ss-ws"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "SS+WS             | 39003      | /$basepath-sw | ${xvvmcdnym:-cdnym}/$basepath-sw → 39003"
-grep -q '"tag":"vless-ws-enc"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VLESS+WS+ENC      | 39004      | /$basepath-vwe| ${xvvmcdnym:-cdnym}/$basepath-vwe → 39004"
-echo
-echo "--- C组: 非CDN直连 (小云朵OFF或VPS_IP) ---"
-echo "协议              | 端口  | 域名/SNI            | 证书"
-grep -q '"tag":"xhttp-reality"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VLESS-XHTTP-Reality | $(cat $HOME/agsbx/port_xh 2>/dev/null)   | $ym_vl_re | 无(Reality)"
-grep -q '"tag":"reality-vision"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VLESS-Reality-Vision| $(cat $HOME/agsbx/port_vl_re 2>/dev/null)   | $ym_vl_re | 无(Reality)"
-grep -q '"tag":"hy2-sb"' "$HOME/agsbx/sb.json" 2>/dev/null && echo "Hysteria2          | $(cat $HOME/agsbx/port_hy2 2>/dev/null)   | ${directnym:-$server_ip} | directnym"
-grep -q '"tag":"tuic5-sb"' "$HOME/agsbx/sb.json" 2>/dev/null && echo "TUIC               | $(cat $HOME/agsbx/port_tu 2>/dev/null)   | ${directnym:-$server_ip} | directnym"
-grep -q '"tag":"anytls-sb"' "$HOME/agsbx/sb.json" 2>/dev/null && echo "AnyTLS             | $(cat $HOME/agsbx/port_an 2>/dev/null)   | ${directnym:-$server_ip} | directnym"
-grep -q '"tag":"anyreality-sb"' "$HOME/agsbx/sb.json" 2>/dev/null && echo "Any-Reality        | $(cat $HOME/agsbx/port_ar 2>/dev/null)   | $ym_vl_re | 无(Reality)"
-grep -q '"tag":"ss-2022"' "$HOME/agsbx/sb.json" 2>/dev/null && echo "SS-2022直连        | $(cat $HOME/agsbx/port_ss 2>/dev/null)   | 无 | 无(自身加密)"
-grep -q '"tag":"naive-in"' "$HOME/agsbx/sb.json" 2>/dev/null && echo "Naive              | $(cat $HOME/agsbx/port_na 2>/dev/null)   | ${directnym:-$server_ip} | directnym"
-grep -q '"tag":"trojan-reality"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "Trojan+Reality     | $(cat $HOME/agsbx/port_tr 2>/dev/null)   | $ym_vl_re | 无(Reality)"
-grep -q '"tag":"vless-tls-vision"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "VLESS+TLS+Vision   | $(cat $HOME/agsbx/port_vtv 2>/dev/null)   | ${directnym:-$server_ip} | directnym"
-grep -q '"tag":"trojan-tls"' "$HOME/agsbx/xr.json" 2>/dev/null && echo "Trojan+TLS         | $(cat $HOME/agsbx/port_tt 2>/dev/null)   | ${directnym:-$server_ip} | directnym"
-echo
-_argosel=$(cat "$HOME/agsbx/argopro_sel.log" 2>/dev/null)
-if [ -n "$argodomain" ] && [ -n "$_argosel" ]; then
-echo "--- D组: Argo隧道 (CF Tunnel) ---"
-echo "协议              | Path              | 端口   | CF Public Hostname"
-for _ap in $_argosel; do
-  case $_ap in
-    vw) echo "VLESS+WS           | /$basepath-a-vw     | 39007  | $argodomain ^/$basepath-a-vw → localhost:39007" ;;
-    vx) echo "VLESS+XHTTP        | /$basepath-a-vx     | 39008  | $argodomain ^/$basepath-a-vx → localhost:39008" ;;
-    vm) echo "VMess+WS           | /$basepath-a-vm     | 39009  | $argodomain ^/$basepath-a-vm → localhost:39009" ;;
-    vu) echo "VLESS+HTTPUpgrade  | /$basepath-a-vu     | 39010  | $argodomain ^/$basepath-a-vu → localhost:39010" ;;
-    tw) echo "Trojan+WS          | /$basepath-a-tw     | 39011  | $argodomain ^/$basepath-a-tw → localhost:39011" ;;
-    tu) echo "Trojan+HTTPUpgrade | /$basepath-a-tu     | 39012  | $argodomain ^/$basepath-a-tu → localhost:39012" ;;
-    mu) echo "VMess+HTTPUpgrade  | /$basepath-a-mu     | 39013  | $argodomain ^/$basepath-a-mu → localhost:39013" ;;
-    tx) echo "Trojan+XHTTP       | /$basepath-a-tx     | 39014  | $argodomain ^/$basepath-a-tx → localhost:39014" ;;
-    mx) echo "VMess+XHTTP        | /$basepath-a-mx     | 39015  | $argodomain ^/$basepath-a-mx → localhost:39015" ;;
-    sw) echo "SS+WS              | /$basepath-a-sw     | 39016  | $argodomain ^/$basepath-a-sw → localhost:39016" ;;
-  esac
-done
-fi
-} > "$HOME/agsbx/summary.txt"
+# summary.txt 由 _gen_summary 函数生成
+_gen_summary
 
 echo "---------------------------------------------------------"
 echo "$argoshow"
@@ -2665,7 +2592,7 @@ showmode
 }
 cleandel(){
 _kill_by_pattern '/agsbx/c|/agsbx/s|/agsbx/x'
-kill -15 $(pgrep -f 'agsbx/s' 2>/dev/null) $(pgrep -f 'agsbx/c' 2>/dev/null) $(pgrep -f 'agsbx/x' 2>/dev/null) $(pgrep -f 'websbx' 2>/dev/null) >/dev/null 2>&1
+kill -15 $(pgrep -f 'websbx' 2>/dev/null) >/dev/null 2>&1
 sed -i '/agsbx/d' ~/.bashrc
 sed -i '/export PATH="\$HOME\/bin:\$PATH"/d' ~/.bashrc
 # 同步清理 ~/.profile 和 ~/.bash_profile 里的 agsbx 残留(Alpine ash / 登录shell)
@@ -2702,26 +2629,20 @@ rm -rf /etc/init.d/{sing-box,xray,argo} /etc/local.d/alpineargosbx.start /etc/lo
 # 不动iptables(避免清空已有防火墙规则)
 fi
 }
-xrestart(){
-kill -15 $(pgrep -f 'agsbx/x' 2>/dev/null) >/dev/null 2>&1
-if [ "$(ps -p 1 -o comm= 2>/dev/null)" = "systemd" ]; then
-systemctl restart xr >/dev/null 2>&1
-elif command -v rc-service >/dev/null 2>&1; then
-rc-service xray restart >/dev/null 2>&1
-else
-nohup $HOME/agsbx/xray run -c $HOME/agsbx/xr.json >/dev/null 2>&1 &
-fi
+# _svc_restart 进程模式 systemd单元 rc服务名 二进制 配置文件 — 通用服务重启(kill旧→systemd/openrc/nohup)
+_svc_restart() {
+  local _pat="$1" _svc="$2" _rc="$3" _bin="$4" _cfg="$5"
+  kill -15 $(pgrep -f "$_pat" 2>/dev/null) >/dev/null 2>&1
+  if [ "$(ps -p 1 -o comm= 2>/dev/null)" = "systemd" ]; then
+    systemctl restart "$_svc" >/dev/null 2>&1
+  elif command -v rc-service >/dev/null 2>&1; then
+    rc-service "$_rc" restart >/dev/null 2>&1
+  else
+    nohup "$_bin" run -c "$_cfg" >/dev/null 2>&1 &
+  fi
 }
-sbrestart(){
-kill -15 $(pgrep -f 'agsbx/s' 2>/dev/null) >/dev/null 2>&1
-if [ "$(ps -p 1 -o comm= 2>/dev/null)" = "systemd" ]; then
-systemctl restart sb >/dev/null 2>&1
-elif command -v rc-service >/dev/null 2>&1; then
-rc-service sing-box restart >/dev/null 2>&1
-else
-nohup $HOME/agsbx/sing-box run -c $HOME/agsbx/sb.json >/dev/null 2>&1 &
-fi
-}
+xrestart(){  _svc_restart 'agsbx/x' xr xray "$HOME/agsbx/xray" "$HOME/agsbx/xr.json"; }
+sbrestart(){  _svc_restart 'agsbx/s' sb sing-box "$HOME/agsbx/sing-box" "$HOME/agsbx/sb.json"; }
 # ===== S7.5: 运维工具函数 =====
 agsbx_doctor(){
   echo "═══ Argosbx 健康检查 ═══"
@@ -3944,17 +3865,14 @@ _gen_clients_and_sub
 exit
 elif [ "$1" = "upx" ]; then
 _kill_by_pattern '/agsbx/x'
-kill -15 $(pgrep -f 'agsbx/x' 2>/dev/null) >/dev/null 2>&1
 upxray && xrestart && echo "Xray内核更新完成" && sleep 2 && _gen_clients_and_sub
 exit
 elif [ "$1" = "ups" ]; then
 _kill_by_pattern '/agsbx/s'
-kill -15 $(pgrep -f 'agsbx/s' 2>/dev/null) >/dev/null 2>&1
 upsingbox && sbrestart && echo "Sing-box内核更新完成" && sleep 2 && _gen_clients_and_sub
 exit
 elif [ "$1" = "upc" ]; then
 _kill_by_pattern '/agsbx/c'
-kill -15 $(pgrep -f 'agsbx/c' 2>/dev/null) >/dev/null 2>&1
 upcloudflared && echo "Cloudflared内核更新完成" && sleep 2
 if [ -e "$HOME/agsbx/sbargotoken.log" ]; then
 if [ "$(ps -p 1 -o comm= 2>/dev/null)" = "systemd" ]; then
@@ -4022,7 +3940,6 @@ fi
 # 菜单返回后(_menu_returned=1)强制走安装流程,即使xray/sing-box已在运行
 if { ! find /proc/*/exe -type l 2>/dev/null | grep -E '/proc/[0-9]+/exe' | xargs -r readlink 2>/dev/null | grep -Eq 'agsbx/(s|x)' && ! pgrep -f 'agsbx/(s|x)' >/dev/null 2>&1; } || [ -n "${_menu_returned:-}" ]; then
 _kill_by_pattern '/agsbx/c|/agsbx/s|/agsbx/x' verbose
-kill -15 $(pgrep -f 'agsbx/s' 2>/dev/null) $(pgrep -f 'agsbx/c' 2>/dev/null) $(pgrep -f 'agsbx/x' 2>/dev/null) >/dev/null 2>&1
 if [ -z "$( (command -v curl >/dev/null 2>&1 && curl -s4m5 "$v46url" 2>/dev/null) || (command -v wget >/dev/null 2>&1 && timeout 3 wget -4 -qO- --tries=2 "$v46url" 2>/dev/null) )" ]; then
 echo -e "nameserver 2a00:1098:2b::1\nnameserver 2a00:1098:2c::1" > /etc/resolv.conf
 fi
