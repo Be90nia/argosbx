@@ -4,7 +4,7 @@
       "port": 39003,
       "protocol": "shadowsocks",
       "settings": {
-        "method": "2022-blake3-aes-128-gcm",
+        "method": "2022-blake3-aes-256-gcm",
         "password": "__SSKEY__",
         "network": "tcp",
         "ivCheck": true

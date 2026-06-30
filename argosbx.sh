@@ -36,12 +36,14 @@ _log "INFO" "argosbx 启动，PID=$$"
 # 统一改用 _euid 避免 bash 直接运行时报 "EUID: readonly variable"
 _euid=$(id -u 2>/dev/null || echo 0)
 # lock 文件基于 UID 隔离：非 root 也能写入 TMPDIR，避免 /var/lock 的 root 限制
-agsbx_lockfile="${agsbx_tmpdir}/argosbx-${_euid}.lock"
 agsbx_tmpdir="${TMPDIR:-/tmp}"
+agsbx_lockfile="${agsbx_tmpdir}/argosbx-${_euid}.lock"
 # crontab 临时文件：基于 PID，flock 单实例保证无并发竞态
 _crontab_tmp="$agsbx_tmpdir/agsbx.cron.$$"
 agsbx_cleanup(){
   [ -n "$agsbx_cftoken_tmp" ] && [ -f "$agsbx_cftoken_tmp" ] && shred -u "$agsbx_cftoken_tmp" 2>/dev/null || rm -f "$agsbx_cftoken_tmp" 2>/dev/null
+  # 清理内核升级临时目录(若被信号中断)
+  [ -n "${tmpdir:-}" ] && [ -d "$tmpdir" ] && rm -rf "$tmpdir" 2>/dev/null
   [ -f "$agsbx_lockfile" ] && flock -u 200 2>/dev/null
   # 恢复 SELinux 原状态(若脚本临时 setenforce 0)
   if [ -n "${_agsbx_se_saved:-}" ] && [ "$_agsbx_se_saved" != "Disabled" ] && command -v setenforce >/dev/null 2>&1; then
@@ -107,12 +109,12 @@ if [ "$1" = "rep" ]; then
 fi
 else
 # 未安装场景：如果是交互式TTY且无协议变量，跳过exit让S8菜单处理；否则保持原exit逻辑
-if [ -z "$1" ] && [ -t 0 ] 2>/dev/null && [ -z "${vlp:-}${vmp:-}${vwp:-}${hyp:-}${tup:-}${xhp:-}${vxp:-}${anp:-}${ssp:-}${arp:-}${sop:-}${vup:-}${twp:-}${tuhp:-}${mup:-}${txp:-}${mxp:-}${swp:-}${vwep:-}${stp:-}${nap:-}${trp:-}${vtp:-}${ttp:-}" ]; then
+if [ -z "$1" ] && [ -t 0 ] 2>/dev/null && [ -z "${vlp:-}${vmp:-}${vwp:-}${hyp:-}${tup:-}${xhp:-}${vxp:-}${anp:-}${ssp:-}${arp:-}${sop:-}${vup:-}${twp:-}${tuhp:-}${mup:-}${txp:-}${mxp:-}${swp:-}${vwep:-}${nap:-}${trp:-}${vtp:-}${ttp:-}" ]; then
   : # 进入交互菜单模式(在S8入口触发)，跳过协议变量exit检测
 elif [ -n "$1" ]; then
   : # 有子命令(cert/doctor/backup/restore/list等)，跳过协议变量检测
 else
-[ "$1" = "del" ] || [ "$vwp" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || [ "$vup" = yes ] || [ "$twp" = yes ] || [ "$tuhp" = yes ] || [ "$mup" = yes ] || [ "$txp" = yes ] || [ "$mxp" = yes ] || [ "$swp" = yes ] || [ "$vwep" = yes ] || [ "$stp" = yes ] || [ "$nap" = yes ] || [ "$trp" = yes ] || [ "$vtp" = yes ] || [ "$ttp" = yes ] || { echo "提示：未安装argosbx脚本，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
+[ "$1" = "del" ] || [ "$vwp" = yes ] || [ "$vxp" = yes ] || [ "$ssp" = yes ] || [ "$vlp" = yes ] || [ "$vmp" = yes ] || [ "$hyp" = yes ] || [ "$tup" = yes ] || [ "$xhp" = yes ] || [ "$anp" = yes ] || [ "$arp" = yes ] || [ "$vup" = yes ] || [ "$twp" = yes ] || [ "$tuhp" = yes ] || [ "$mup" = yes ] || [ "$txp" = yes ] || [ "$mxp" = yes ] || [ "$swp" = yes ] || [ "$vwep" = yes ] || [ "$nap" = yes ] || [ "$trp" = yes ] || [ "$vtp" = yes ] || [ "$ttp" = yes ] || { echo "提示：未安装argosbx脚本，请在脚本前至少设置一个协议变量哦，再见！💣"; exit; }
 fi
 fi
 export uuid=${uuid:-''}
@@ -237,7 +239,7 @@ _validate_input() {
   for _v in name cfip hyjpt cdnym directnym ippz argo argopro reym agn agk warp; do
     eval "_val=\${$_v:-}"
     if [ -n "$_val" ] && printf '%s' "$_val" | grep -qE '[;|&$`"\\()<>]'; then
-      echo "⚠️ 变量 $_v 含非法字符(禁止 ;|&\$\`\\"()<> 等 shell 元字符，防 bashrc 注入)"; exit 1
+      printf '⚠️ 变量 %s 含非法字符(禁止 ;|&$`"\\()<> 等 shell 元字符，防 bashrc 注入)\n' "$_v"; exit 1
     fi
   done
 }
@@ -696,8 +698,14 @@ if [ -n "$sha_expected" ]; then
   echo "✅ Xray内核SHA256校验通过"
   _log "INFO" "xray SHA256 校验通过"
 else
-  echo "⚠️ 无法获取Xray SHA256参考值，跳过完整性校验"
+  echo "⚠️ 无法获取Xray SHA256参考值，完整性无法验证"
   _log "WARN" "xray SHA256 ref not available"
+  if [ -t 0 ] 2>/dev/null; then
+    read -p "是否继续安装未验证的二进制？[y/N] " _sha_confirm
+    [ "$_sha_confirm" = "y" ] || [ "$_sha_confirm" = "Y" ] || { echo "已取消安装"; rm -rf "$tmpdir"; return 1; }
+  else
+    echo "❌ 非交互模式，中止安装（请检查网络后重试）"; rm -rf "$tmpdir"; return 1
+  fi
 fi
 command -v unzip >/dev/null 2>&1 || { command -v apk >/dev/null 2>&1 && apk add --no-cache unzip >/dev/null 2>&1; } || { command -v apt >/dev/null 2>&1 && apt install -y unzip >/dev/null 2>&1; }
 unzip -o "$out" -d "$tmpdir/xray_extract" >/dev/null 2>&1
@@ -753,8 +761,14 @@ if [ -n "$sha_expected" ]; then
   echo "✅ Sing-box内核SHA256校验通过"
   _log "INFO" "sing-box SHA256 校验通过"
 else
-  echo "⚠️ 无法获取Sing-box SHA256参考值，跳过完整性校验"
+  echo "⚠️ 无法获取Sing-box SHA256参考值，完整性无法验证"
   _log "WARN" "sing-box SHA256 ref not available"
+  if [ -t 0 ] 2>/dev/null; then
+    read -p "是否继续安装未验证的二进制？[y/N] " _sha_confirm
+    [ "$_sha_confirm" = "y" ] || [ "$_sha_confirm" = "Y" ] || { echo "已取消安装"; rm -rf "$tmpdir"; return 1; }
+  else
+    echo "❌ 非交互模式，中止安装（请检查网络后重试）"; rm -rf "$tmpdir"; return 1
+  fi
 fi
 tar -xzf "$out" -C "$tmpdir" >/dev/null 2>&1
 if [ ! -x "$tmpdir/sing-box-${sbcore}-linux-${sbarch}/sing-box" ]; then
@@ -980,7 +994,7 @@ mxp=mxpt
 fi
  if [ -n "$swp" ] || [ -n "$argo_sw" ]; then
   if [ ! -e "$HOME/agsbx/sskey" ]; then
-  sskey=$(head -c 16 /dev/urandom | base64 | tr -d '\n')
+  sskey=$(head -c 32 /dev/urandom | base64 | tr -d '\n')
   echo "$sskey" > "$HOME/agsbx/sskey"
   fi
  sskey=$(cat "$HOME/agsbx/sskey")
@@ -1273,7 +1287,7 @@ if [ -n "$directnym" ] && { [ -n "$hyp" ] || [ -n "$tup" ] || [ -n "$anp" ] || [
 fi
 # 解析Argo协议选择(必须在installxray之前,因为installxray_argo需要argo_xxx标志)
 parse_argopro
-if [ "$hyp" != yes ] && [ "$tup" != yes ] && [ "$anp" != yes ] && [ "$arp" != yes ] && [ "$ssp" != yes ] && [ "$stp" != yes ] && [ "$nap" != yes ]; then
+if [ "$hyp" != yes ] && [ "$tup" != yes ] && [ "$anp" != yes ] && [ "$arp" != yes ] && [ "$ssp" != yes ] && [ "$nap" != yes ]; then
 installxray
 installxray_argo
 xrsbvm
@@ -1393,7 +1407,7 @@ mkdir -p "$HOME/bin"
 (command -v curl >/dev/null 2>&1 && curl -sL "$agsbxurl" -o "$SCRIPT_PATH") || (command -v wget >/dev/null 2>&1 && wget -qO "$SCRIPT_PATH" "$agsbxurl")
 chmod +x "$SCRIPT_PATH"
 if ! [ "$(ps -p 1 -o comm= 2>/dev/null)" = "systemd" ] && ! command -v rc-service >/dev/null 2>&1; then
-echo "if ! find /proc/*/exe -type l 2>/dev/null | grep -E '/proc/[0-9]+/exe' | xargs -r readlink 2>/dev/null | grep -Eq 'agsbx/(s|x)' && ! pgrep -f 'agsbx/(s|x)' >/dev/null 2>&1; then echo '检测到系统可能中断过，或者变量格式错误？建议在SSH对话框输入 reboot 重启下服务器。现在自动执行Argosbx脚本的节点恢复操作，请稍等……'; sleep 6; export cfip=\"${cfip}\" hyjpt=\"${hyjpt}\" cdnym=\"${cdnym}\" name=\"${name}\" ippz=\"${ippz}\" argo=\"${argo}\" argopro=\"${argopro}\" uuid=\"${uuid}\" $wap=\"${warp}\" $xhp=\"${port_xh}\" $vxp=\"${port_vx}\" $ssp=\"${port_ss}\" $sop=\"${port_so}\" $anp=\"${port_an}\" $arp=\"${port_ar}\" $vlp=\"${port_vl_re}\" $vwp=\"${port_vw}\" $vmp=\"${port_vm_ws}\" $hyp=\"${port_hy2}\" $tup=\"${port_tu}\" $nap=\"${port_na}\" $trp=\"${port_tr}\" $vtp=\"${port_vtv}\" $ttp=\"${port_tt}\" reym=\"${ym_vl_re}\" agn=\"${ARGO_DOMAIN}\" agk=\"${ARGO_AUTH}\"; bash "$HOME/bin/agsbx"; fi" >> ~/.bashrc
+echo "if ! find /proc/*/exe -type l 2>/dev/null | grep -E '/proc/[0-9]+/exe' | xargs -r readlink 2>/dev/null | grep -Eq 'agsbx/(s|x)' && ! pgrep -f 'agsbx/(s|x)' >/dev/null 2>&1; then echo '检测到系统可能中断过，或者变量格式错误？建议在SSH对话框输入 reboot 重启下服务器。现在自动执行Argosbx脚本的节点恢复操作，请稍等……'; sleep 6; export cfip=\"${cfip}\" hyjpt=\"${hyjpt}\" cdnym=\"${cdnym}\" name=\"${name}\" ippz=\"${ippz}\" argo=\"${argo}\" argopro=\"${argopro}\" uuid=\"${uuid}\" warp=\"${warp}\" $xhp=\"${port_xh}\" $vxp=\"${port_vx}\" $ssp=\"${port_ss}\" $sop=\"${port_so}\" $anp=\"${port_an}\" $arp=\"${port_ar}\" $vlp=\"${port_vl_re}\" $vwp=\"${port_vw}\" $vmp=\"${port_vm_ws}\" $hyp=\"${port_hy2}\" $tup=\"${port_tu}\" $nap=\"${port_na}\" $trp=\"${port_tr}\" $vtp=\"${port_vtv}\" $ttp=\"${port_tt}\" reym=\"${ym_vl_re}\" agn=\"${ARGO_DOMAIN}\" agk=\"${ARGO_AUTH}\"; bash \"$HOME/bin/agsbx\"; fi" >> ~/.bashrc
 fi
 sed -i '/export PATH="\$HOME\/bin:\$PATH"/d' ~/.bashrc
 echo 'export PATH="$HOME/bin:$PATH"' >> "$HOME/.bashrc"
@@ -1703,7 +1717,7 @@ echo "⚠️ 导入后请检查传输协议是否为ws, 若显示raw请手动改
 echo "    传输: ws | Host: $xvvmcdnym | Path: /${basepath}-sw | TLS: 开启 | SNI: $xvvmcdnym"
 sskey=$(cat "$HOME/agsbx/sskey" 2>/dev/null)
  _ss_enc=$(printf '%s' "$sskey" | sed 's/+/%2B/g; s/=/%3D/g; s|/|%2F|g')
- ss_sw_cdn_link="ss://2022-blake3-aes-128-gcm:${_ss_enc}@yg$(_cfipsj).ygkkk.dpdns.org:443/?type=ws&host=$xvvmcdnym&path=/${basepath}-sw&security=tls&sni=$xvvmcdnym#${sxname}ss-ws-cdn-$hostname"
+ ss_sw_cdn_link="ss://2022-blake3-aes-256-gcm:${_ss_enc}@yg$(_cfipsj).ygkkk.dpdns.org:443/?type=ws&host=$xvvmcdnym&path=/${basepath}-sw&security=tls&sni=$xvvmcdnym#${sxname}ss-ws-cdn-$hostname"
 echo "$ss_sw_cdn_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$ss_sw_cdn_link"
 echo
@@ -1824,7 +1838,13 @@ echo "- ${sxname}Shadowsocks-2022-$hostname"
 fi
 if grep "\"tag\":\"vmess-ws\"" "$HOME/agsbx/xr.json" >/dev/null 2>&1 || grep "\"tag\":\"vmess-sb\"" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
 echo "💣【 Vmess-ws 】节点信息如下："
-vm_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-$hostname\", \"add\": \"$server_ip\", \"port\": \"2083\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$basepath-vm\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"fp\": \"chrome\"}" | base64 | tr -d '\n')"
+# 检测 vmess 实际运行模式选择端口(xray固定2083, sing-box随机)
+if grep -q '"tag":"vmess-ws"' "$HOME/agsbx/xr.json" 2>/dev/null; then
+  _vm_port=2083
+else
+  _vm_port=$port_vm_ws
+fi
+vm_link="vmess://$(echo "{ \"v\": \"2\", \"ps\": \"${sxname}vm-ws-$hostname\", \"add\": \"$server_ip\", \"port\": \"$_vm_port\", \"id\": \"$uuid\", \"aid\": \"0\", \"scy\": \"auto\", \"net\": \"ws\", \"type\": \"none\", \"host\": \"$xvvmcdnym\", \"path\": \"/$basepath-vm\", \"tls\": \"tls\", \"sni\": \"$xvvmcdnym\", \"fp\": \"chrome\"}" | base64 | tr -d '\n')"
 echo "$vm_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$vm_link"
 echo
@@ -1832,7 +1852,7 @@ sbvmpt(){
 cat <<EOF
 {
             "server": "$server_ip",
-            "server_port": $port_vm_ws,
+            "server_port": $_vm_port,
             "tag": "${sxname}vmess-$hostname",
             "tls": {
                 "enabled": false,
@@ -2043,7 +2063,7 @@ fi
 if grep "\"tag\":\"tuic5-sb\"" "$HOME/agsbx/sb.json" >/dev/null 2>&1; then
 echo "💣【 Tuic 】节点信息如下："
 port_tu=$(cat "$HOME/agsbx/port_tu")
-tuic5_link="tuic://$uuid:$uuid@${directnym:-$server_ip}:$port_tu/?sni=${directnym:-$server_ip}&congestion_control=cubic#${sxname}tuic-$hostname"
+tuic5_link="tuic://$uuid:$uuid@${directnym:-$server_ip}:$port_tu/?sni=${directnym:-$server_ip}&congestion_control=bbr#${sxname}tuic-$hostname"
 echo "$tuic5_link" >> "$HOME/agsbx/jhsub.txt"
 echo "$tuic5_link"
 echo
@@ -2056,7 +2076,7 @@ cat <<EOF
             "server_port": $port_tu,
             "uuid": "$uuid",
             "password": "$uuid",
-            "congestion_control": "cubic",
+            "congestion_control": "bbr",
             "udp_relay_mode": "native",
             "udp_over_stream": false,
             "zero_rtt_handshake": false,
@@ -2084,7 +2104,7 @@ cat <<EOF
   uuid: $uuid       
   password: $uuid   
   alpn: [h3]
-  disable-sni: true
+  disable-sni: false
   reduce-rtt: true
   udp-relay-mode: native
   congestion-controller: bbr
@@ -2310,7 +2330,7 @@ for _p in $argo_sel; do
       ;;
      sw)
        _ss_enc_argo=$(printf '%s' "$sskey" | sed 's/+/%2B/g; s/=/%3D/g; s|/|%2F|g')
-       echo "ss://2022-blake3-aes-128-gcm:${_ss_enc_argo}@${cdnip1}:443/?type=ws&host=${argodomain}&path=/${basepath}-a-sw#${sxname}ss-ws-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
+       echo "ss://2022-blake3-aes-256-gcm:${_ss_enc_argo}@${cdnip1}:443/?type=ws&host=${argodomain}&path=/${basepath}-a-sw#${sxname}ss-ws-tls-argo-$hostname-443" >> "$HOME/agsbx/jhsub.txt"
        ;;
   esac
 done
@@ -2522,7 +2542,7 @@ cat <<EOF
   type: ss
   server: "$cdnip1"
   port: 443
-  cipher: 2022-blake3-aes-128-gcm
+  cipher: 2022-blake3-aes-256-gcm
   password: "$sskey"
   udp: true
   plugin: v2ray-plugin
@@ -2543,30 +2563,6 @@ argoshow=$(echo "Argo域名：$argodomain
 $nametn
 Argo选中协议: ${argo_sel}
 Argo临时隧道端口(首协议): $(cat $HOME/agsbx/argoport.log 2>/dev/null)")
-else
-# 未启用Argo时定义空函数(避免调用报错)
-sbvmargopt(){ :; }
-sbvmargopt1(){ :; }
-clvmargopt(){ :; }
-clvmargopt1(){ :; }
-sbvwargopt(){ :; }
-sbvwargopt1(){ :; }
-clvwargopt(){ :; }
-clvwargopt1(){ :; }
-sbtwargopt(){ :; }
-sbtwargopt1(){ :; }
-cltwargopt(){ :; }
-cltwargopt1(){ :; }
-sbtuargopt(){ :; }
-sbtuargopt1(){ :; }
-cltuargopt(){ :; }
-cltuargopt1(){ :; }
-sbmuargopt(){ :; }
-sbmuargopt1(){ :; }
-clmuargopt(){ :; }
-clmuargopt1(){ :; }
-clswargopt(){ :; }
-clswargopt1(){ :; }
 fi
 
 _get_func() {
@@ -3631,7 +3627,167 @@ menu_all() {
   return 0
 }
 
-# ---- 菜单5-7: 更新内核 ----
+# ---- 菜单5: 更新配置 (智能识别历史) ----
+# 设计: 不改 menu_cdn/menu_noncdn/menu_argo, 只作编排层
+# 快速刷新=从 menu_config 还原所有环境变量(等价重装)
+# 增量调整=依次进入有历史配置的菜单(预选已有,可增减)
+menu_update() {
+  clear 2>/dev/null || true
+  echo "======================================"
+  echo "  菜单5: 更新配置 (智能识别历史)"
+  echo "======================================"
+  echo
+
+  # 检测历史配置
+  local _cdn_sel=$(_load_cfg cdn_selected "")
+  local _noncdn_sel=$(_load_cfg noncdn_selected "")
+  local _argo_sel=$(_load_cfg argo_selected "")
+
+  if [ -z "$_cdn_sel" ] && [ -z "$_noncdn_sel" ] && [ -z "$_argo_sel" ]; then
+    echo "❌ 未检测到历史配置"
+    echo "   请先用菜单 1-4 进行首次部署"
+    echo
+    printf "按回车返回主菜单..."
+    read -r _
+    return 1
+  fi
+
+  # 显示历史配置概要
+  echo "📋 检测到历史配置:"
+  [ -n "$_cdn_sel" ] && echo "  CDN协议(A+B组): 编号 $_cdn_sel"
+  [ -n "$_noncdn_sel" ] && echo "  非CDN协议(C组): 编号 $_noncdn_sel"
+  [ -n "$_argo_sel" ] && echo "  Argo隧道(D组): 编号 $_argo_sel"
+  echo
+  echo "请选择更新方式:"
+  echo "  1. 快速刷新 — 沿用原配置参数, 直接重新部署"
+  echo "  2. 增量调整 — 进入对应菜单, 已有预选可增减"
+  echo "  0. 返回主菜单"
+  echo
+  printf "选择[0-2]: "
+  local _choice
+  read -r _choice
+  case "$_choice" in
+    1) _update_quick ;;
+    2) _update_adjust ;;
+    *) return 1 ;;
+  esac
+}
+
+# 快速刷新: 从 menu_config 还原所有环境变量, 等价于重装
+_update_quick() {
+  echo
+  echo "🚀 快速刷新: 沿用历史配置重新部署..."
+
+  # 加载通用参数
+  export cdnym=$(_load_cfg cdnym "${cdnym:-}")
+  export uuid=$(_load_cfg uuid_xray "${uuid:-}")
+  export basepath=$(_load_cfg basepath "${basepath:-}")
+  export cfemail=$(_load_cfg cfemail "${cfemail:-}")
+  export cfkey=$(_load_cfg cfkey "${cfkey:-}")
+  export directnym=$(_load_cfg directnym "${directnym:-}")
+  export ym_vl_re=$(_load_cfg reality_dest "${ym_vl_re:-}")
+  export agn=$(_load_cfg argo_domain "${agn:-}")
+  export agk=$(_load_cfg argo_token "${agk:-}")
+  export ARGO_DOMAIN=$(_load_cfg argo_domain "${ARGO_DOMAIN:-}")
+  export ARGO_AUTH=$(_load_cfg argo_token "${ARGO_AUTH:-}")
+
+  local _sel _n
+  # 协议开关: CDN (A+B组)
+  _sel=$(_load_cfg cdn_selected "")
+  for _n in $_sel; do
+    case "$_n" in
+      1) export vwp=yes; export vmag=yes ;;
+      2) export vxp=yes ;;
+      3) export vmp=yes; export vmag=yes ;;
+      4) export vup=yes; export vmag=yes ;;
+      5) export twp=yes; export vmag=yes ;;
+      6) export tuhp=yes; export vmag=yes ;;
+      7) export mup=yes; export vmag=yes ;;
+      8) export txp=yes; export vmag=yes ;;
+      9) export mxp=yes; export vmag=yes ;;
+      10) export swp=yes; export vmag=yes ;;
+      11) export vwep=yes ;;
+    esac
+  done
+
+  # 协议开关: 非CDN (C组)
+  _sel=$(_load_cfg noncdn_selected "")
+  for _n in $_sel; do
+    case "$_n" in
+      1) export xhp=yes ;;
+      2) export vlp=yes ;;
+      3) export hyp=yes ;;
+      4) export tup=yes ;;
+      5) export anp=yes ;;
+      6) export arp=yes ;;
+      7) export ssp=yes ;;
+      8) export nap=yes ;;
+      9) export trp=yes ;;
+      10) export vtp=yes ;;
+      11) export ttp=yes ;;
+    esac
+  done
+
+  # Argo: 编号转 argopro 列表(与 menu_argo 一致)
+  _sel=$(_load_cfg argo_selected "")
+  local _argopro_list=""
+  for _n in $_sel; do
+    case "$_n" in
+      1) _argopro_list="$_argopro_list,vw" ;;
+      2) _argopro_list="$_argopro_list,vx" ;;
+      3) _argopro_list="$_argopro_list,vm" ;;
+      4) _argopro_list="$_argopro_list,vu" ;;
+      5) _argopro_list="$_argopro_list,tw" ;;
+      6) _argopro_list="$_argopro_list,tu" ;;
+      7) _argopro_list="$_argopro_list,mu" ;;
+      8) _argopro_list="$_argopro_list,tx" ;;
+      9) _argopro_list="$_argopro_list,mx" ;;
+      10) _argopro_list="$_argopro_list,sw" ;;
+    esac
+  done
+  if [ -n "$_argopro_list" ]; then
+    _argopro_list="${_argopro_list#,}"
+    export argopro="$_argopro_list"
+  fi
+
+  echo "✅ 配置已加载完毕"
+  return 0
+}
+
+# 增量调整: 依次进入有历史配置的菜单(预选已有,可增减)
+_update_adjust() {
+  echo
+  echo "🚀 增量调整: 已有协议预选, 可增减"
+
+  if [ -n "$(_load_cfg cdn_selected "")" ]; then
+    echo
+    echo "======================================"
+    echo ">>> CDN协议调整 (原有预选, 可增减)"
+    echo "======================================"
+    menu_cdn || echo "⚠ CDN调整取消"
+  fi
+  if [ -n "$(_load_cfg noncdn_selected "")" ]; then
+    echo
+    echo "======================================"
+    echo ">>> 非CDN协议调整 (原有预选, 可增减)"
+    echo "======================================"
+    menu_noncdn || echo "⚠ 非CDN调整取消"
+  fi
+  if [ -n "$(_load_cfg argo_selected "")" ]; then
+    echo
+    echo "======================================"
+    echo ">>> Argo隧道调整 (原有预选, 可增减)"
+    echo "======================================"
+    menu_argo || echo "⚠ Argo调整取消"
+  fi
+
+  echo
+  echo "✅ 增量调整完成"
+  return 0
+}
+
+
+# ---- 菜单6-8: 更新内核 ----
 menu_upx() {
   echo "更新 xray-core ..."
   upxray && xrestart && echo "✅ Xray内核更新完成"
@@ -3671,9 +3827,17 @@ showmenu_main() {
     echo "║       argosbx 全协议管理面板            ║"
     echo "║       V2.9.1 计划第十四章               ║"
     echo "╠══════════════════════════════════════════╣"
-    # 显示已安装状态
+    # 显示已安装状态 + 内核版本
     if [ -e "$HOME/agsbx/xr.json" ] || [ -e "$HOME/agsbx/sb.json" ]; then
       echo "║  状态: ✅ 已安装                        ║"
+      # 内核版本(仅已安装的内核才显示)
+      local _xver=""
+      local _sver=""
+      local _cver=""
+      [ -x "$HOME/agsbx/xray" ] && _xver=$("$HOME/agsbx/xray" version 2>/dev/null | awk '/^Xray/{print $2}')
+      [ -x "$HOME/agsbx/sing-box" ] && _sver=$("$HOME/agsbx/sing-box" version 2>/dev/null | awk '/version/{print $NF}')
+      [ -x "$HOME/agsbx/cloudflared" ] && _cver=$("$HOME/agsbx/cloudflared" version 2>/dev/null | awk '{print $3}')
+      echo "║  xray:${_xver:-N/A} · sing-box:${_sver:-N/A} · cf:${_cver:-N/A}  ║"
     else
       echo "║  状态: ⚠ 未安装                         ║"
     fi
@@ -3682,15 +3846,16 @@ showmenu_main() {
     echo "║  2. 非CDN协议设置 (C组12个)             ║"
     echo "║  3. Argo隧道设置 (D组10变体)            ║"
     echo "║  4. 全部部署 (1→2→3依次执行)           ║"
-    echo "║  5. 更新 xray-core                      ║"
-    echo "║  6. 更新 sing-box                       ║"
-    echo "║  7. 更新 cloudflared                    ║"
-    echo "║  8. 查看订阅链接 (jhsub.txt)            ║"
-    echo "║  9. 查看路径配置 (summary.txt)          ║"
+    echo "║  5. 更新配置 (智能识别历史)             ║"
+    echo "║  6. 更新 xray-core                      ║"
+    echo "║  7. 更新 sing-box                       ║"
+    echo "║  8. 更新 cloudflared                    ║"
+    echo "║  9. 查看订阅链接 (jhsub.txt)            ║"
+    echo "║ 10. 查看路径配置 (summary.txt)          ║"
     echo "║  D. 卸载                                ║"
     echo "║  Q. 退出                                ║"
     echo "╚══════════════════════════════════════════╝"
-    printf "请选择 [1-9/D/Q]: "
+    printf "请选择 [1-10/D/Q]: "
     local _choice
     read -r _choice
     case "$_choice" in
@@ -3698,11 +3863,12 @@ showmenu_main() {
       2) menu_noncdn && { echo; echo "配置已保存，将执行安装..."; sleep 2; return 0; } ;;
       3) menu_argo && { echo; echo "配置已保存，将执行安装..."; sleep 2; return 0; } ;;
       4) menu_all && { echo; echo "配置已保存，将执行安装..."; sleep 2; return 0; } ;;
-      5) menu_upx ;;
-      6) menu_ups ;;
-      7) menu_upc ;;
-      8) menu_viewsub ;;
-      9) menu_viewpath ;;
+      5) menu_update && { echo; echo "配置已加载，将执行安装..."; sleep 2; return 0; } ;;
+      6) menu_upx ;;
+      7) menu_ups ;;
+      8) menu_upc ;;
+      9) menu_viewsub ;;
+     10) menu_viewpath ;;
       [Dd]) menu_del ;;
       [Qq]*) echo "退出"; exit 0 ;;
       *) echo "无效选择"; sleep 1 ;;
@@ -3710,7 +3876,7 @@ showmenu_main() {
   done
 }
 
-# ---- 菜单8: 查看订阅链接 ----
+# ---- 菜单9: 查看订阅链接 ----
 menu_viewsub() {
   clear 2>/dev/null || true
   echo "======================================"
@@ -3729,7 +3895,7 @@ menu_viewsub() {
   read -r _
 }
 
-# ---- 菜单9: 查看路径配置 ----
+# ---- 菜单10: 查看路径配置 ----
 menu_viewpath() {
   clear 2>/dev/null || true
   echo "======================================"
@@ -3753,7 +3919,7 @@ menu_viewpath() {
 # --- 交互式菜单入口 (V2.9.1 第十四章) ---
 # 此时所有函数已定义。无子命令 + 是TTY + 未设置任何协议变量 → 进入交互菜单
 if [ -z "$1" ] && [ -t 0 ] 2>/dev/null; then
-  if [ -z "${vlp:-}${vmp:-}${vwp:-}${hyp:-}${tup:-}${xhp:-}${vxp:-}${anp:-}${ssp:-}${arp:-}${sop:-}${vup:-}${twp:-}${tuhp:-}${mup:-}${txp:-}${mxp:-}${swp:-}${vwep:-}${stp:-}${nap:-}${trp:-}${vtp:-}${ttp:-}" ]; then
+  if [ -z "${vlp:-}${vmp:-}${vwp:-}${hyp:-}${tup:-}${xhp:-}${vxp:-}${anp:-}${ssp:-}${arp:-}${sop:-}${vup:-}${twp:-}${tuhp:-}${mup:-}${txp:-}${mxp:-}${swp:-}${vwep:-}${nap:-}${trp:-}${vtp:-}${ttp:-}" ]; then
     showmenu_main
     # 菜单返回后，变量已被export设置，继续走主安装流程(ins/cip等)
     _menu_returned=1; export _menu_returned
@@ -3938,7 +4104,7 @@ if ! iptables -t nat -nL >/dev/null 2>&1; then
 else
 # 不清空整个PREROUTING链(避免删除已有防火墙规则), 先删除自己之前添加的DNAT规则
 hyport=$(cat "$HOME/agsbx/port_hy2")
-for port in $hyjpt; do
+for port in ${hyjpt//,/ }; do
 iptables -t nat -D PREROUTING -p udp --dport "$port" -j DNAT --to-destination :"$hyport" 2>/dev/null
 ip6tables -t nat -D PREROUTING -p udp --dport "$port" -j DNAT --to-destination :"$hyport" 2>/dev/null
 iptables -t nat -A PREROUTING -p udp --dport "$port" -j DNAT --to-destination :"$hyport"
