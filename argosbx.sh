@@ -642,6 +642,7 @@ elif [ "$v4_ok" != true ] && [ "$v6_ok" = true ]; then
 case "$warp" in *s6*|x) sbyx='ipv6_only' ;; *) sbyx='prefer_ipv4' ;; esac
 case "$warp" in *x6*) xryx='ForceIPv6' ;; *x*) xryx='ForceIPv4v6' ;; *) xryx='ForceIPv6v4' ;; esac
 fi
+fi
 }
 
 # ===== S4: 内核下载 =====
@@ -3006,6 +3007,25 @@ menu_cdn() {
   local _cfemail_def=$(_load_cfg cfemail "${cfemail:-}")
   local _cfkey_def=$(_load_cfg cfkey "${cfkey:-}")
   local _cdnsel_def=$(_load_cfg cdn_selected "")
+  local _cdnym _uuid _basepath _certmode _cfemail _cfkey
+  if [ "${_agsbx_quick_mode:-}" = "1" ]; then
+    # 增量模式: 沿用历史参数, 跳过 [1/5]-[4/5] 输入步骤
+    _cdnym="$_cdnym_def"
+    if [ -z "$_cdnym" ]; then
+      echo "⚠ 未检测到历史 CDN 配置, 跳过"
+      return 1
+    fi
+    _uuid="$_uuid_def"; [ -z "$_uuid" ] && _uuid=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || uuidgen 2>/dev/null)
+    _basepath="$_basepath_def"; [ -z "$_basepath" ] && _basepath=$(date +%s | sha256sum | cut -c1-16)
+    export cdnym="$_cdnym"; export uuid="$_uuid"; export basepath="$_basepath"
+    export cfemail="$_cfemail_def"; export cfkey="$_cfkey_def"
+    echo "📋 沿用历史参数 (增量模式):"
+    echo "   CDN域名: $_cdnym"
+    echo "   UUID:    $_uuid"
+    echo "   Path:    $_basepath"
+    echo "   证书沿用现状 (ins() certsign 自动复用)"
+  else
+    # ↓↓↓ [1/5]-[4/5] 完整参数输入流程 ↓↓↓
 
   # [1/5] CDN域名
   local _cdnym
@@ -3115,6 +3135,9 @@ menu_cdn() {
       3) echo "  已选跳过证书" ;;
     esac
   fi
+  fi
+  # ↑↑↑ 结束 _agsbx_quick_mode 分支 ↑↑↑
+
 
   # [5/5] 协议多选
   local _cdn_items="VLESS+WS (A组·443固定)
@@ -3200,6 +3223,20 @@ menu_noncdn() {
   local _uuid_sb_def=$(_load_cfg uuid_singbox "")
   local _reality_def=$(_load_cfg reality_dest "www.microsoft.com")
   local _noncdn_sel_def=$(_load_cfg noncdn_selected "")
+  local _directnym _uuid_sb _certmode _reality
+  if [ "${_agsbx_quick_mode:-}" = "1" ]; then
+    # 增量模式: 沿用历史参数, 跳过 [1/5]-[4/5]
+    _directnym="$_directnym_def"
+    _uuid_sb="$_uuid_sb_def"; [ -z "$_uuid_sb" ] && _uuid_sb=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || uuidgen 2>/dev/null)
+    _reality="$_reality_def"
+    export directnym="$_directnym"; export uuid="$_uuid_sb"; export ym_vl_re="$_reality"
+    echo "📋 沿用历史参数 (增量模式):"
+    echo "   直连域名: ${_directnym:-未设置}"
+    echo "   UUID:     $_uuid_sb"
+    echo "   Reality:  $_reality"
+    echo "   证书沿用现状 (ins() certsign 自动复用)"
+  else
+    # ↓↓↓ [1/5]-[4/5] 完整参数输入流程 ↓↓↓
 
   # [1/5] 直连域名
   local _directnym
@@ -3306,6 +3343,9 @@ menu_noncdn() {
   _rd "[4/5] Reality伪装目标网站(回车默认)" "$_reality_def" || _reality="$_reality_def"
   _reality="${_rd_val:-$_reality_def}"
   _save_cfg reality_dest "$_reality"
+  fi
+  # ↑↑↑ 结束 _agsbx_quick_mode 分支 ↑↑↑
+
 
   # [5/5] 协议多选
   local _noncdn_items="VLESS-XHTTP-Reality-ENC (xray·端口自动)
@@ -3405,6 +3445,27 @@ menu_argo() {
   local _argo_token_def=$(_load_cfg argo_token "")
   local _argo_sel_def=$(_load_cfg argo_selected "")
   local _argo_port_def=$(_load_cfg argo_port_start "39007")
+  local _argo_domain _argo_token _uuid_argo _argo_port
+  if [ "${_agsbx_quick_mode:-}" = "1" ]; then
+    # 增量模式: 沿用历史参数, 跳过 [1/4]-[4/5] 参数输入
+    _argo_domain="$_argo_domain_def"
+    _argo_token="$_argo_token_def"
+    _argo_port="$_argo_port_def"
+    # UUID: 优先复用已有 uuid 变量, 没有则从配置加载
+    if [ -n "${uuid:-}" ]; then _uuid_argo="$uuid"
+    else _uuid_argo=$(_load_cfg uuid_singbox ""); [ -z "$_uuid_argo" ] && [ -f "$HOME/agsbx/uuid" ] && _uuid_argo=$(cat "$HOME/agsbx/uuid" 2>/dev/null)
+    fi
+    [ -z "$_uuid_argo" ] && _uuid_argo=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || uuidgen 2>/dev/null)
+    export uuid="$_uuid_argo"
+    export agn="${_argo_domain:-}"; export agk="${_argo_token:-}"
+    export ARGO_DOMAIN="${_argo_domain:-}"; export ARGO_AUTH="${_argo_token:-}"
+    echo "📋 沿用历史参数 (增量模式):"
+    echo "   隧道域名: ${_argo_domain:-临时隧道}"
+    echo "   Token:    ${_argo_token:+已设置}${_argo_token:-无}"
+    echo "   UUID:     $_uuid_argo"
+    echo "   端口起始: $_argo_port"
+  else
+    # ↓↓↓ [1/4]-[4/5] 完整参数输入流程 ↓↓↓
 
   # [1/4] 隧道域名(可选, 仅固定隧道需要)
   local _argo_domain
@@ -3455,6 +3516,9 @@ menu_argo() {
   _rd "[4/5] Argo监听端口起始值(每协议1端口)" "$_argo_port_def" || _argo_port="$_argo_port_def"
   _argo_port="${_rd_val:-$_argo_port_def}"
   _save_cfg argo_port_start "$_argo_port"
+  fi
+  # ↑↑↑ 结束 _agsbx_quick_mode 分支 ↑↑↑
+
 
   # [4/4] 协议多选
   local _argo_items="VLESS+WS (vw)
@@ -3675,32 +3739,28 @@ _update_quick() {
   return 0
 }
 
-# 增量调整: 依次进入有历史配置的菜单(预选已有,可增减)
+# 增量调整: 依次进入三个菜单(预选已有,可增减,可新增没装过的组)
 _update_adjust() {
   echo
-  echo "🚀 增量调整: 已有协议预选, 可增减"
+  echo "🚀 增量调整: 缺啥补啥 (已有预选, 没装过的可新增)"
 
-  if [ -n "$(_load_cfg cdn_selected "")" ]; then
-    echo
-    echo "======================================"
-    echo ">>> CDN协议调整 (原有预选, 可增减)"
-    echo "======================================"
-    menu_cdn || echo "⚠ CDN调整取消"
-  fi
-  if [ -n "$(_load_cfg noncdn_selected "")" ]; then
-    echo
-    echo "======================================"
-    echo ">>> 非CDN协议调整 (原有预选, 可增减)"
-    echo "======================================"
-    menu_noncdn || echo "⚠ 非CDN调整取消"
-  fi
-  if [ -n "$(_load_cfg argo_selected "")" ]; then
-    echo
-    echo "======================================"
-    echo ">>> Argo隧道调整 (原有预选, 可增减)"
-    echo "======================================"
-    menu_argo || echo "⚠ Argo调整取消"
-  fi
+  # 增量模式标志: 让 menu_cdn/noncdn/argo 跳过参数输入, 只走协议选择
+  _agsbx_quick_mode=1
+
+  echo
+  echo ">>> CDN协议 (A+B组)"
+  menu_cdn || echo "⚠ CDN跳过"
+
+  echo
+  echo ">>> 非CDN协议 (C组)"
+  menu_noncdn || echo "⚠ 非CDN跳过"
+
+  echo
+  echo ">>> Argo隧道 (D组)"
+  menu_argo || echo "⚠ Argo跳过"
+
+  # 清除标志, 避免污染后续直接调用菜单
+  unset _agsbx_quick_mode
 
   echo
   echo "✅ 增量调整完成"
