@@ -237,12 +237,16 @@ _validate_input() {
   fi
   # 防 bashrc/命令注入：用户输入变量禁止 shell 危险元字符
   # 这些变量会被拼接到 ~/.bashrc 的恢复脚本(L1300附近)，含 ;|&$`"\ 等可执行任意命令
-  for _v in name cfip hyjpt cdnym directnym ippz argo argopro reym agn agk warp; do
+  for _v in name cfip hyjpt cdnym directnym ippz argo argopro reym agn agk warp nap_user; do
     eval "_val=\${$_v:-}"
     if [ -n "$_val" ] && printf '%s' "$_val" | grep -qE '[;|&$`"\\()<>]'; then
       printf '⚠️ 变量 %s 含非法字符(禁止 ;|&$`"\\()<> 等 shell 元字符，防 bashrc 注入)\n' "$_v"; exit 1
     fi
   done
+  # name 用于URI片段(#{sxname}...)，额外限制URI片段安全字符
+  if [ -n "$name" ] && printf '%s' "$name" | grep -qE '[#?%/@ ]'; then
+    printf '⚠️ 变量 name 含URI不安全字符(禁止 #?%%/@ 空格等，会破坏订阅链接片段)\n'; exit 1
+  fi
 }
 
 # parse_argopro — 解析argopro变量为argo_xxx标志(兼容旧argo变量)
@@ -272,6 +276,63 @@ parse_argopro() {
     done
   fi
 }
+
+# _map_cdn_proto <编号> — CDN协议编号→export全局开关(菜单/_update_quick共用,消除重复)
+_map_cdn_proto() {
+  case "$1" in
+    1) export vwp=yes; export vmag=yes ;;
+    2) export vxp=yes ;;
+    3) export vmp=yes; export vmag=yes ;;
+    4) export vup=yes; export vmag=yes ;;
+    5) export twp=yes; export vmag=yes ;;
+    6) export tuhp=yes; export vmag=yes ;;
+    7) export mup=yes; export vmag=yes ;;
+    8) export txp=yes; export vmag=yes ;;
+    9) export mxp=yes; export vmag=yes ;;
+    10) export swp=yes; export vmag=yes ;;
+    11) export vwep=yes ;;
+  esac
+}
+
+# _map_noncdn_proto <编号> — 非CDN协议编号→export全局开关(菜单/_update_quick共用)
+_map_noncdn_proto() {
+  case "$1" in
+    1) export xhp=yes ;;
+    2) export vlp=yes ;;
+    3) export hyp=yes ;;
+    4) export tup=yes ;;
+    5) export anp=yes ;;
+    6) export arp=yes ;;
+    7) export ssp=yes ;;
+    8) export nap=yes ;;
+    9) export trp=yes ;;
+    10) export vtp=yes ;;
+    11) export ttp=yes ;;
+  esac
+}
+
+# _map_argo_proto <编号> — Argo协议编号→追加到全局_argopro_list(逗号分隔,自动避免开头逗号)
+_map_argo_proto() {
+  case "$1" in
+    1) _argopro_list="${_argopro_list:+$_argopro_list,}vw" ;;
+    2) _argopro_list="${_argopro_list:+$_argopro_list,}vx" ;;
+    3) _argopro_list="${_argopro_list:+$_argopro_list,}vm" ;;
+    4) _argopro_list="${_argopro_list:+$_argopro_list,}vu" ;;
+    5) _argopro_list="${_argopro_list:+$_argopro_list,}tw" ;;
+    6) _argopro_list="${_argopro_list:+$_argopro_list,}tu" ;;
+    7) _argopro_list="${_argopro_list:+$_argopro_list,}mu" ;;
+    8) _argopro_list="${_argopro_list:+$_argopro_list,}tx" ;;
+    9) _argopro_list="${_argopro_list:+$_argopro_list,}mx" ;;
+    10) _argopro_list="${_argopro_list:+$_argopro_list,}sw" ;;
+  esac
+}
+
+# ===== 协议分组概览 =====
+# A组: CF固定端口CDN协议(443/2053/2083/2087/2096/8443) — WS/HTTPUpgrade/XHTTP
+# B组: CF Origin Rules回源CDN协议(39000-39004) — 需CF面板配Origin Rules
+# C组: 直连协议(非CDN) — VLESS-Reality/Hysteria2/TUIC/Naive等
+# D组: Argo隧道独立inbound(39007-39016) — cloudflared终止TLS
+# 分组是架构概念(端口段/CF行为区分)，改动分组结构需同步多处的端口/CF规则
 
 # argopro_setup — 构建D组Argo独立inbound的path/端口映射表,生成CF Dashboard Public Hostname配置指引
 # D组: 独立端口39007-39016, 独立path(加-a-前缀, 和A/B组隔离), 无TLS(cloudflared已终止TLS)
@@ -562,7 +623,7 @@ mkdir -p "$HOME/agsbx" && chmod 700 "$HOME/agsbx"
 if [ ! -f sbx_update ]; then
 echo "执行必要的脚本依赖中，请稍等10秒……"
 if command -v apk >/dev/null 2>&1; then
-apk update >/dev/null 2>&1 && apk add --no-cache bash busybox-extras gcompat libc6-compat iptables util-linux procps-ng openssl coreutils >/dev/null 2>&1
+apk update >/dev/null 2>&1 && apk add --no-cache bash busybox-extras busybox-suid gcompat libc6-compat iptables util-linux procps-ng openssl coreutils >/dev/null 2>&1
 elif command -v apt >/dev/null 2>&1; then
 export DEBIAN_FRONTEND=noninteractive
 # 不安装iptables-persistent(会冲突卸载ufw), 不用debconf-set-selections(会覆盖防火墙规则)
@@ -1155,7 +1216,7 @@ chmod +x /etc/init.d/xray >/dev/null 2>&1
 rc-update add xray default >/dev/null 2>&1
 rc-service xray start >/dev/null 2>&1
 else
-nohup "$HOME/agsbx/xray" run -c "$HOME/agsbx/xr.json" >/dev/null 2>&1 &
+nohup "$HOME/agsbx/xray" run -c "$HOME/agsbx/xr.json" > "$HOME/agsbx/xray.log" 2>&1 &
 sleep 1
 pgrep -f 'agsbx/xray' >/dev/null 2>&1 || { echo "⚠️ xray 启动失败(nohup模式)，请检查 $HOME/agsbx/xr.json 配置"; _log "ERROR" "xray nohup 启动失败"; }
 fi
@@ -1207,7 +1268,7 @@ chmod +x /etc/init.d/sing-box >/dev/null 2>&1
 rc-update add sing-box default >/dev/null 2>&1
 rc-service sing-box start >/dev/null 2>&1
 else
-nohup "$HOME/agsbx/sing-box" run -c "$HOME/agsbx/sb.json" >/dev/null 2>&1 &
+nohup "$HOME/agsbx/sing-box" run -c "$HOME/agsbx/sb.json" > "$HOME/agsbx/sing-box.log" 2>&1 &
 sleep 1
 pgrep -f 'agsbx/sing-box' >/dev/null 2>&1 || { echo "⚠️ sing-box 启动失败(nohup模式)，请检查 $HOME/agsbx/sb.json 配置"; _log "ERROR" "sing-box nohup 启动失败"; }
 fi
@@ -1324,7 +1385,7 @@ chmod +x /etc/init.d/argo >/dev/null 2>&1
 rc-update add argo default >/dev/null 2>&1
 rc-service argo start >/dev/null 2>&1
 else
-nohup "$HOME/agsbx/cloudflared" tunnel --no-autoupdate --edge-ip-version auto --protocol http2 run --token-file "$HOME/agsbx/sbargotoken.log" >/dev/null 2>&1 &
+nohup "$HOME/agsbx/cloudflared" tunnel --no-autoupdate --edge-ip-version auto --protocol http2 run --token-file "$HOME/agsbx/sbargotoken.log" > "$HOME/agsbx/argo.log" 2>&1 &
 fi
 else
 argoname='临时'
@@ -1416,6 +1477,7 @@ crontab "$_crontab_tmp" >/dev/null 2>&1
 _log "INFO" "crontab持久化更新完成"
 rm -f "$_crontab_tmp"
 echo "Argosbx脚本进程启动成功，安装完毕" && sleep 2
+echo "ℹ️ 请确保防火墙/安全组已放行脚本使用的端口(443/2053/2083/2087/2096/8443/39000-39016等)，脚本不自动配置防火墙"
 else
 echo "Argosbx脚本进程未启动，安装失败" && exit 1
 fi
@@ -3201,6 +3263,8 @@ VLESS+WS+ENC (B组·39004 Origin Rules·带ENC)"
   echo "  (1=VLESS+WS 2=VLESS+XHTTP 3=VMess+WS 4=VLESS+HTTPUpgrade"
   echo "   5=Trojan+WS 6=Trojan+HTTPUpgrade"
   echo "   7=VMess+HTTPUpgrade 8=Trojan+XHTTP 9=VMess+XHTTP 10=SS+WS 11=VLESS+WS+ENC)"
+  # 注意: 协议编号是菜单显示用的，删除某协议时空号保留(不重排)，
+  # 避免破坏用户已保存的 cdn_selected 配置(存的是编号)
   echo "======================================"
   if ! _yn "确认开始部署?" y; then
     echo "已取消，返回主菜单"
@@ -3217,19 +3281,7 @@ VLESS+WS+ENC (B组·39004 Origin Rules·带ENC)"
 
   # 设置协议开关(覆盖到全局变量)
   for _n in $_sel; do
-    case "$_n" in
-      1) export vwp=yes; export vmag=yes ;;
-      2) export vxp=yes ;;
-      3) export vmp=yes; export vmag=yes ;;
-      4) export vup=yes; export vmag=yes ;;
-      5) export twp=yes; export vmag=yes ;;
-      6) export tuhp=yes; export vmag=yes ;;
-      7) export mup=yes; export vmag=yes ;;
-      8) export txp=yes; export vmag=yes ;;
-      9) export mxp=yes; export vmag=yes ;;
-      10) export swp=yes; export vmag=yes ;;
-      11) export vwep=yes ;;
-    esac
+    _map_cdn_proto "$_n"
   done
 
   echo
@@ -3435,19 +3487,7 @@ Trojan+TCP+TLS (xray·TLS)"
 
   # 设置协议开关
   for _n in $_sel; do
-    case "$_n" in
-      1) export xhp=yes ;;
-      2) export vlp=yes ;;
-      3) export hyp=yes ;;
-      4) export tup=yes ;;
-      5) export anp=yes ;;
-      6) export arp=yes ;;
-      7) export ssp=yes ;;
-      8) export nap=yes ;;
-      9) export trp=yes ;;
-      10) export vtp=yes ;;
-      11) export ttp=yes ;;
-    esac
+    _map_noncdn_proto "$_n"
   done
 
   echo
@@ -3564,22 +3604,10 @@ Shadowsocks+WS (sw)"
   local _sel="$_chk_sel"
 
   # 把编号映射为协议缩写
-  local _argopro_list=""
+  _argopro_list=""
   for _n in $_sel; do
-    case "$_n" in
-      1) _argopro_list="$_argopro_list,vw" ;;
-      2) _argopro_list="$_argopro_list,vx" ;;
-      3) _argopro_list="$_argopro_list,vm" ;;
-      4) _argopro_list="$_argopro_list,vu" ;;
-      5) _argopro_list="$_argopro_list,tw" ;;
-      6) _argopro_list="$_argopro_list,tu" ;;
-      7) _argopro_list="$_argopro_list,mu" ;;
-      8) _argopro_list="$_argopro_list,tx" ;;
-      9) _argopro_list="$_argopro_list,mx" ;;
-      10) _argopro_list="$_argopro_list,sw" ;;
-    esac
+    _map_argo_proto "$_n"
   done
-  _argopro_list="${_argopro_list#,}"  # 去掉开头的逗号
 
   # 确认
   echo
@@ -3626,10 +3654,10 @@ menu_all() {
   menu_cdn || { echo "CDN配置失败，中止"; return 1; }
   echo
   echo ">>> 步骤 2/3: 非CDN协议"
-  menu_noncdn || { echo "非CDN配置跳过或失败，继续Argo"; }
+  menu_noncdn || { echo "⚠ 非CDN配置失败，中止"; return 1; }
   echo
   echo ">>> 步骤 3/3: Argo隧道"
-  menu_argo || { echo "Argo配置跳过"; }
+  menu_argo || { echo "⚠ Argo配置失败，中止"; return 1; }
 
   echo
   echo "======================================"
@@ -3712,58 +3740,22 @@ _update_quick() {
   # 协议开关: CDN (A+B组)
   _sel=$(_load_cfg cdn_selected "")
   for _n in $_sel; do
-    case "$_n" in
-      1) export vwp=yes; export vmag=yes ;;
-      2) export vxp=yes ;;
-      3) export vmp=yes; export vmag=yes ;;
-      4) export vup=yes; export vmag=yes ;;
-      5) export twp=yes; export vmag=yes ;;
-      6) export tuhp=yes; export vmag=yes ;;
-      7) export mup=yes; export vmag=yes ;;
-      8) export txp=yes; export vmag=yes ;;
-      9) export mxp=yes; export vmag=yes ;;
-      10) export swp=yes; export vmag=yes ;;
-      11) export vwep=yes ;;
-    esac
+    _map_cdn_proto "$_n"
   done
 
   # 协议开关: 非CDN (C组)
   _sel=$(_load_cfg noncdn_selected "")
   for _n in $_sel; do
-    case "$_n" in
-      1) export xhp=yes ;;
-      2) export vlp=yes ;;
-      3) export hyp=yes ;;
-      4) export tup=yes ;;
-      5) export anp=yes ;;
-      6) export arp=yes ;;
-      7) export ssp=yes ;;
-      8) export nap=yes ;;
-      9) export trp=yes ;;
-      10) export vtp=yes ;;
-      11) export ttp=yes ;;
-    esac
+    _map_noncdn_proto "$_n"
   done
 
   # Argo: 编号转 argopro 列表(与 menu_argo 一致)
   _sel=$(_load_cfg argo_selected "")
-  local _argopro_list=""
+  _argopro_list=""
   for _n in $_sel; do
-    case "$_n" in
-      1) _argopro_list="$_argopro_list,vw" ;;
-      2) _argopro_list="$_argopro_list,vx" ;;
-      3) _argopro_list="$_argopro_list,vm" ;;
-      4) _argopro_list="$_argopro_list,vu" ;;
-      5) _argopro_list="$_argopro_list,tw" ;;
-      6) _argopro_list="$_argopro_list,tu" ;;
-      7) _argopro_list="$_argopro_list,mu" ;;
-      8) _argopro_list="$_argopro_list,tx" ;;
-      9) _argopro_list="$_argopro_list,mx" ;;
-      10) _argopro_list="$_argopro_list,sw" ;;
-    esac
+    _map_argo_proto "$_n"
   done
   if [ -n "$_argopro_list" ]; then
-    _argopro_list="${_argopro_list#,}"
     export argopro="$_argopro_list"
   fi
 
