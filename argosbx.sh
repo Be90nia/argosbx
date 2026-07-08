@@ -247,6 +247,9 @@ _validate_input() {
 # parse_argopro — 解析argopro变量为argo_xxx标志(兼容旧argo变量)
 # 支持的协议缩写: vw vx vm vu tw tu mu tx mx sw (不含gRPC，CF Tunnel bug #1641)
 parse_argopro() {
+  # L2修复: 清零旧 argo_xxx 标志, 防止跨调用残留(防御性)
+  unset argo_vw argo_vx argo_vm argo_vu argo_tw argo_tu argo_mu argo_tx argo_mx argo_sw
+
   # 兼容旧argo变量: argo=vwpt/vmpt/vxpt → argopro=vw/vm/vx
   if [ -z "$argopro" ] && [ -n "$argo" ]; then
     case $argo in
@@ -1226,6 +1229,13 @@ if [ -n "$directnym" ] && { [ -n "$hyp" ] || [ -n "$tup" ] || [ -n "$anp" ] || [
   elif ! openssl rsa -in /etc/argosbx/certs/directnym.key -check -noout 2>/dev/null && ! openssl ec -in /etc/argosbx/certs/directnym.key -check -noout 2>/dev/null; then
     echo "❌ directnym.key格式无效，禁用需要TLS的sing-box协议"
     hyp=""; tup=""; anp=""; nap=""; vtp=""; ttp=""
+  fi
+fi
+# M1修复: cdnym 证书存在性检查(CF Full Strict 模式需要; Flexible 模式仍可用)
+if [ -n "$cdnym" ] && { [ -n "$vxp" ] || [ -n "$vwp" ] || [ -n "$vup" ] || [ -n "$twp" ] || [ -n "$tuhp" ] || [ -n "$vmp" ] || [ -n "$mup" ] || [ -n "$txp" ] || [ -n "$mxp" ] || [ -n "$swp" ] || [ -n "$vwep" ]; }; then
+  if [ ! -f "/etc/argosbx/certs/cdnym.crt" ] || [ ! -f "/etc/argosbx/certs/cdnym.key" ]; then
+    echo "⚠️ cdnym证书缺失, CDN协议在CF Full Strict模式不可用(Flexible模式仍可用)"
+    _log "WARN" "cdnym证书缺失, CDN协议降级"
   fi
 fi
 # 解析Argo协议选择(必须在installxray之前,因为installxray_argo需要argo_xxx标志)
@@ -3643,6 +3653,7 @@ menu_update() {
   [ -n "$_noncdn_sel" ] && echo "  非CDN协议(C组): 编号 $_noncdn_sel"
   [ -n "$_argo_sel" ] && echo "  Argo隧道(D组): 编号 $_argo_sel"
   echo
+  echo "  💡 仅选中协议会被部署, 未选中(含之前已装)将被移除"
   echo "请选择更新方式:"
   echo "  1. 快速刷新 — 沿用原配置参数, 直接重新部署"
   echo "  2. 增量调整 — 进入对应菜单, 已有预选可增减"
@@ -3662,6 +3673,11 @@ menu_update() {
 _update_quick() {
   echo
   echo "🚀 快速刷新: 沿用历史配置重新部署..."
+
+  # C1修复: 清零所有协议开关, 防止 showmenu_main while 循环内跨菜单残留导致装错协议
+  unset vwp vxp vmp vup twp tuhp mup txp mxp swp vwep vmag \
+        xhp vlp hyp tup anp arp ssp nap trp vtp ttp \
+        argopro argo_vw argo_vx argo_vm argo_vu argo_tw argo_tu argo_mu argo_tx argo_mx argo_sw
 
   # 加载通用参数
   export cdnym=$(_load_cfg cdnym "${cdnym:-}")
@@ -3735,6 +3751,9 @@ _update_quick() {
     export argopro="$_argopro_list"
   fi
 
+  # L1修复: 必填校验(cdnym 是 CDN 协议硬依赖; directnym 由 ins() 行1222兜底)
+  [ -n "$(_load_cfg cdn_selected "")" ] && [ -z "$cdnym" ] && { echo "❌ CDN协议已选但 cdnym 为空, menu_config 损坏"; return 1; }
+
   echo "✅ 配置已加载完毕"
   return 0
 }
@@ -3743,21 +3762,26 @@ _update_quick() {
 _update_adjust() {
   echo
   echo "🚀 增量调整: 缺啥补啥 (已有预选, 没装过的可新增)"
+  # C1修复: 清零所有协议开关, 防止跨菜单残留(与 _update_quick 一致)
+  unset vwp vxp vmp vup twp tuhp mup txp mxp swp vwep vmag \
+        xhp vlp hyp tup anp arp ssp nap trp vtp ttp \
+        argopro argo_vw argo_vx argo_vm argo_vu argo_tw argo_tu argo_mu argo_tx argo_mx argo_sw
+
 
   # 增量模式标志: 让 menu_cdn/noncdn/argo 跳过参数输入, 只走协议选择
   _agsbx_quick_mode=1
 
   echo
   echo ">>> CDN协议 (A+B组)"
-  menu_cdn || echo "⚠ CDN跳过"
+  menu_cdn || { echo "⚠ CDN已取消, 中止更新"; return 1; }
 
   echo
   echo ">>> 非CDN协议 (C组)"
-  menu_noncdn || echo "⚠ 非CDN跳过"
+  menu_noncdn || { echo "⚠ 非CDN已取消, 中止更新"; return 1; }
 
   echo
   echo ">>> Argo隧道 (D组)"
-  menu_argo || echo "⚠ Argo跳过"
+  menu_argo || { echo "⚠ Argo已取消, 中止更新"; return 1; }
 
   # 清除标志, 避免污染后续直接调用菜单
   unset _agsbx_quick_mode
