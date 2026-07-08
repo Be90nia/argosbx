@@ -73,7 +73,7 @@ _kill_by_pattern() {
 trap 'agsbx_cleanup; exit 130' INT
 trap 'agsbx_cleanup; exit 143' TERM
 trap 'agsbx_cleanup' EXIT
-if [ -z "$1" ] || { [ "$1" != "list" ] && [ "$1" != "doctor" ] && [ "$1" != "backup" ] && [ "$1" != "restore" ]; }; then
+if [ -z "$1" ] || { [ "$1" != "list" ] && [ "$1" != "doctor" ] && [ "$1" != "backup" ] && [ "$1" != "restore" ] && [ "$1" != "status" ]; }; then
   exec 200>"$agsbx_lockfile" 2>/dev/null && flock -n 200 2>/dev/null || { echo "⚠️ 另一个argosbx实例正在运行，请等待其完成或手动删除锁文件: $agsbx_lockfile"; exit 1; }
 fi
 
@@ -207,6 +207,7 @@ _alloc_port() {
     fi
     eval "$_apvar=\$(cat \"$_apfile\")"
   } 9>"$HOME/agsbx/.port.lock"
+  _log "INFO" "端口分配: $_apvar=$(cat "$_apfile" 2>/dev/null)"
 }
 
 # _gen_basepath — 生成或读取basepath(用户指定 or 随机16位hex，持久化)
@@ -467,6 +468,7 @@ tpl_xr() {
       -e "s|__PRIVATE_KEY_X__|${private_key_x}|g" \
       -e "s|__SHORT_ID_X__|${short_id_x}|g" \
       "$_tplfile" | sed '$s/$/,/' >> "$HOME/agsbx/xr.json"
+  _log "INFO" "xray模板追加: $_tplname (port=${_tplport:-无})"
 }
 
 # tpl_sb 模板名 — 加载sing-box inbound模板，替换占位符，追加到sb.json(末尾加逗号)
@@ -489,6 +491,7 @@ tpl_sb() {
       -e "s|__SHORT_ID_S__|${short_id_s}|g" \
       -e "s|__HOME__|${HOME}|g" \
       "$_tplfile" | sed '$s/$/,/' >> "$HOME/agsbx/sb.json"
+  _log "INFO" "sing-box模板追加: $_tplname (port=${_tplport:-无})"
 }
 
 # tpl_fw 子目录 模板名 — 加载框架配置(header/outbound), sed替换WARP变量, 输出到stdout(不加逗号)
@@ -571,6 +574,8 @@ elif command -v yum >/dev/null 2>&1; then
 yum install -y busybox coreutils util-linux cronie procps-ng openssl ca-certificates iptables >/dev/null 2>&1
 elif command -v zypper >/dev/null 2>&1; then
 zypper install -y busybox coreutils util-linux cron procps openssl ca-certificates iptables >/dev/null 2>&1
+elif command -v pacman >/dev/null 2>&1; then
+pacman -Sy --noconfirm --needed busybox coreutils util-linux cronie procps-ng openssl ca-certificates iptables >/dev/null 2>&1
 fi
 touch sbx_update
 fi
@@ -826,6 +831,7 @@ for _cfport in 443 2053 2083 2087 2096 8443 39000 39001 39002 39003 39004; do
   if ss -tln 2>/dev/null | grep -q ":$_cfport " || netstat -tln 2>/dev/null | grep -q ":$_cfport "; then
     _conflict_proc=$(ss -tlnp 2>/dev/null | grep ":$_cfport " | head -1 || netstat -tlnp 2>/dev/null | grep ":$_cfport " | head -1)
     echo "⚠️ 端口 $_cfport 已被占用: $_conflict_proc"
+    _log "WARN" "端口冲突: $_cfport 已被占用: $_conflict_proc"
     echo "   如占用的是xray/sing-box自身(重装场景)可忽略，否则请先释放该端口"
   fi
 done
@@ -1369,6 +1375,8 @@ grep -qxF 'source ~/.bashrc' ~/.bash_profile 2>/dev/null || echo 'source ~/.bash
 grep -qxF 'source ~/.bashrc' ~/.profile 2>/dev/null || echo 'source ~/.bashrc' >> ~/.profile
 . ~/.bashrc 2>/dev/null
 crontab -l > "$_crontab_tmp" 2>/dev/null
+# 确保crontab有PATH声明(cert_warn等定时任务依赖openssl/date/cut)
+grep -q '^PATH=' "$_crontab_tmp" 2>/dev/null || sed -i '1i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' "$_crontab_tmp" 2>/dev/null
 if ! [ "$(ps -p 1 -o comm= 2>/dev/null)" = "systemd" ] && ! command -v rc-service >/dev/null 2>&1; then
 sed -i '/agsbx\/sing-box/d' "$_crontab_tmp"
 sed -i '/agsbx\/xray/d' "$_crontab_tmp"
@@ -1405,6 +1413,7 @@ fi
 sed -i '/cert_warn/d' "$_crontab_tmp" 2>/dev/null
 echo '0 6 * * * for _c in /etc/argosbx/certs/*.crt; do [ -f "$_c" ] || continue; _e=$(openssl x509 -enddate -noout -in "$_c" 2>/dev/null | cut -d= -f2); _d=$(( ($(date -d "$_e" +%s 2>/dev/null || echo 0) - $(date +%s)) / 86400 )); [ "$_d" -lt 30 ] && echo "⚠️ 证书 $(basename "$_c") 剩余 ${_d} 天" >> "$HOME/agsbx/cert_warn.log"; done' >> "$_crontab_tmp"
 crontab "$_crontab_tmp" >/dev/null 2>&1
+_log "INFO" "crontab持久化更新完成"
 rm -f "$_crontab_tmp"
 echo "Argosbx脚本进程启动成功，安装完毕" && sleep 2
 else
@@ -2817,6 +2826,13 @@ _check_cert() {
 
 # 带默认值的read，结果存全局变量_rd_val
 # 用法: _rd "提示语" "默认值"  →  _rd_val
+# ===== 交互原语契约概览(D6-1) =====
+# _rd        "提示" [默认]            → 全局 _rd_val, exit=read结果(1=EOF)
+# _yn        "提示" [y|n]             → exit: 0=Y 1=N (无stdout)
+# _checklist "标题" "选项" "默认"    → 全局 _chk_sel("1 3 5"), exit: 0=确认 1=取消
+# _radiolist "标题" "选项" "默认"    → stdout 选中编号, exit: 0=确认 1=取消
+# _rd/_checklist 用全局变量回传(不能$()子shell), _radiolist 用stdout
+
 # 不能用$()子shell：子shell中stdout被捕获，提示语不显示
 _rd() {
   _rd_val=""
@@ -3773,15 +3789,15 @@ _update_adjust() {
 
   echo
   echo ">>> CDN协议 (A+B组)"
-  menu_cdn || { echo "⚠ CDN已取消, 中止更新"; return 1; }
+  menu_cdn || { echo "⚠ CDN已取消, 中止更新"; unset _agsbx_quick_mode; return 1; }
 
   echo
   echo ">>> 非CDN协议 (C组)"
-  menu_noncdn || { echo "⚠ 非CDN已取消, 中止更新"; return 1; }
+  menu_noncdn || { echo "⚠ 非CDN已取消, 中止更新"; unset _agsbx_quick_mode; return 1; }
 
   echo
   echo ">>> Argo隧道 (D组)"
-  menu_argo || { echo "⚠ Argo已取消, 中止更新"; return 1; }
+  menu_argo || { echo "⚠ Argo已取消, 中止更新"; unset _agsbx_quick_mode; return 1; }
 
   # 清除标志, 避免污染后续直接调用菜单
   unset _agsbx_quick_mode
@@ -4007,6 +4023,9 @@ agsbx_backup "$@"
 exit
 elif [ "$1" = "restore" ]; then
 agsbx_restore "$@"
+exit
+elif [ "$1" = "status" ]; then
+argosbxstatus
 exit
 elif [ "$1" = "cert" ]; then
 # 手动签发证书: bash argosbx.sh cert 域名 证书名
