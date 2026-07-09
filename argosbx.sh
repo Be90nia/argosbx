@@ -3084,7 +3084,7 @@ _load_cfg() {
 menu_cdn() {
   clear 2>/dev/null || true
   echo "======================================"
-  echo "  菜单1: CDN协议设置 (A+B组共11个)"
+  echo "  菜单1: CDN协议设置 (A+B组11个)"
   echo "======================================"
   echo
 
@@ -3100,7 +3100,7 @@ menu_cdn() {
     # 增量模式: 沿用历史参数, 跳过 [1/5]-[4/5] 输入步骤
     _cdnym="$_cdnym_def"
     if [ -z "$_cdnym" ]; then
-      echo "⚠ 未检测到历史 CDN 配置, 跳过"
+      echo "⚠️ 未检测到历史 CDN 配置, 跳过"
       return 1
     fi
     _uuid="$_uuid_def"; [ -z "$_uuid" ] && _uuid=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || uuidgen 2>/dev/null)
@@ -3163,7 +3163,7 @@ menu_cdn() {
         _certmode="reuse"
       else
         # <30天, 提示是否继续用旧的
-        echo "⚠ 证书将于30天内过期: $_cf"
+        echo "⚠️ 证书将于30天内过期: $_cf"
         if _yn "继续复用旧证书?" n; then
           mkdir -p /etc/argosbx/certs
           [ "$_cf" != "/etc/argosbx/certs/cdnym.crt" ] && cp -f "$_cf" /etc/argosbx/certs/cdnym.crt
@@ -3203,7 +3203,7 @@ menu_cdn() {
           _save_cfg certkey "$_certkey"
           echo "  ✅ 证书已复制到 /etc/argosbx/certs/cdnym.crt+key"
         else
-          echo "  ⚠ 文件不存在，稍后将自动申请"
+          echo "  ⚠️ 文件不存在，稍后将自动申请"
           _certmode="2"
         fi
         ;;
@@ -3214,7 +3214,7 @@ menu_cdn() {
         _rd "  CF Global API Key" "$_cfkey_def" || _cfkey=""
         _cfkey="${_rd_val:-}"
         if [ -z "$_cfemail" ] || [ -z "$_cfkey" ]; then
-          echo "  ⚠ 未提供CF凭证，证书不会自动签发"
+          echo "  ⚠️ 未提供CF凭证，证书不会自动签发"
         else
           _save_cfg cfemail "$_cfemail"
           _save_cfg cfkey "$_cfkey"
@@ -3346,7 +3346,7 @@ menu_noncdn() {
     if [ -n "$_directnym" ] && _check_cert "$_cf" "$_directnym"; then
       # 检查是否CF Origin CA(不被公网信任,灰云直连不能用)
       if openssl x509 -in "$_cf" -noout -issuer 2>/dev/null | grep -qi "CloudFlare"; then
-        echo "⚠ directnym证书是CF Origin CA(不被公网信任),需要Let's Encrypt证书"
+        echo "⚠️ directnym证书是CF Origin CA(不被公网信任),需要Let's Encrypt证书"
         break
       fi
       if openssl x509 -in "$_cf" -noout -checkend 2592000 2>/dev/null; then
@@ -3358,7 +3358,7 @@ menu_noncdn() {
         chmod 600 /etc/argosbx/certs/directnym.key 2>/dev/null
         _certmode="reuse"
       else
-        echo "⚠ 证书将于30天内过期: $_cf"
+        echo "⚠️ 证书将于30天内过期: $_cf"
         if _yn "继续复用旧证书?" n; then
           mkdir -p /etc/argosbx/certs
           [ "$_cf" != "/etc/argosbx/certs/directnym.crt" ] && cp -f "$_cf" /etc/argosbx/certs/directnym.crt
@@ -3395,7 +3395,7 @@ menu_noncdn() {
           ln -sf "$_certkey" /etc/argosbx/certs/directnym.key
           echo "  ✅ 证书软链接: /etc/argosbx/certs/directnym.crt → $_certcrt"
         else
-          echo "  ⚠ 文件不存在，稍后将自动申请或跳过"
+          echo "  ⚠️ 文件不存在，稍后将自动申请或跳过"
           _certmode="3"
         fi
         ;;
@@ -3403,7 +3403,7 @@ menu_noncdn() {
         local _cfemail_chk=$(_load_cfg cfemail "")
         local _cfkey_chk=$(_load_cfg cfkey "")
         if [ -z "$_cfemail_chk" ] || [ -z "$_cfkey_chk" ]; then
-          echo "⚠ 未找到CF凭证，请先在菜单1设置，或手动输入:"
+          echo "⚠️ 未找到CF凭证，请先在菜单1设置，或手动输入:"
           _rd "  CF 邮箱" "" || _cfemail_chk=""
           _cfemail_chk="${_rd_val:-}"
           _rd "  CF Global API Key" "" || _cfkey_chk=""
@@ -3499,7 +3499,7 @@ Trojan+TCP+TLS (xray·TLS)"
 menu_argo() {
   clear 2>/dev/null || true
   echo "======================================"
-  echo "  菜单3: Argo隧道设置 (D组10变体)"
+  echo "  菜单3: Argo隧道设置 (D组10个)"
   echo "======================================"
   echo
   echo "  Argo = Cloudflare Tunnel, 流量经CF隧道转发到本地端口"
@@ -3513,7 +3513,7 @@ menu_argo() {
   local _argo_port_def=$(_load_cfg argo_port_start "39007")
   local _argo_domain _argo_token _uuid_argo _argo_port
   if [ "${_agsbx_quick_mode:-}" = "1" ]; then
-    # 增量模式: 沿用历史参数, 跳过 [1/4]-[4/5] 参数输入
+    # 增量模式: 沿用历史参数, 跳过 [1/5]-[5/5] 参数输入
     _argo_domain="$_argo_domain_def"
     _argo_token="$_argo_token_def"
     _argo_port="$_argo_port_def"
@@ -3531,19 +3531,19 @@ menu_argo() {
     echo "   UUID:     $_uuid_argo"
     echo "   端口起始: $_argo_port"
   else
-    # ↓↓↓ [1/4]-[4/5] 完整参数输入流程 ↓↓↓
+    # ↓↓↓ [1/5]-[5/5] 完整参数输入流程 ↓↓↓
 
-  # [1/4] 隧道域名(可选, 仅固定隧道需要)
+  # [1/5] 隧道域名(可选, 仅固定隧道需要)
   local _argo_domain
-  _rd "[1/4] 输入Argo隧道域名(回车使用临时隧道trycloudflare)" "$_argo_domain_def" || _argo_domain=""
+  _rd "[1/5] 输入Argo隧道域名(回车使用临时隧道trycloudflare)" "$_argo_domain_def" || _argo_domain=""
   _argo_domain="${_rd_val:-}"
   [ -n "$_argo_domain" ] && _save_cfg argo_domain "$_argo_domain"
 
-  # [2/4] CF Tunnel Token
+  # [2/5] CF Tunnel Token
   local _argo_token
   if [ -n "$_argo_domain" ]; then
     # 固定隧道必须token
-    _rd "[2/4] 输入CF Tunnel Token(必填)" "$_argo_token_def" || _argo_token=""
+    _rd "[2/5] 输入CF Tunnel Token(必填)" "$_argo_token_def" || _argo_token=""
     _argo_token="${_rd_val:-}"
     if [ -z "$_argo_token" ]; then
       echo "❌ 固定隧道必须提供Token"
@@ -3551,7 +3551,7 @@ menu_argo() {
     fi
     _save_cfg argo_token "$_argo_token"
   else
-    echo "[2/4] 使用临时隧道(trycloudflare.com)，无需Token"
+    echo "[2/5] 使用临时隧道(trycloudflare.com)，无需Token"
   fi
 
   # [3/5] UUID (如果已有uuid则复用, 否则让用户输入, 回车自动生成)
@@ -3586,7 +3586,7 @@ menu_argo() {
   # ↑↑↑ 结束 _agsbx_quick_mode 分支 ↑↑↑
 
 
-  # [4/4] 协议多选
+  # [5/5] 协议多选
   local _argo_items="VLESS+WS (vw)
 VLESS+XHTTP (vx)
 VMess+WS (vm)
@@ -3621,7 +3621,7 @@ Shadowsocks+WS (sw)"
   echo "  Argo协议: $_argopro_list"
   echo "======================================"
 
-  if ! _yn "确认?" y; then
+  if ! _yn "确认开始部署?" y; then
     return 1
   fi
   _save_cfg argo_selected "$_sel"
@@ -3651,13 +3651,13 @@ menu_all() {
   fi
   echo
   echo ">>> 步骤 1/3: CDN协议"
-  menu_cdn || { echo "CDN配置失败，中止"; return 1; }
+  menu_cdn || { echo "⚠️ CDN配置失败，中止"; return 1; }
   echo
   echo ">>> 步骤 2/3: 非CDN协议"
-  menu_noncdn || { echo "⚠ 非CDN配置失败，中止"; return 1; }
+  menu_noncdn || { echo "⚠️ 非CDN配置失败，中止"; return 1; }
   echo
   echo ">>> 步骤 3/3: Argo隧道"
-  menu_argo || { echo "⚠ Argo配置失败，中止"; return 1; }
+  menu_argo || { echo "⚠️ Argo配置失败，中止"; return 1; }
 
   echo
   echo "======================================"
@@ -3781,15 +3781,15 @@ _update_adjust() {
 
   echo
   echo ">>> CDN协议 (A+B组)"
-  menu_cdn || { echo "⚠ CDN已取消, 中止更新"; unset _agsbx_quick_mode; return 1; }
+  menu_cdn || { echo "⚠️ CDN已取消, 中止更新"; unset _agsbx_quick_mode; return 1; }
 
   echo
   echo ">>> 非CDN协议 (C组)"
-  menu_noncdn || { echo "⚠ 非CDN已取消, 中止更新"; unset _agsbx_quick_mode; return 1; }
+  menu_noncdn || { echo "⚠️ 非CDN已取消, 中止更新"; unset _agsbx_quick_mode; return 1; }
 
   echo
   echo ">>> Argo隧道 (D组)"
-  menu_argo || { echo "⚠ Argo已取消, 中止更新"; unset _agsbx_quick_mode; return 1; }
+  menu_argo || { echo "⚠️ Argo已取消, 中止更新"; unset _agsbx_quick_mode; return 1; }
 
   # 清除标志, 避免污染后续直接调用菜单
   unset _agsbx_quick_mode
@@ -3852,12 +3852,12 @@ showmenu_main() {
       [ -x "$HOME/agsbx/cloudflared" ] && _cver=$("$HOME/agsbx/cloudflared" version 2>/dev/null | awk '{print $3}')
       echo "║  xray:${_xver:-N/A} · sing-box:${_sver:-N/A} · cf:${_cver:-N/A}  ║"
     else
-      echo "║  状态: ⚠ 未安装                         ║"
+      echo "║  状态: ⚪ 未安装                         ║"
     fi
     echo "╠══════════════════════════════════════════╣"
     echo "║  1. CDN协议设置 (A+B组11个)             ║"
     echo "║  2. 非CDN协议设置 (C组12个)             ║"
-    echo "║  3. Argo隧道设置 (D组10变体)            ║"
+    echo "║  3. Argo隧道设置 (D组10个)              ║"
     echo "║  4. 全部部署 (1→2→3依次执行)           ║"
     echo "║  5. 更新配置 (智能识别历史)             ║"
     echo "║  6. 更新 xray-core                      ║"
