@@ -213,7 +213,7 @@ _alloc_port() {
 # _gen_basepath — 生成或读取basepath(用户指定 or 随机16位hex，持久化)
 _gen_basepath() {
   mkdir -p "$HOME/agsbx"
-  if [ -z "$basepath" ] && [ ! -e "$HOME/agsbx/basepath" ]; then
+  if [ -z "$basepath" ] && [ -z "$(cat "$HOME/agsbx/basepath" 2>/dev/null)" ]; then
     basepath=$(head -c 32 /dev/urandom | sha256sum | cut -c 1-16)
     echo "$basepath" > "$HOME/agsbx/basepath"
   elif [ -n "$basepath" ]; then
@@ -772,11 +772,10 @@ _sha256_check() {
     echo "⚠️ 无法获取$_name SHA256参考值，完整性无法验证"
     _log "WARN" "$ _name SHA256 ref not available"
     if [ -t 0 ] 2>/dev/null; then
-      read -p "是否继续安装未验证的二进制？[y/N] " _sha_confirm
-      [ "$_sha_confirm" = "y" ] || [ "$_sha_confirm" = "Y" ] || return 1
+      read -p "是否继续安装未验证的二进制？[Y/n] " _sha_confirm
+      case "$_sha_confirm" in [nN]*) return 1 ;; esac
     else
-      echo "❌ 非交互模式，中止安装（请检查网络后重试）"
-      return 1
+      echo "⚠️ 非交互模式，跳过SHA256确认继续安装"
     fi
     return 0
   fi
@@ -805,7 +804,7 @@ upxray(){
     _kernel_rollback xray "$HOME/agsbx/xray" "$tmpdir"; return $?
   fi
   local sha_url="https://github.com/XTLS/Xray-core/releases/download/v${xrcore}/Xray-linux-${xrarch}.zip.dgst"
-  local sha_expected=$(dl_s "$sha_url" 2>/dev/null | awk '/SHA256/ {print $NF; exit}' | tr -d '\r\n')
+  local sha_expected=$(dl_s "$sha_url" 2>/dev/null | awk '/256/ {print $NF; exit}' | tr -d '\r\n')
   if ! _sha256_check xray "$out" "$sha_expected"; then
     _kernel_rollback xray "$HOME/agsbx/xray" "$tmpdir"; return $?
   fi
@@ -871,7 +870,7 @@ upcloudflared(){
 
 # ===== S5: 密钥生成与配置生成 =====
 insuuid(){
-if [ -z "$uuid" ] && [ ! -e "$HOME/agsbx/uuid" ]; then
+if [ -z "$uuid" ] && [ -z "$(cat "$HOME/agsbx/uuid" 2>/dev/null)" ]; then
 if [ -e "$HOME/agsbx/sing-box" ]; then
 uuid=$("$HOME/agsbx/sing-box" generate uuid)
 else
@@ -908,7 +907,7 @@ ym_vl_re=apple.com
 fi
 echo "$ym_vl_re" > "$HOME/agsbx/ym_vl_re"
 echo "Reality域名：$ym_vl_re"
-if [ ! -e "$HOME/agsbx/xrk/private_key" ]; then
+if [ -z "$(cat "$HOME/agsbx/xrk/private_key" 2>/dev/null)" ]; then
 key_pair=$("$HOME/agsbx/xray" x25519)
 private_key=$(echo "$key_pair" | awk -F':' '/PrivateKey/ {print $2}' | xargs)
 public_key=$(echo "$key_pair" | awk -F':' '/Password/ {print $2}' | xargs)
@@ -922,7 +921,7 @@ public_key_x=$(cat "$HOME/agsbx/xrk/public_key" 2>/dev/null)
 short_id_x=$(cat "$HOME/agsbx/xrk/short_id" 2>/dev/null)
 fi
 if [ -n "$xhp" ] || [ -n "$vxp" ] || [ -n "$vwp" ] || [ -n "$vup" ] || [ -n "$vwep" ] || [ -n "$argo_vx" ] || [ -n "$argo_vu" ]; then
-if [ ! -e "$HOME/agsbx/xrk/dekey" ]; then
+if [ -z "$(cat "$HOME/agsbx/xrk/dekey" 2>/dev/null)" ]; then
 vlkey=$("$HOME/agsbx/xray" vlessenc)
 dekey=$(echo "$vlkey" | grep '"decryption":' | sed -n '2p' | cut -d' ' -f2- | tr -d '"')
 enkey=$(echo "$vlkey" | grep '"encryption":' | sed -n '2p' | cut -d' ' -f2- | tr -d '"')
@@ -1006,7 +1005,7 @@ mxp=mxpt
  tpl_xr b-mx-xhttp
 fi
  if [ -n "$swp" ] || [ -n "$argo_sw" ]; then
-  if [ ! -e "$HOME/agsbx/sskey" ]; then
+  if [ -z "$(cat "$HOME/agsbx/sskey" 2>/dev/null)" ]; then
   sskey=$(head -c 32 /dev/urandom | base64 | tr -d '\n')
   echo "$sskey" > "$HOME/agsbx/sskey"
   fi
@@ -1106,7 +1105,7 @@ fi
 echo "$ym_vl_re" > "$HOME/agsbx/ym_vl_re"
 echo "Reality域名：$ym_vl_re"
 mkdir -p "$HOME/agsbx/sbk"
-if [ ! -e "$HOME/agsbx/sbk/private_key" ]; then
+if [ -z "$(cat "$HOME/agsbx/sbk/private_key" 2>/dev/null)" ]; then
 key_pair=$("$HOME/agsbx/sing-box" generate reality-keypair)
 private_key=$(echo "$key_pair" | awk '/PrivateKey/ {print $2}' | tr -d '"')
 public_key=$(echo "$key_pair" | awk '/PublicKey/ {print $2}' | tr -d '"')
@@ -1126,7 +1125,7 @@ arp=arptargo
 fi
 if [ -n "$ssp" ]; then
 ssp=sspt
-if [ ! -e "$HOME/agsbx/sskey" ]; then
+if [ -z "$(cat "$HOME/agsbx/sskey" 2>/dev/null)" ]; then
 sskey=$(head -c 32 /dev/urandom | base64 | tr -d '\n')
 echo "$sskey" > "$HOME/agsbx/sskey"
 fi
@@ -1139,6 +1138,7 @@ ssp=ssptargo
 fi
 if [ -n "$nap" ]; then
   nap=napt
+  [ -z "$nap_user" ] && nap_user=$(cat "$HOME/agsbx/nap_user" 2>/dev/null)
   [ -z "$nap_user" ] && nap_user=$(tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 8)
   echo "$nap_user" > "$HOME/agsbx/nap_user"
   _alloc_port port_na
