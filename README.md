@@ -222,7 +222,7 @@ vwpt="80系端口、指定回源端口" cdnym="CF解析IP的域名" bash <(curl 
 
 3、更新脚本命令：```原已安装的自定义各种协议变量组 主脚本 rep``` 
 
-4、更新Xray或Singbox内核命令：agsbx upx或ups 【或者】 主脚本 upx或ups
+4、更新Xray、Singbox或Cloudflared内核命令：agsbx upx、ups或upc 【或者】 主脚本 upx、ups或upc
 
 5、重启脚本命令：```agsbx res``` 或者 ```主脚本 res```
 
@@ -233,6 +233,8 @@ vwpt="80系端口、指定回源端口" cdnym="CF解析IP的域名" bash <(curl 
 显示IPV4节点配置：```ippz=4 agsbx list```或者```ippz=4 主脚本 list```
 
 显示IPV6节点配置：```ippz=6 agsbx list```或者```ippz=6 主脚本 list```
+
+8、查看三大内核（Xray、Sing-box、Cloudflared-Argo）运行状态命令：```agsbx status``` 或者 ```主脚本 status```
 
 ----------------------------------------------------------
 
