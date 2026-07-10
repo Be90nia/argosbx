@@ -200,7 +200,24 @@ _alloc_port() {
   {
     flock 9
     if [ -z "$_apval" ] && [ ! -e "$_apfile" ]; then
-      eval "$_apvar=\$(shuf -i 39017-40000 -n 1)"
+      local _candidate _tries=0 _conflict _pf
+      while [ "$_tries" -lt 100 ]; do
+        _tries=$((_tries + 1))
+        _candidate=$(shuf -i 39017-40000 -n 1)
+        _conflict=""
+        # 查系统占用: TCP+UDP 监听端口
+        ss -tulnH 2>/dev/null | awk '{print $4}' | sed 's/.*://' | grep -qx "$_candidate" && _conflict=1
+        # 查与其他协议端口重复
+        if [ -z "$_conflict" ]; then
+          for _pf in "$HOME/agsbx"/port_*; do
+            [ "$_pf" = "$_apfile" ] && continue
+            [ -f "$_pf" ] || continue
+            [ "$(cat "$_pf" 2>/dev/null)" = "$_candidate" ] && { _conflict=1; break; }
+          done
+        fi
+        [ -z "$_conflict" ] && break
+      done
+      eval "$_apvar=\$_candidate"
       eval "echo \"\$$_apvar\" > \"$_apfile\""
     elif [ -n "$_apval" ]; then
       eval "echo \"\$$_apvar\" > \"$_apfile\""
@@ -903,7 +920,7 @@ tpl_fw xr header.json > "$HOME/agsbx/xr.json"
 insuuid
 if [ -n "$xhp" ] || [ -n "$vlp" ] || [ -n "$trp" ]; then
 if [ -z "$ym_vl_re" ]; then
-ym_vl_re=apple.com
+ym_vl_re=www.mozilla.org
 fi
 echo "$ym_vl_re" > "$HOME/agsbx/ym_vl_re"
 echo "Reality域名：$ym_vl_re"
@@ -1031,7 +1048,7 @@ vlp=vlptargo
 fi
 if [ -n "$trp" ]; then
   trp=trpt
-  [ -z "$ym_vl_re" ] && ym_vl_re=apple.com
+  [ -z "$ym_vl_re" ] && ym_vl_re=www.mozilla.org
   echo "Reality域名：$ym_vl_re"
   _alloc_port port_tr
   echo "Trojan+Reality端口：$port_tr"
@@ -1100,7 +1117,7 @@ fi
 if [ -n "$arp" ]; then
 arp=arpt
 if [ -z "$ym_vl_re" ]; then
-ym_vl_re=apple.com
+ym_vl_re=www.mozilla.org
 fi
 echo "$ym_vl_re" > "$HOME/agsbx/ym_vl_re"
 echo "Reality域名：$ym_vl_re"
@@ -3299,7 +3316,7 @@ menu_noncdn() {
 
   local _directnym_def=$(_load_cfg directnym "${directnym:-}")
   local _uuid_sb_def=$(_load_cfg uuid_singbox "")
-  local _reality_def=$(_load_cfg reality_dest "www.microsoft.com")
+  local _reality_def=$(_load_cfg reality_dest "www.mozilla.org")
   local _noncdn_sel_def=$(_load_cfg noncdn_selected "")
   local _directnym _uuid_sb _certmode _reality
   if [ "${_agsbx_quick_mode:-}" = "1" ]; then
