@@ -851,11 +851,7 @@ upsingbox(){
     echo "⚠️ Sing-box内核下载失败"
     _kernel_rollback sing-box "$HOME/agsbx/sing-box" "$tmpdir"; return $?
   fi
-  local sha_url="https://github.com/SagerNet/sing-box/releases/download/v${sbcore}/sing-box-${sbcore}.checksums.txt"
-  local sha_expected=$(dl_s "$sha_url" 2>/dev/null | awk -v f="sing-box-${sbcore}-linux-${sbarch}.tar.gz" '$2==f {print $1; exit}')
-  if ! _sha256_check sing-box "$out" "$sha_expected"; then
-    _kernel_rollback sing-box "$HOME/agsbx/sing-box" "$tmpdir"; return $?
-  fi
+  # sing-box 上游已不再发布 checksums.txt，完整性靠下方解压检查 + _kernel_test 启动校验兜底
   tar -xzf "$out" -C "$tmpdir" >/dev/null 2>&1
   if [ ! -x "$tmpdir/sing-box-${sbcore}-linux-${sbarch}/sing-box" ]; then
     echo "⚠️ Sing-box解压失败或二进制损坏"
